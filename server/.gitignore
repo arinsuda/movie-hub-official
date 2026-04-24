@@ -1,0 +1,98 @@
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.*
+!.env.example
+
+# ========================
+# Go
+# ========================
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test & coverage
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Build cache
+/tmp/
+
+# Go workspace
+go.work
+go.work.sum
+
+# ========================
+# OS - macOS
+# ========================
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverrideIcon
+._*
+.Spotlight-V100
+.Trashes
+
+# ========================
+# OS - Windows
+# ========================
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ========================
+# OS - Linux
+# ========================
+*~
+.nfs*
+
+# ========================
+# IDE - VSCode
+# ========================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ========================
+# IDE - JetBrains (GoLand)
+# ========================
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# ========================
+# IDE - Vim / Neovim
+# ========================
+*.swp
+*.swo
+Session.vim
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
+*.pid
+
+# ========================
+# Docker
+# ========================
+.docker/
+
+# ========================
+# Misc
+# ========================
+*.bak
+*.tmp
+*.orig
