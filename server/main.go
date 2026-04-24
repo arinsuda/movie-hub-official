@@ -1,33 +1,23 @@
 package main
 
 import (
-	"context"
 	"log"
 	"os"
 
+	"github.com/arinsuda/movie-hub/internal/database"
+	movie_module "github.com/arinsuda/movie-hub/internal/movie_module"
+	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/gofiber/fiber/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
-var DB *pgxpool.Pool
-
 func main() {
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("../.env"); err != nil {
 		log.Println("No .env file found")
 	}
 
-	var err error
-	DB, err = pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatal("Cannot connect to DB:", err)
-	}
-	defer DB.Close()
-
-	if err := DB.Ping(context.Background()); err != nil {
-		log.Fatal("DB not reachable:", err)
-	}
-	log.Println("Database connected")
+	tmdb.Init()
+	database.Connect()
 
 	app := fiber.New()
 
@@ -35,12 +25,14 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok"})
 	})
 
+	api := app.Group("/")
+	movie_module.RegisterRoutes(api)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
-		log.Println("PORT not set, defaulting to 8080")
 	}
 
-	log.Printf("Server running on port %s", port)
+	log.Printf("🚀 Server running on port %s", port)
 	log.Fatal(app.Listen(":" + port))
 }
