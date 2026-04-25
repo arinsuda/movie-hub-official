@@ -1,60 +1,77 @@
 package database
 
 import (
-	"fmt"
 	"log"
-	"os"
+	"time"
 
+	"github.com/arinsuda/movie-hub/internal/config"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
 
-func Connect() {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		os.Getenv("POSTGRES_HOST"),
-		os.Getenv("POSTGRES_USER"),
-		os.Getenv("POSTGRES_PASSWORD"),
-		os.Getenv("POSTGRES_DB"),
-		os.Getenv("POSTGRES_PORT"),
-	)
-
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+func Connect(cfg *config.Config) {
+	db, err := gorm.Open(postgres.Open(cfg.DB.DSN()), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
+	})
 	if err != nil {
-		log.Fatal("Cannot connect to DB:", err)
+		log.Fatalf("❌ Cannot connect to DB: %v", err)
 	}
+
+	// Connection pool tuning
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("❌ Cannot get sql.DB: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(2 * time.Minute)
 
 	DB = db
 	log.Println("✅ Database connected")
 
-	autoMigrate()
+	if err := autoMigrate(db); err != nil {
+		log.Fatalf("❌ AutoMigrate failed: %v", err)
+	}
+
+	if err := seedRoles(db); err != nil {
+		log.Fatalf("❌ Seed roles failed: %v", err)
+	}
 }
 
-func autoMigrate() {
-	err := DB.AutoMigrate(
+func autoMigrate(db *gorm.DB) error {
+	log.Println("⏳ Running migrations...")
+	err := db.AutoMigrate(
 		&user_module.Role{},
 		&user_module.User{},
 	)
 	if err != nil {
-		log.Fatal("AutoMigrate failed:", err)
+		return err
 	}
 	log.Println("✅ AutoMigrate completed")
-
-	seedRoles()
+	return nil
 }
 
-func seedRoles() {
+func seedRoles(db *gorm.DB) error {
 	roles := []user_module.Role{
 		{RoleName: user_module.RoleAdmin},
 		{RoleName: user_module.RoleUser},
 	}
 
 	for _, role := range roles {
-		DB.FirstOrCreate(&role, user_module.Role{RoleName: role.RoleName})
+		result := db.FirstOrCreate(&role, user_module.Role{RoleName: role.RoleName})
+		if result.Error != nil {
+			return result.Error
+		}
 	}
 
 	log.Println("✅ Roles seeded")
+	return nil
 }

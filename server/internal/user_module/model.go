@@ -1,8 +1,9 @@
 package user_module
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type RoleName string
@@ -47,4 +48,30 @@ type User struct {
 	FollowingCount  int        `gorm:"default:0"`
 	IsPrivate       bool       `gorm:"default:false"`
 	IsActive        bool       `gorm:"default:true"`
+}
+
+type EmailVerification struct {
+	ID        uint      `gorm:"primarykey;autoIncrement"`
+	UserID    uint      `gorm:"not null;index"`
+	Token     string    `gorm:"type:varchar(64);uniqueIndex;not null"`
+	ExpiresAt time.Time `gorm:"not null"`
+	CreatedAt time.Time
+}
+
+func (e *EmailVerification) IsExpired() bool {
+	return time.Now().After(e.ExpiresAt)
+}
+
+type RefreshToken struct {
+	ID          uint      `gorm:"primarykey;autoIncrement"`
+	UserID      uint      `gorm:"not null;index"`
+	HashedToken string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+	ExpiresAt   time.Time `gorm:"not null"`
+	CreatedAt   time.Time
+	UserAgent string `gorm:"type:varchar(255)"`
+	IPAddress string `gorm:"type:varchar(45)"`
+}
+
+func (r *RefreshToken) IsExpired() bool {
+	return time.Now().After(r.ExpiresAt)
 }

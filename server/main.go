@@ -1,38 +1,70 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/arinsuda/movie-hub/internal/config"
 	"github.com/arinsuda/movie-hub/internal/database"
-	movie_module "github.com/arinsuda/movie-hub/internal/movie_module"
+	"github.com/arinsuda/movie-hub/internal/mailer"
+	"github.com/arinsuda/movie-hub/internal/router"
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env (dev only — production ควรใช้ env จาก system โดยตรง)
 	if err := godotenv.Load("../.env"); err != nil {
-		log.Println("No .env file found")
+		log.Println("⚠️  No .env file found, falling back to system env")
 	}
 
-	tmdb.Init()
-	database.Connect()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("❌ Config error: %v", err)
+	}
 
-	app := fiber.New()
+	tmdb.Init(cfg)
+	database.Connect(cfg)
 
-	app.Get("/health", func(c fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+	app := fiber.New(fiber.Config{
+		AppName:      "movie-hub v1.0",
+		ErrorHandler: customErrorHandler,
 	})
 
-	api := app.Group("/")
-	movie_module.RegisterRoutes(api)
+	m := mailer.New(cfg.SMTP)
+	router.Register(app, database.DB, cfg, m)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("🛑 Shutting down server...")
+		if err := app.Shutdown(); err != nil {
+			log.Printf("❌ Shutdown error: %v", err)
+		}
+	}()
+
+	log.Printf("🚀 Server running on port %s", cfg.Port)
+	if err := app.Listen(":" + cfg.Port); err != nil {
+		log.Fatalf("❌ Server error: %v", err)
 	}
 
-	log.Printf("🚀 Server running on port %s", port)
-	log.Fatal(app.Listen(":" + port))
+	log.Println("👋 Server exited cleanly")
+}
+
+func customErrorHandler(c fiber.Ctx, err error) error {
+	code := fiber.StatusInternalServerError
+	var e *fiber.Error
+	if errors.As(err, &e) {
+		code = e.Code
+	}
+	return c.Status(code).JSON(fiber.Map{
+		"error": err.Error(),
+	})
 }

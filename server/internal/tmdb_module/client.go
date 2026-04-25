@@ -6,18 +6,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
+
+	"github.com/arinsuda/movie-hub/internal/config"
 )
 
-const defaultLanguage = "th-TH"
-
-func ImageURL(path string) string {
-	if path == "" {
-		return ""
-	}
-	return "https://image.tmdb.org/t/p/w500" + path
-}
+const (
+	defaultLanguage  = "th-TH"
+	fallbackLanguage = "en-US"
+	imageBaseURL     = "https://image.tmdb.org/t/p/w500"
+)
 
 type client struct {
 	http     *http.Client
@@ -28,13 +26,22 @@ type client struct {
 
 var c *client
 
-func Init() {
+func Init(cfg *config.Config) {
 	c = &client{
-		http:     &http.Client{Timeout: 10 * time.Second},
-		baseURL:  os.Getenv("THE_MOVIE_BASE_API"),
-		apiKey:   os.Getenv("THE_MOVIE_API_KEY"),
+		http: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+		baseURL:  cfg.TMDB.BaseURL,
+		apiKey:   cfg.TMDB.APIKey,
 		language: defaultLanguage,
 	}
+}
+
+func ImageURL(path string) string {
+	if path == "" {
+		return ""
+	}
+	return imageBaseURL + path
 }
 
 func get(path string, params url.Values, target any) error {
@@ -45,20 +52,25 @@ func get(path string, params url.Values, target any) error {
 	if params.Get("language") == "" {
 		params.Set("language", c.language)
 	}
+
 	fullURL := fmt.Sprintf("%s%s?%s", c.baseURL, path, params.Encode())
 
 	resp, err := c.http.Get(fullURL)
 	if err != nil {
-		return fmt.Errorf("tmdb: request failed: %w", err)
+		return fmt.Errorf("tmdb: GET %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("tmdb: status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("tmdb: GET %s: status %d: %s", path, resp.StatusCode, string(body))
 	}
 
-	return json.NewDecoder(resp.Body).Decode(target)
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		return fmt.Errorf("tmdb: GET %s: decode failed: %w", path, err)
+	}
+
+	return nil
 }
 
 func getWithFallback(path string, params url.Values, target any, isEmpty func() bool) error {
@@ -70,7 +82,7 @@ func getWithFallback(path string, params url.Values, target any, isEmpty func() 
 		if params == nil {
 			params = url.Values{}
 		}
-		params.Set("language", "en-US")
+		params.Set("language", fallbackLanguage)
 		return get(path, params, target)
 	}
 

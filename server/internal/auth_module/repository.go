@@ -1,0 +1,107 @@
+package auth_module
+
+import (
+	"errors"
+	"time"
+
+	"github.com/arinsuda/movie-hub/internal/user_module"
+	"gorm.io/gorm"
+)
+
+type repository struct {
+	db *gorm.DB
+}
+
+func newRepository(db *gorm.DB) *repository {
+	return &repository{db: db}
+}
+
+// ── User ─────────────────────────────────────────────────────────
+
+func (r *repository) CreateUser(user *user_module.User) error {
+	return r.db.Create(user).Error
+}
+
+func (r *repository) FindByUsername(username string) (*user_module.User, error) {
+	return r.findUser("username = ?", username)
+}
+
+func (r *repository) FindByEmail(email string) (*user_module.User, error) {
+	return r.findUser("email = ?", email)
+}
+
+func (r *repository) FindByID(id uint) (*user_module.User, error) {
+	return r.findUser("id = ?", id)
+}
+
+func (r *repository) findUser(query string, args ...any) (*user_module.User, error) {
+	var user user_module.User
+	err := r.db.Preload("Role").Where(query, args...).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	return &user, err
+}
+
+func (r *repository) MarkEmailVerified(userID uint) error {
+	now := time.Now()
+	return r.db.Model(&user_module.User{}).
+		Where("id = ?", userID).
+		Update("verified_email_at", &now).Error
+}
+
+// ── EmailVerification ────────────────────────────────────────────
+
+func (r *repository) CreateEmailVerification(ev *user_module.EmailVerification) error {
+	// ลบ token เก่าของ user ก่อน (resend)
+	r.db.Where("user_id = ?", ev.UserID).Delete(&user_module.EmailVerification{})
+	return r.db.Create(ev).Error
+}
+
+func (r *repository) FindEmailVerification(hashedToken string) (*user_module.EmailVerification, error) {
+	var ev user_module.EmailVerification
+	err := r.db.Where("token = ?", hashedToken).First(&ev).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrInvalidToken
+	}
+	return &ev, err
+}
+
+func (r *repository) DeleteEmailVerification(id uint) error {
+	return r.db.Delete(&user_module.EmailVerification{}, id).Error
+}
+
+// ── RefreshToken ─────────────────────────────────────────────────
+
+func (r *repository) CreateRefreshToken(rt *user_module.RefreshToken) error {
+	return r.db.Create(rt).Error
+}
+
+func (r *repository) FindRefreshToken(hashedToken string) (*user_module.RefreshToken, error) {
+	var rt user_module.RefreshToken
+	err := r.db.Where("hashed_token = ?", hashedToken).First(&rt).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrInvalidToken
+	}
+	return &rt, err
+}
+
+func (r *repository) DeleteRefreshToken(hashedToken string) error {
+	return r.db.Where("hashed_token = ?", hashedToken).Delete(&user_module.RefreshToken{}).Error
+}
+
+func (r *repository) DeleteAllRefreshTokens(userID uint) error {
+	return r.db.Where("user_id = ?", userID).Delete(&user_module.RefreshToken{}).Error
+}
+
+// ── Sentinel errors ───────────────────────────────────────────────
+
+var (
+	ErrUserNotFound    = errors.New("user not found")
+	ErrInvalidToken    = errors.New("invalid or expired token")
+	ErrEmailTaken      = errors.New("email already in use")
+	ErrUsernameTaken   = errors.New("username already in use")
+	ErrWrongPassword   = errors.New("incorrect password")
+	ErrEmailUnverified = errors.New("email not verified")
+	ErrAlreadyVerified = errors.New("email already verified")
+)
