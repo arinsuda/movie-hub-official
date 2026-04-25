@@ -5,7 +5,7 @@ import (
 	"net/smtp"
 	"strings"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 )
 
 type Mailer struct {

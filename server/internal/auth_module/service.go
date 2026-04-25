@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/mailer"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"golang.org/x/crypto/bcrypt"
@@ -200,4 +200,8 @@ func (s *Service) sendVerificationEmail(user *user_module.User) error {
 		s.cfg.AppBaseURL, rawToken)
 
 	return s.mailer.SendVerificationEmail(user.Email, user.Username, verifyURL)
+}
+
+func (s *Service) GetUserByID(id uint) (*user_module.User, error) {
+	return s.repo.FindByID(id)
 }

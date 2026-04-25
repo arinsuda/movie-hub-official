@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/gofiber/fiber/v3"
 )
@@ -111,14 +111,6 @@ func (h *Handler) ResendVerification(c fiber.Ctx) error {
 	}
 
 	return c.JSON(MessageResponse{Message: "if the email exists, a verification link has been sent"})
-}
-
-func (h *Handler) Me(c fiber.Ctx) error {
-	claims := GetClaims(c)
-	return c.JSON(fiber.Map{
-		"user_id": claims.UserID,
-		"role":    claims.Role,
-	})
 }
 
 func (h *Handler) setTokenCookies(c fiber.Ctx, pair *TokenPair) {

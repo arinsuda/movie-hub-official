@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 )
 
 const (

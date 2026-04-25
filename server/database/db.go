@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -51,6 +51,8 @@ func autoMigrate(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&user_module.Role{},
 		&user_module.User{},
+		&user_module.EmailVerification{},
+		&user_module.RefreshToken{},
 	)
 	if err != nil {
 		return err

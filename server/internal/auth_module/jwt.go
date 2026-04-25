@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/golang-jwt/jwt/v5"
 )
 

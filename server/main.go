@@ -7,11 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/arinsuda/movie-hub/internal/config"
-	"github.com/arinsuda/movie-hub/internal/database"
+	"github.com/arinsuda/movie-hub/config"
+	"github.com/arinsuda/movie-hub/database"
 	"github.com/arinsuda/movie-hub/internal/mailer"
-	"github.com/arinsuda/movie-hub/internal/router"
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
+	"github.com/arinsuda/movie-hub/router"
 	"github.com/gofiber/fiber/v3"
 	"github.com/joho/godotenv"
 )

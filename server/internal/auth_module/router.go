@@ -1,7 +1,7 @@
 package auth_module
 
 import (
-	"github.com/arinsuda/movie-hub/internal/config"
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/mailer"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
@@ -14,6 +14,7 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mai
 
 	auth := router.Group("/auth")
 
+	// ── Public ────────────────────────────────────────────────────
 	auth.Post("/register", h.Register)
 	auth.Post("/login", h.Login)
 	auth.Post("/refresh", h.Refresh)
@@ -21,6 +22,7 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mai
 	auth.Get("/verify-email", h.VerifyEmail)
 	auth.Post("/resend-verification", h.ResendVerification)
 
+	// ── Protected ─────────────────────────────────────────────────
 	auth.Post("/logout-all", mw.RequireAuth, h.LogoutAll)
-	auth.Get("/me", mw.RequireAuth, h.Me)
+	// /me ย้ายไปอยู่ที่ GET /api/users/:userId แล้ว
 }
