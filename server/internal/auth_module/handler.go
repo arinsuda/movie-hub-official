@@ -161,10 +161,11 @@ func (h *Handler) clearTokenCookies(c fiber.Ctx) {
 
 func (h *Handler) handleServiceError(c fiber.Ctx, err error) error {
 	switch {
+	case errors.Is(err, ErrPasswordMismatch):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, ErrEmailTaken), errors.Is(err, ErrUsernameTaken):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
 	case errors.Is(err, ErrUserNotFound), errors.Is(err, ErrWrongPassword):
-
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid credentials"})
 	case errors.Is(err, ErrEmailUnverified):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "please verify your email first"})

@@ -16,8 +16,6 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// ── User ─────────────────────────────────────────────────────────
-
 func (r *repository) CreateUser(user *user_module.User) error {
 	return r.db.Create(user).Error
 }
@@ -50,10 +48,7 @@ func (r *repository) MarkEmailVerified(userID uint) error {
 		Update("verified_email_at", &now).Error
 }
 
-// ── EmailVerification ────────────────────────────────────────────
-
 func (r *repository) CreateEmailVerification(ev *user_module.EmailVerification) error {
-	// ลบ token เก่าของ user ก่อน (resend)
 	r.db.Where("user_id = ?", ev.UserID).Delete(&user_module.EmailVerification{})
 	return r.db.Create(ev).Error
 }
@@ -70,8 +65,6 @@ func (r *repository) FindEmailVerification(hashedToken string) (*user_module.Ema
 func (r *repository) DeleteEmailVerification(id uint) error {
 	return r.db.Delete(&user_module.EmailVerification{}, id).Error
 }
-
-// ── RefreshToken ─────────────────────────────────────────────────
 
 func (r *repository) CreateRefreshToken(rt *user_module.RefreshToken) error {
 	return r.db.Create(rt).Error
@@ -94,14 +87,13 @@ func (r *repository) DeleteAllRefreshTokens(userID uint) error {
 	return r.db.Where("user_id = ?", userID).Delete(&user_module.RefreshToken{}).Error
 }
 
-// ── Sentinel errors ───────────────────────────────────────────────
-
 var (
-	ErrUserNotFound    = errors.New("user not found")
-	ErrInvalidToken    = errors.New("invalid or expired token")
-	ErrEmailTaken      = errors.New("email already in use")
-	ErrUsernameTaken   = errors.New("username already in use")
-	ErrWrongPassword   = errors.New("incorrect password")
-	ErrEmailUnverified = errors.New("email not verified")
-	ErrAlreadyVerified = errors.New("email already verified")
+	ErrUserNotFound     = errors.New("user not found")
+	ErrInvalidToken     = errors.New("invalid or expired token")
+	ErrEmailTaken       = errors.New("email already in use")
+	ErrUsernameTaken    = errors.New("username already in use")
+	ErrWrongPassword    = errors.New("incorrect password")
+	ErrEmailUnverified  = errors.New("email not verified")
+	ErrAlreadyVerified  = errors.New("email already verified")
+	ErrPasswordMismatch = errors.New("passwords do not match") 
 )

@@ -1,20 +1,16 @@
 package auth_module
 
-// ── Request DTOs ────────────────────────────────────────────────
-
 type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=50,alphanum"`
-	Email    string `json:"email"    validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+	Username        string `json:"username" validate:"required,min=3,max=50,alphanum"`
+	Email           string `json:"email"    validate:"required,email"`
+	Password        string `json:"password" validate:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=8,eqfield=Password"`
 }
 
 type LoginRequest struct {
-	// รับ username หรือ email ก็ได้
 	Identifier string `json:"identifier" validate:"required"`
 	Password   string `json:"password"   validate:"required"`
 }
-
-// ── Response DTOs ───────────────────────────────────────────────
 
 type UserResponse struct {
 	ID          uint    `json:"id"`
@@ -28,7 +24,6 @@ type UserResponse struct {
 
 type AuthResponse struct {
 	User UserResponse `json:"user"`
-	// tokens อยู่ใน cookie เท่านั้น ไม่ส่งใน body
 }
 
 type MessageResponse struct {

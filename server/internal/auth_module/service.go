@@ -27,10 +27,11 @@ func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer) *Service {
 	}
 }
 
-// ── Register ──────────────────────────────────────────────────────
-
 func (s *Service) Register(req RegisterRequest) (*user_module.User, error) {
-	// ตรวจ duplicate
+	if req.Password != req.ConfirmPassword {
+		return nil, ErrPasswordMismatch
+	}
+
 	if _, err := s.repo.FindByEmail(req.Email); err == nil {
 		return nil, ErrEmailTaken
 	}
@@ -47,14 +48,13 @@ func (s *Service) Register(req RegisterRequest) (*user_module.User, error) {
 		Username: req.Username,
 		Email:    req.Email,
 		Password: string(hashed),
-		RoleID:   2, // user role
+		RoleID:   2,
 	}
 
 	if err := s.repo.CreateUser(user); err != nil {
 		return nil, fmt.Errorf("register: create user: %w", err)
 	}
 
-	// ส่ง verification email (async ไม่บล็อก response)
 	go func() {
 		_ = s.sendVerificationEmail(user)
 	}()
@@ -62,10 +62,7 @@ func (s *Service) Register(req RegisterRequest) (*user_module.User, error) {
 	return user, nil
 }
 
-// ── Login ─────────────────────────────────────────────────────────
-
 func (s *Service) Login(req LoginRequest, userAgent, ip string) (*TokenPair, *user_module.User, error) {
-	// หา user จาก email หรือ username
 	user, err := s.repo.FindByEmail(req.Identifier)
 	if err != nil {
 		user, err = s.repo.FindByUsername(req.Identifier)
@@ -94,8 +91,6 @@ func (s *Service) Login(req LoginRequest, userAgent, ip string) (*TokenPair, *us
 	return pair, user, nil
 }
 
-// ── Refresh ───────────────────────────────────────────────────────
-
 func (s *Service) Refresh(rawRefreshToken, userAgent, ip string) (*TokenPair, *user_module.User, error) {
 	claims, err := s.jwt.ParseRefresh(rawRefreshToken)
 	if err != nil {
@@ -109,7 +104,6 @@ func (s *Service) Refresh(rawRefreshToken, userAgent, ip string) (*TokenPair, *u
 		return nil, nil, ErrInvalidToken
 	}
 
-	// Rotate: ลบ token เก่า
 	if err := s.repo.DeleteRefreshToken(hashed); err != nil {
 		return nil, nil, fmt.Errorf("refresh: delete old token: %w", err)
 	}
@@ -127,8 +121,6 @@ func (s *Service) Refresh(rawRefreshToken, userAgent, ip string) (*TokenPair, *u
 	return pair, user, nil
 }
 
-// ── Logout ────────────────────────────────────────────────────────
-
 func (s *Service) Logout(rawRefreshToken string) error {
 	hashed := HashToken(rawRefreshToken)
 	return s.repo.DeleteRefreshToken(hashed)
@@ -137,8 +129,6 @@ func (s *Service) Logout(rawRefreshToken string) error {
 func (s *Service) LogoutAll(userID uint) error {
 	return s.repo.DeleteAllRefreshTokens(userID)
 }
-
-// ── Email Verification ────────────────────────────────────────────
 
 func (s *Service) VerifyEmail(rawToken string) error {
 	hashed := HashToken(rawToken)
@@ -162,7 +152,6 @@ func (s *Service) VerifyEmail(rawToken string) error {
 func (s *Service) ResendVerification(email string) error {
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {
-		// ไม่บอกว่า email ไม่มีในระบบ (security)
 		return nil
 	}
 	if user.VerifiedEmailAt != nil {
@@ -171,8 +160,6 @@ func (s *Service) ResendVerification(email string) error {
 
 	return s.sendVerificationEmail(user)
 }
-
-// ── internal helpers ──────────────────────────────────────────────
 
 func (s *Service) issueAndStoreTokens(user *user_module.User, userAgent, ip string) (*TokenPair, error) {
 	pair, err := s.jwt.Issue(user.ID, string(user.Role.RoleName))

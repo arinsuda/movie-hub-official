@@ -13,7 +13,6 @@ func NewMiddleware(cfg *config.Config) *Middleware {
 	return &Middleware{jwt: newJWTManager(cfg.JWT)}
 }
 
-// RequireAuth บังคับ login — ใส่ claims ใน locals
 func (m *Middleware) RequireAuth(c fiber.Ctx) error {
 	claims, err := m.extractClaims(c)
 	if err != nil {
@@ -23,7 +22,6 @@ func (m *Middleware) RequireAuth(c fiber.Ctx) error {
 	return c.Next()
 }
 
-// RequireRole บังคับ role เฉพาะ
 func (m *Middleware) RequireRole(role string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		claims, ok := c.Locals("claims").(*Claims)
@@ -42,7 +40,6 @@ func (m *Middleware) extractClaims(c fiber.Ctx) (*Claims, error) {
 	return m.jwt.ParseAccess(token)
 }
 
-// GetClaims ดึง claims จาก context (helper สำหรับ handler)
 func GetClaims(c fiber.Ctx) *Claims {
 	claims, _ := c.Locals("claims").(*Claims)
 	return claims
