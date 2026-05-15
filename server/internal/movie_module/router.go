@@ -6,7 +6,6 @@ func RegisterRoutes(router fiber.Router) {
 	h := NewHandler()
 
 	movies := router.Group("/movies")
-
 	movies.Get("/popular", h.GetPopular)
 	movies.Get("/now-playing", h.GetNowPlaying)
 	movies.Get("/top-rated", h.GetTopRated)
@@ -15,4 +14,13 @@ func RegisterRoutes(router fiber.Router) {
 	movies.Get("/genres", h.GetGenres)
 	movies.Get("/:id", h.GetByID)
 	movies.Get("/:id/similar", h.GetSimilar)
+
+	series := router.Group("/tv")
+	series.Get("/popular", h.GetPopularSeries)
+	series.Get("/now-airing", h.GetNowAiringSeries)
+	series.Get("/top-rated", h.GetTopRatedSeries)
+	series.Get("/search", h.SearchSeries)
+	series.Get("/genres", h.GetSeriesGenres)
+	series.Get("/:id", h.GetSeriesByID)
+	series.Get("/:id/similar", h.GetSimilarSeries)
 }

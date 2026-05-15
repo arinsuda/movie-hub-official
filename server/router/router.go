@@ -1,10 +1,12 @@
 package router
 
 import (
-	"github.com/arinsuda/movie-hub/internal/auth_module"
 	"github.com/arinsuda/movie-hub/config"
+	"github.com/arinsuda/movie-hub/internal/auth_module"
+	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/mailer"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
@@ -24,7 +26,10 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	protected := api.Group("/", mw.RequireAuth)
 
 	movie_module.RegisterRoutes(protected)
+	library_module.RegisterRoutes(protected, db)
 	user_module.RegisterRoutes(protected, db)
+	review_module.RegisterRoutes(protected, db)
+
 }
 
 func welcomeHandler(c fiber.Ctx) error {

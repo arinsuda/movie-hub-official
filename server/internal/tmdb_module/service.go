@@ -107,3 +107,92 @@ func GetGenres() ([]Genre, error) {
 	}
 	return result.Genres, nil
 }
+
+func GetPopularSeries(page int) (*PaginatedResult[TVSeries], error) {
+	var result PaginatedResult[TVSeries]
+	if err := get("/tv/popular", pageParams(page), &result); err != nil {
+		return nil, fmt.Errorf("GetPopularSeries: %w", err)
+	}
+	return &result, nil
+}
+
+func GetSeriesByID(tmdbID int) (*TVSeriesDetail, error) {
+	var series TVSeriesDetail
+	path := fmt.Sprintf("/tv/%d", tmdbID)
+
+	err := getWithFallback(path, nil, &series, func() bool {
+		return series.Overview == ""
+	})
+	if err != nil {
+		return nil, fmt.Errorf("GetSeriesByID(%d): %w", tmdbID, err)
+	}
+	return &series, nil
+}
+
+func GetSeriesCredits(tmdbID int) (*Credits, error) {
+	var credits Credits
+	if err := get(fmt.Sprintf("/tv/%d/credits", tmdbID), nil, &credits); err != nil {
+		return nil, fmt.Errorf("GetSeriesCredits(%d): %w", tmdbID, err)
+	}
+	return &credits, nil
+}
+
+func GetSeriesVideos(tmdbID int) ([]Video, error) {
+	var result VideoResult
+	path := fmt.Sprintf("/tv/%d/videos", tmdbID)
+
+	err := getWithFallback(path, nil, &result, func() bool {
+		return len(result.Results) == 0
+	})
+	if err != nil {
+		return nil, fmt.Errorf("GetSeriesVideos(%d): %w", tmdbID, err)
+	}
+	return result.Results, nil
+}
+
+func GetSimilarSeries(tmdbID, page int) (*PaginatedResult[TVSeries], error) {
+	var result PaginatedResult[TVSeries]
+	path := fmt.Sprintf("/tv/%d/similar", tmdbID)
+
+	if err := get(path, pageParams(page), &result); err != nil {
+		return nil, fmt.Errorf("GetSimilarSeries(%d): %w", tmdbID, err)
+	}
+	return &result, nil
+}
+
+func GetNowAiringSeries(page int) (*PaginatedResult[TVSeries], error) {
+	var result PaginatedResult[TVSeries]
+	if err := get("/tv/on_the_air", pageParams(page), &result); err != nil {
+		return nil, fmt.Errorf("GetNowAiringSeries: %w", err)
+	}
+	return &result, nil
+}
+
+func GetTopRatedSeries(page int) (*PaginatedResult[TVSeries], error) {
+	var result PaginatedResult[TVSeries]
+	if err := get("/tv/top_rated", pageParams(page), &result); err != nil {
+		return nil, fmt.Errorf("GetTopRatedSeries: %w", err)
+	}
+	return &result, nil
+}
+
+func SearchSeries(query string, page int) (*PaginatedResult[TVSeries], error) {
+	params := pageParams(page)
+	params.Set("query", query)
+
+	var result PaginatedResult[TVSeries]
+	if err := get("/search/tv", params, &result); err != nil {
+		return nil, fmt.Errorf("SearchSeries(%q): %w", query, err)
+	}
+	return &result, nil
+}
+
+func GetSeriesGenres() ([]Genre, error) {
+	var result struct {
+		Genres []Genre `json:"genres"`
+	}
+	if err := get("/genre/tv/list", nil, &result); err != nil {
+		return nil, fmt.Errorf("GetSeriesGenres: %w", err)
+	}
+	return result.Genres, nil
+}

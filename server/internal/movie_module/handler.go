@@ -111,3 +111,85 @@ func (h *Handler) GetSimilar(c fiber.Ctx) error {
 	}
 	return c.JSON(result)
 }
+
+func (h *Handler) GetPopularSeries(c fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	result, err := tmdb.GetPopularSeries(page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลซีรีส์ไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetNowAiringSeries(c fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	result, err := tmdb.GetNowAiringSeries(page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลซีรีส์ไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetTopRatedSeries(c fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	result, err := tmdb.GetTopRatedSeries(page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลซีรีส์ไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) SearchSeries(c fiber.Ctx) error {
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "กรุณาระบุคำค้นหา"})
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	result, err := tmdb.SearchSeries(query, page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ค้นหาไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetSeriesGenres(c fiber.Ctx) error {
+	genres, err := tmdb.GetSeriesGenres()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูล genre ไม่สำเร็จ"})
+	}
+	return c.JSON(fiber.Map{"genres": genres})
+}
+
+func (h *Handler) GetSeriesByID(c fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	series, err := tmdb.GetSeriesByID(id)
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"error": "ไม่พบซีรีส์"})
+	}
+
+	credits, _ := tmdb.GetSeriesCredits(id)
+	videos, _ := tmdb.GetSeriesVideos(id)
+
+	return c.JSON(fiber.Map{
+		"series":  series,
+		"credits": credits,
+		"videos":  videos,
+	})
+}
+
+func (h *Handler) GetSimilarSeries(c fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	result, err := tmdb.GetSimilarSeries(id, page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}

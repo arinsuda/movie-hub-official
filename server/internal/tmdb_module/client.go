@@ -45,6 +45,9 @@ func ImageURL(path string) string {
 }
 
 func get(path string, params url.Values, target any) error {
+	if c == nil {
+		return fmt.Errorf("tmdb: client not initialized, call Init() first")
+	}
 	if params == nil {
 		params = url.Values{}
 	}
