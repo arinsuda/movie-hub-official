@@ -1,63 +1,83 @@
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { authApi } from '@/api/api'
-import type { AuthUser, LoginRequest, RegisterRequest } from '@/types'
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
 
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref<AuthUser | null>(null)
-  const isLoading = ref(false)
+import { authApi } from "@/api/api";
 
-  const isLoggedIn = computed(() => !!user.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
+import type { AuthUser, LoginRequest, RegisterRequest } from "@/types";
+
+export const useAuthStore = defineStore("auth", () => {
+  const user = ref<AuthUser | null>(null);
+
+  const isLoading = ref(false);
+
+  const isInitialized = ref(false);
+
+  const isLoggedIn = computed(() => !!user.value);
+
+  const isAdmin = computed(() => user.value?.role === "admin");
 
   function setUser(u: AuthUser) {
-    user.value = u
+    user.value = u;
   }
 
   function clearUser() {
-    user.value = null
+    user.value = null;
   }
 
   async function login(data: LoginRequest) {
-    isLoading.value = true
+    isLoading.value = true;
+
     try {
-      const res = await authApi.login(data)
-      setUser(res.data.user)
-      return res.data.user
+      const res = await authApi.login(data);
+
+      setUser(res.data.user);
+
+      return res.data.user;
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
   async function register(data: RegisterRequest) {
-    isLoading.value = true
+    isLoading.value = true;
+
     try {
-      const res = await authApi.register(data)
-      setUser(res.data.user)
-      return res.data.user
+      const res = await authApi.register(data);
+
+      setUser(res.data.user);
+
+      return res.data.user;
     } finally {
-      isLoading.value = false
+      isLoading.value = false;
     }
   }
 
   async function logout() {
-    await authApi.logout()
-    clearUser()
+    try {
+      await authApi.logout();
+    } finally {
+      clearUser();
+    }
   }
 
   async function fetchMe() {
-    // เรียก refresh เพื่อเช็คว่า cookie ยังใช้ได้ไหม
     try {
-      const res = await authApi.refresh()
-      setUser(res.data.user)
+      // ใช้ me endpoint
+      // interceptor จะ refresh ให้อัตโนมัติถ้า access token หมด
+      const res = await authApi.me();
+
+      setUser(res.data.user);
     } catch {
-      clearUser()
+      clearUser();
+    } finally {
+      isInitialized.value = true;
     }
   }
 
   return {
     user,
     isLoading,
+    isInitialized,
     isLoggedIn,
     isAdmin,
     setUser,
@@ -66,5 +86,5 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     fetchMe,
-  }
-})
+  };
+});

@@ -1,22 +1,24 @@
-import api from '../index'
-import type { AuthResponse, LoginRequest, RegisterRequest } from '@/types'
+import api from "../index";
+
+import type { AuthResponse, LoginRequest, RegisterRequest } from "@/types";
 
 export const authApi = {
-  login: (data: LoginRequest) =>
-    api.post<AuthResponse>('/auth/login', data),
+  login: (data: LoginRequest) => api.post<AuthResponse>("/auth/login", data),
 
   register: (data: RegisterRequest) =>
-    api.post<AuthResponse>('/auth/register', data),
+    api.post<AuthResponse>("/auth/register", data),
 
-  logout: () =>
-    api.post('/auth/logout'),
+  logout: () => api.post("/auth/logout"),
 
-  refresh: () =>
-    api.post<AuthResponse>('/auth/refresh'),
+  refresh: () => api.post<AuthResponse>("/auth/refresh"),
 
-  verifyEmail: (token: string) =>
-    api.get(`/auth/verify-email?token=${token}`),
+  // เพิ่มตรงนี้
+  me: () => api.get<AuthResponse>("/auth/me"),
+
+  verifyEmail: (token: string) => api.get(`/auth/verify-email?token=${token}`),
 
   resendVerification: (email: string) =>
-    api.post('/auth/resend-verification', { email }),
-}
+    api.post("/auth/resend-verification", {
+      email,
+    }),
+};

@@ -135,7 +135,7 @@ func (h *Handler) setTokenCookies(c fiber.Ctx, pair *TokenPair) {
 		SameSite: sameSite,
 		Domain:   h.cfg.Cookie.Domain,
 		MaxAge:   int(h.cfg.JWT.RefreshTTL.Seconds()),
-		Path:     "/auth/refresh",
+		Path:     "/", 
 	})
 }
 

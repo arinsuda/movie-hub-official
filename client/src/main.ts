@@ -1,23 +1,40 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import { VueQueryPlugin } from '@tanstack/vue-query'
-import App from './App.vue'
-import router from './router'
-import './assets/styles/main.css'
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import { VueQueryPlugin } from "@tanstack/vue-query";
 
-const app = createApp(App)
+import App from "./App.vue";
+import router from "./router";
 
-app.use(createPinia())
-app.use(router)
-app.use(VueQueryPlugin, {
-  queryClientConfig: {
-    defaultOptions: {
-      queries: {
-        staleTime: 1000 * 60 * 5, // 5 minutes
-        retry: 1,
+import { useAuthStore } from "@/stores/auth";
+
+import "./assets/styles/main.css";
+
+async function bootstrap() {
+  const app = createApp(App);
+
+  const pinia = createPinia();
+
+  app.use(pinia);
+
+  // restore session
+  const authStore = useAuthStore();
+
+  await authStore.fetchMe();
+
+  app.use(router);
+
+  app.use(VueQueryPlugin, {
+    queryClientConfig: {
+      defaultOptions: {
+        queries: {
+          staleTime: 1000 * 60 * 5,
+          retry: 1,
+        },
       },
     },
-  },
-})
+  });
 
-app.mount('#app')
+  app.mount("#app");
+}
+
+bootstrap();
