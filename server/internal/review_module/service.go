@@ -1,6 +1,7 @@
 package review_module
 
 import (
+	"math"
 	"time"
 
 	"gorm.io/gorm"
@@ -14,7 +15,8 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{repo: newRepository(db)}
 }
 
-// Review
+// ── Review ────────────────────────────────────────────────────────
+
 func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
 	if req.Rating < 0 || req.Rating > 10 {
 		return nil, ErrInvalidRating
@@ -25,6 +27,7 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if req.MediaID <= 0 {
 		return nil, ErrInvalidMediaID
 	}
+
 	review := &Review{
 		UserID:    userID,
 		MediaID:   req.MediaID,
@@ -33,7 +36,6 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		Body:      req.Body,
 		IsPublic:  req.IsPublic,
 	}
-
 	if req.WatchedAt != nil {
 		t, err := time.Parse("2006-01-02", *req.WatchedAt)
 		if err != nil {
@@ -45,7 +47,6 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if err := s.repo.CreateReview(review); err != nil {
 		return nil, err
 	}
-
 	return toReviewResponse(review, false), nil
 }
 
@@ -55,7 +56,6 @@ func (s *Service) GetUserReviews(userID uint, requesterID uint) ([]ReviewRespons
 		return nil, err
 	}
 
-	responses := make([]ReviewResponse, 0, len(reviews))
 	ids := make([]uint, 0, len(reviews))
 	for _, r := range reviews {
 		if userID != requesterID && !r.IsPublic {
@@ -64,6 +64,8 @@ func (s *Service) GetUserReviews(userID uint, requesterID uint) ([]ReviewRespons
 		ids = append(ids, r.ID)
 	}
 	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
+
+	responses := make([]ReviewResponse, 0, len(reviews))
 	for _, r := range reviews {
 		if userID != requesterID && !r.IsPublic {
 			continue
@@ -79,12 +81,13 @@ func (s *Service) GetMediaReviews(mediaID int, mediaType string, requesterID uin
 		return nil, err
 	}
 
-	responses := make([]ReviewResponse, len(reviews))
 	ids := make([]uint, len(reviews))
 	for i, r := range reviews {
 		ids[i] = r.ID
 	}
 	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
+
+	responses := make([]ReviewResponse, len(reviews))
 	for i, r := range reviews {
 		responses[i] = *toReviewResponse(&r, likedMap[r.ID])
 	}
@@ -146,9 +149,44 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 	return s.repo.DeleteReview(reviewID)
 }
 
-// Like
+// ── In-app Rating Aggregate ───────────────────────────────────────
+
+// GetMediaRating คืน aggregate in-app rating ของ media
+// คำนวณจาก public reviews เท่านั้น (ไม่เกี่ยวกับ TMDB)
+// Average ปัดเป็น 1 ทศนิยม
+func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse, error) {
+	if mediaType != "movie" && mediaType != "tv" {
+		return nil, ErrInvalidMediaType
+	}
+	if mediaID <= 0 {
+		return nil, ErrInvalidMediaID
+	}
+
+	row, err := s.repo.GetMediaRating(mediaID, mediaType)
+	if err != nil {
+		return nil, err
+	}
+
+	hasRating := row.ReviewCount > 0
+
+	// ปัดเป็น 1 ทศนิยม
+	avg := float32(0)
+	if hasRating {
+		avg = float32(math.Round(float64(row.AvgRating)*10) / 10)
+	}
+
+	return &RatingResponse{
+		MediaID:       mediaID,
+		MediaType:     mediaType,
+		AverageRating: avg,
+		ReviewCount:   row.ReviewCount,
+		HasRating:     hasRating,
+	}, nil
+}
+
+// ── Like ──────────────────────────────────────────────────────────
+
 func (s *Service) LikeReview(reviewID, requesterID uint) error {
-	// ตรวจว่า review มีอยู่จริงและ public
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return err
@@ -166,7 +204,8 @@ func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
 	return s.repo.DeleteLike(reviewID, requesterID)
 }
 
-// Comment
+// ── Comment ───────────────────────────────────────────────────────
+
 func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentRequest) (*CommentResponse, error) {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
@@ -220,7 +259,6 @@ func (s *Service) UpdateComment(commentID, requesterID uint, req UpdateCommentRe
 	if err := s.repo.UpdateComment(commentID, req.Body); err != nil {
 		return nil, err
 	}
-
 	comment.Body = req.Body
 	return toCommentResponse(comment), nil
 }
@@ -236,7 +274,8 @@ func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
 	return s.repo.DeleteComment(commentID, reviewID)
 }
 
-// helpers
+// ── Helpers ───────────────────────────────────────────────────────
+
 func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 	return &ReviewResponse{
 		ID:           r.ID,

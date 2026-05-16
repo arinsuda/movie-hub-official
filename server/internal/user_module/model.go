@@ -37,7 +37,7 @@ type User struct {
 	DisplayName     *string `gorm:"type:varchar(100)"`
 	Bio             *string `gorm:"type:text"`
 	AvatarURL       *string `gorm:"type:varchar(255)"`
-	Age             int
+	DateOfBirth     *time.Time
 	Gender          GenderType `gorm:"type:varchar(20)"`
 	GenderOther     *string    `gorm:"type:varchar(100)"`
 	RoleID          uint       `gorm:"not null;default:2"`
@@ -68,10 +68,26 @@ type RefreshToken struct {
 	HashedToken string    `gorm:"type:varchar(255);uniqueIndex;not null"`
 	ExpiresAt   time.Time `gorm:"not null"`
 	CreatedAt   time.Time
-	UserAgent string `gorm:"type:varchar(255)"`
-	IPAddress string `gorm:"type:varchar(45)"`
+	UserAgent   string `gorm:"type:varchar(255)"`
+	IPAddress   string `gorm:"type:varchar(45)"`
 }
 
 func (r *RefreshToken) IsExpired() bool {
 	return time.Now().After(r.ExpiresAt)
+}
+
+func (u *User) GetAge() *int {
+	if u.DateOfBirth == nil {
+		return nil
+	}
+
+	now := time.Now()
+
+	age := now.Year() - u.DateOfBirth.Year()
+
+	if now.YearDay() < u.DateOfBirth.YearDay() {
+		age--
+	}
+
+	return &age
 }

@@ -9,17 +9,22 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	svc := NewService(db)
 	h := NewHandler(svc)
 
-	// user reviews
+	// ── User reviews ─────────────────────────────────────────────
 	users := router.Group("/users/:userId")
 	users.Post("/reviews", h.CreateReview)
 	users.Get("/reviews", h.GetUserReviews)
 	users.Patch("/reviews/:reviewId", h.UpdateReview)
 	users.Delete("/reviews/:reviewId", h.DeleteReview)
 
-	// media reviews — public อ่านได้ แต่ต้อง auth เพื่อเช็ค is_liked
+	// ── Media reviews & in-app rating ────────────────────────────
+	// :mediaType = "movies" | "series"  (แปลงเป็น "movie" | "tv" ใน handler)
+	//
+	// GET /:mediaType/:mediaId/reviews  → รายการ reviews
+	// GET /:mediaType/:mediaId/rating   → in-app aggregate rating (public, ไม่ต้อง auth)
 	router.Get("/:mediaType/:mediaId/reviews", h.GetMediaReviews)
+	router.Get("/:mediaType/:mediaId/rating", h.GetMediaRating)
 
-	// like/comment — ต้อง auth
+	// ── Like / Comment ────────────────────────────────────────────
 	reviews := router.Group("/reviews/:reviewId")
 	reviews.Post("/likes", h.LikeReview)
 	reviews.Delete("/likes", h.UnlikeReview)

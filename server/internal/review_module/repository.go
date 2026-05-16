@@ -27,7 +27,8 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// Review
+// ── Review ────────────────────────────────────────────────────────
+
 func (r *repository) CreateReview(review *Review) error {
 	return r.db.Create(review).Error
 }
@@ -73,7 +74,28 @@ func (r *repository) DeleteReview(reviewID uint) error {
 	return result.Error
 }
 
-// Like
+// ── In-app Rating Aggregate ───────────────────────────────────────
+
+// mediaRatingRow เป็น struct รับผลจาก raw query
+type mediaRatingRow struct {
+	AvgRating   float32
+	ReviewCount int
+}
+
+// GetMediaRating คืน average rating และจำนวน review ของ media นั้น
+// นับเฉพาะ public reviews และ deleted_at IS NULL (soft-delete safe)
+func (r *repository) GetMediaRating(mediaID int, mediaType string) (*mediaRatingRow, error) {
+	var row mediaRatingRow
+	err := r.db.Model(&Review{}).
+		Select("COALESCE(AVG(rating), 0) AS avg_rating, COUNT(*) AS review_count").
+		Where("media_id = ? AND media_type = ? AND is_public = true AND deleted_at IS NULL",
+			mediaID, mediaType).
+		Scan(&row).Error
+	return &row, err
+}
+
+// ── Like ──────────────────────────────────────────────────────────
+
 func (r *repository) CreateLike(reviewID, userID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		like := ReviewLike{ReviewID: reviewID, UserID: userID}
@@ -111,7 +133,18 @@ func (r *repository) IsLiked(reviewID, userID uint) (bool, error) {
 	return count > 0, err
 }
 
-// Comment
+func (r *repository) FindLikedIDs(reviewIDs []uint, userID uint) (map[uint]bool, error) {
+	var likes []ReviewLike
+	err := r.db.Where("review_id IN ? AND user_id = ?", reviewIDs, userID).Find(&likes).Error
+	result := make(map[uint]bool)
+	for _, l := range likes {
+		result[l.ReviewID] = true
+	}
+	return result, err
+}
+
+// ── Comment ───────────────────────────────────────────────────────
+
 func (r *repository) CreateComment(comment *ReviewComment) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(comment).Error; err != nil {
@@ -161,17 +194,9 @@ func (r *repository) DeleteComment(commentID uint, reviewID uint) error {
 	})
 }
 
+// ── Helpers ───────────────────────────────────────────────────────
+
 func isDuplicateError(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "UNIQUE constraint")
-}
-
-func (r *repository) FindLikedIDs(reviewIDs []uint, userID uint) (map[uint]bool, error) {
-	var likes []ReviewLike
-	err := r.db.Where("review_id IN ? AND user_id = ?", reviewIDs, userID).Find(&likes).Error
-	result := make(map[uint]bool)
-	for _, l := range likes {
-		result[l.ReviewID] = true
-	}
-	return result, err
 }

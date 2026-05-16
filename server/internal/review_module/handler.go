@@ -16,7 +16,8 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// Review
+// ── Review ────────────────────────────────────────────────────────
+
 func (h *Handler) CreateReview(c fiber.Ctx) error {
 	userID, err := parseUserID(c)
 	if err != nil {
@@ -107,7 +108,34 @@ func (h *Handler) DeleteReview(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// Like
+// ── In-app Rating ─────────────────────────────────────────────────
+
+// GetMediaRating handles:
+//
+//	GET /movies/:mediaId/rating
+//	GET /tv/:mediaId/rating
+//
+// ไม่ต้อง auth เพราะเป็นข้อมูล public aggregate
+func (h *Handler) GetMediaRating(c fiber.Ctx) error {
+	mediaID, err := strconv.Atoi(c.Params("mediaId"))
+	if err != nil || mediaID <= 0 {
+		return badRequest(c, "invalid media id")
+	}
+
+	mt := routeToMediaType(c.Params("mediaType"))
+	if mt == "" {
+		return badRequest(c, "invalid media type")
+	}
+
+	rating, err := h.svc.GetMediaRating(mediaID, mt)
+	if err != nil {
+		return handleError(c, err)
+	}
+	return c.JSON(fiber.Map{"rating": rating})
+}
+
+// ── Like ──────────────────────────────────────────────────────────
+
 func (h *Handler) LikeReview(c fiber.Ctx) error {
 	reviewID, err := parseReviewID(c)
 	if err != nil {
@@ -134,7 +162,8 @@ func (h *Handler) UnlikeReview(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// Comment
+// ── Comment ───────────────────────────────────────────────────────
+
 func (h *Handler) CreateComment(c fiber.Ctx) error {
 	reviewID, err := parseReviewID(c)
 	if err != nil {
@@ -184,7 +213,7 @@ func (h *Handler) UpdateComment(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	_ = reviewID // ใช้ใน DeleteComment เท่านั้น
+	_ = reviewID
 	comment, err := h.svc.UpdateComment(commentID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
@@ -209,7 +238,12 @@ func (h *Handler) DeleteComment(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// helpers
+// ── Helpers ───────────────────────────────────────────────────────
+
+// routeToMediaType แปลง URL segment → media_type value ใน DB
+//
+//	"movies" → "movie"
+//	"series" → "tv"
 func routeToMediaType(route string) string {
 	switch route {
 	case "movies":

@@ -2,7 +2,8 @@ package review_module
 
 import "time"
 
-// Review
+// ── Review ────────────────────────────────────────────────────────
+
 type CreateReviewRequest struct {
 	MediaID   int     `json:"media_id"`
 	MediaType string  `json:"media_type"` // "movie" | "tv"
@@ -30,12 +31,25 @@ type ReviewResponse struct {
 	WatchedAt    *time.Time `json:"watched_at"`
 	LikeCount    int        `json:"like_count"`
 	CommentCount int        `json:"comment_count"`
-	IsLiked      bool       `json:"is_liked"` // requester like อยู่ไหม
+	IsLiked      bool       `json:"is_liked"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
-// Comment
+// ── In-app Rating (aggregate) ─────────────────────────────────────
+
+// RatingResponse คือ aggregate rating ที่คำนวณจาก reviews ภายใน app เท่านั้น
+// ไม่เกี่ยวกับ TMDB
+type RatingResponse struct {
+	MediaID       int     `json:"media_id"`
+	MediaType     string  `json:"media_type"`
+	AverageRating float32 `json:"average_rating"` // 0.0 ถ้าไม่มี review
+	ReviewCount   int     `json:"review_count"`
+	HasRating     bool    `json:"has_rating"` // false = ยังไม่มีใครรีวิว
+}
+
+// ── Comment ───────────────────────────────────────────────────────
+
 type CreateCommentRequest struct {
 	Body string `json:"body"`
 }

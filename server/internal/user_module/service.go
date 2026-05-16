@@ -13,17 +13,19 @@ func NewService(db *gorm.DB) *Service {
 }
 
 func (s *Service) GetProfile(targetUserID uint, requesterID uint) (*UserProfileResponse, error) {
-	user, err := s.repo.FindByID(targetUserID)
+	user, reviewCount, followerCount, followingCount, err := s.repo.FindByID(targetUserID)
 	if err != nil {
 		return nil, err
 	}
 
-	profile := toProfileResponse(user)
+	profile := toProfileResponse(user, reviewCount, followerCount, followingCount)
 
+	// ซ่อน fields ส่วนตัวถ้า profile เป็น private และไม่ใช่เจ้าของ
 	if user.IsPrivate && requesterID != targetUserID {
 		profile.Bio = nil
 		profile.FavoriteGenres = nil
 		profile.Gender = ""
+		profile.DateOfBirth = nil
 	}
 
 	return profile, nil
@@ -35,7 +37,6 @@ func (s *Service) UpdateProfile(targetUserID uint, requesterID uint, req UpdateP
 	}
 
 	updates := map[string]any{}
-
 	if req.DisplayName != nil {
 		updates["display_name"] = req.DisplayName
 	}
@@ -51,6 +52,9 @@ func (s *Service) UpdateProfile(targetUserID uint, requesterID uint, req UpdateP
 	if req.GenderOther != nil {
 		updates["gender_other"] = req.GenderOther
 	}
+	if req.DateOfBirth != nil {
+		updates["date_of_birth"] = req.DateOfBirth
+	}
 	if req.FavoriteGenres != nil {
 		updates["favorite_genres"] = req.FavoriteGenres
 	}
@@ -59,7 +63,6 @@ func (s *Service) UpdateProfile(targetUserID uint, requesterID uint, req UpdateP
 	}
 
 	if len(updates) == 0 {
-
 		return s.GetProfile(targetUserID, requesterID)
 	}
 
@@ -77,7 +80,8 @@ func (s *Service) DeleteUser(targetUserID uint, requesterID uint, requesterRole 
 	return s.repo.DeleteUser(targetUserID)
 }
 
-func toProfileResponse(u *User) *UserProfileResponse {
+// toProfileResponse รับ stats แยกจาก view แทนที่จะอ่านจาก User model โดยตรง
+func toProfileResponse(u *User, reviewCount, followerCount, followingCount int) *UserProfileResponse {
 	return &UserProfileResponse{
 		ID:             u.ID,
 		Username:       u.Username,
@@ -86,9 +90,10 @@ func toProfileResponse(u *User) *UserProfileResponse {
 		AvatarURL:      u.AvatarURL,
 		Gender:         u.Gender,
 		FavoriteGenres: u.FavoriteGenres,
-		ReviewCount:    u.ReviewCount,
-		FollowerCount:  u.FollowerCount,
-		FollowingCount: u.FollowingCount,
+		DateOfBirth:    u.DateOfBirth,
+		ReviewCount:    reviewCount,
+		FollowerCount:  followerCount,
+		FollowingCount: followingCount,
 		IsPrivate:      u.IsPrivate,
 		Role:           string(u.Role.RoleName),
 	}
