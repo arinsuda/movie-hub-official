@@ -123,17 +123,7 @@ async function handleLogin() {
 .auth-bg {
   position: absolute;
   inset: 0;
-  background:
-    url("https://image.tmdb.org/t/p/w300/qJ2tW6WMUDux911r6m7haRef0WH.jpg") 0 0 /
-      20% auto repeat-y,
-    url("https://image.tmdb.org/t/p/w300/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg") 20%
-      0 / 20% auto repeat-y,
-    url("https://image.tmdb.org/t/p/w300/rAiYTfKGqDCRIIqo664sY9XZIvQ.jpg") 40%
-      0 / 20% auto repeat-y,
-    url("https://image.tmdb.org/t/p/w300/b0PlSFdDwbyK0cf5RxwDpaOJQvQ.jpg") 60%
-      0 / 20% auto repeat-y,
-    url("https://image.tmdb.org/t/p/w300/74xTEgt7R36Fpooo50r9T25onhq.jpg") 80%
-      0 / 20% auto repeat-y;
+  background: url("@/assets/bg.png") center/cover no-repeat;
   filter: brightness(0.35) saturate(0.7);
 }
 .auth-bg__overlay {

@@ -38,6 +38,10 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  const needsOnboarding = computed(
+    () => isLoggedIn.value && !user.value?.favorite_genres,
+  );
+
   async function register(data: RegisterRequest) {
     isLoading.value = true;
 
@@ -62,11 +66,13 @@ export const useAuthStore = defineStore("auth", () => {
 
   async function fetchMe() {
     try {
-      // ใช้ me endpoint
-      // interceptor จะ refresh ให้อัตโนมัติถ้า access token หมด
-      const res = await authApi.refresh(); 
+      // Step 1: refresh token + ได้ userId
+      const refreshRes = await authApi.refresh();
+      const userId = refreshRes.data.user.id;
 
-      setUser(res.data.user);
+      // Step 2: ดึง full profile ที่มี favorite_genres ครบ
+      const meRes = await authApi.me(userId);
+      setUser(meRes.data.user);
     } catch {
       clearUser();
     } finally {
@@ -80,6 +86,7 @@ export const useAuthStore = defineStore("auth", () => {
     isInitialized,
     isLoggedIn,
     isAdmin,
+    needsOnboarding,
     setUser,
     clearUser,
     login,

@@ -135,7 +135,7 @@ func (h *Handler) setTokenCookies(c fiber.Ctx, pair *TokenPair) {
 		SameSite: sameSite,
 		Domain:   h.cfg.Cookie.Domain,
 		MaxAge:   int(h.cfg.JWT.RefreshTTL.Seconds()),
-		Path:     "/", 
+		Path:     "/",
 	})
 }
 
@@ -170,12 +170,13 @@ func (h *Handler) handleServiceError(c fiber.Ctx, err error) error {
 
 func toUserResponse(u *user_module.User) UserResponse {
 	return UserResponse{
-		ID:          u.ID,
-		Username:    u.Username,
-		Email:       u.Email,
-		DisplayName: u.DisplayName,
-		AvatarURL:   u.AvatarURL,
-		IsVerified:  u.VerifiedEmailAt != nil,
-		Role:        string(u.Role.RoleName),
+		ID:             u.ID,
+		Username:       u.Username,
+		Email:          u.Email,
+		DisplayName:    u.DisplayName,
+		AvatarURL:      u.AvatarURL,
+		IsVerified:     u.VerifiedEmailAt != nil,
+		Role:           string(u.Role.RoleName),
+		FavoriteGenres: u.FavoriteGenres, 
 	}
 }

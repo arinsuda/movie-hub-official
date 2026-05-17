@@ -1,27 +1,43 @@
 <template>
   <div class="home">
     <!-- ── Hero Banner ─────────────────────────────────────── -->
-    <section class="hero" v-if="featuredMovies.length">
+    <section class="hero" v-if="heroMovies.length">
       <div class="hero__slides">
         <TransitionGroup name="hero-slide">
           <div
-            v-for="(movie, i) in featuredMovies"
+            v-for="(movie, i) in heroMovies"
             :key="movie.id"
             v-show="heroIndex === i"
             class="hero__slide"
           >
             <img
+              v-if="movie.backdrop_path && !failedBackdrops.has(movie.id)"
               :src="`https://image.tmdb.org/t/p/original${movie.backdrop_path}`"
               :alt="movie.title"
               class="hero__backdrop"
+              @error="failedBackdrops.add(movie.id)"
             />
+            <div v-else class="hero__backdrop hero__backdrop--fallback">
+              <span class="hero__fallback-title">{{ movie.title }}</span>
+            </div>
             <div class="hero__overlay" />
           </div>
         </TransitionGroup>
       </div>
+
+      <!-- Hero text -->
+      <div class="hero__content" v-if="currentHero">
+        <h2 class="hero__movie-title">{{ currentHero.title }}</h2>
+        <p class="hero__meta">
+          {{ currentHero.release_date?.slice(0, 4) }}
+          <span class="hero__dot-sep">·</span>
+          ⭐ {{ currentHero.vote_average?.toFixed(1) }}
+        </p>
+      </div>
+
       <div class="hero__dots">
         <button
-          v-for="(_, i) in featuredMovies"
+          v-for="(_, i) in heroMovies"
           :key="i"
           class="hero__dot"
           :class="{ 'hero__dot--active': heroIndex === i }"
@@ -29,180 +45,181 @@
             heroIndex = i;
             resetTimer();
           "
+          :aria-label="`Slide ${i + 1}`"
         />
       </div>
     </section>
 
     <!-- ── Main content ────────────────────────────────────── -->
     <div class="content-area">
-      <!-- Row 1: poster grid + hover popup -->
-      <div class="movie-grid-section" v-if="popularMovies.length">
-        <div class="movie-grid">
+      <!-- ── Section: Recommended ───────────────────────────── -->
+      <section class="movie-section" v-if="hasGenres">
+        <div class="section-header">
+          <h2 class="section-title">
+            <Sparkles :size="16" class="section-icon" />
+            แนะนำสำหรับคุณ
+          </h2>
+        </div>
+
+        <div class="movie-grid" v-if="recommendedMovies.length">
           <div
-            v-for="movie in popularMovies.slice(0, 10)"
+            v-for="(movie, i) in recommendedMovies"
             :key="movie.id"
             class="poster-wrap"
-            @mouseenter="hoveredMovie = movie"
+            @mouseenter="hoveredMovie = movie.id"
             @mouseleave="hoveredMovie = null"
           >
             <RouterLink :to="`/movies/${movie.id}`" class="poster-card">
               <img
+                v-if="movie.poster_path && !failedPosters.has(movie.id)"
                 :src="`https://image.tmdb.org/t/p/w342${movie.poster_path}`"
                 :alt="movie.title"
                 loading="lazy"
+                @error="failedPosters.add(movie.id)"
               />
+              <div v-else class="poster-fallback">
+                <span class="poster-fallback__title">{{ movie.title }}</span>
+              </div>
             </RouterLink>
 
-            <!-- Hover popup card -->
             <Transition name="popup">
               <div
-                v-if="hoveredMovie?.id === movie.id"
+                v-if="hoveredMovie === movie.id"
                 class="hover-popup"
-                :class="
-                  getPopupPosition(popularMovies.slice(0, 10).indexOf(movie))
-                "
+                :class="getPopupPosition(i)"
               >
-                <div class="popup__trailer">
-                  <Play :size="28" class="popup__play-icon" />
-                  <span class="popup__trailer-label">trailer auto play</span>
-                </div>
-                <div class="popup__info">
-                  <div class="popup__title-row">
-                    <h3 class="popup__title">{{ movie.title }}</h3>
-                    <Star :size="13" class="popup__star" />
-                    <span class="popup__rating">{{
-                      movie.vote_average?.toFixed(1)
-                    }}</span>
-                  </div>
-                  <p class="popup__overview">
-                    {{ truncate(movie.overview, 140) }}
-                  </p>
-                  <div class="popup__actions">
-                    <button class="action-btn action-btn--watched">
-                      <Eye :size="16" />
-                      <span>{{ fmtCount(movie.vote_count) }}</span>
-                    </button>
-                    <button
-                      class="action-btn action-btn--review"
-                      @click.prevent="() => {}"
-                    >
-                      <PenLine :size="16" />
-                      <span>Review</span>
-                    </button>
-                    <button class="action-btn action-btn--favorite">
-                      <Heart :size="16" />
-                      <span>{{
-                        fmtCount(Math.floor(movie.vote_count * 0.6))
-                      }}</span>
-                    </button>
-                    <button class="action-btn action-btn--watchlist">
-                      <BookmarkPlus :size="16" />
-                      <span>{{
-                        fmtCount(Math.floor(movie.vote_count * 0.4))
-                      }}</span>
-                    </button>
-                  </div>
-                </div>
+                <PopupCard :movie="movie" />
               </div>
             </Transition>
           </div>
         </div>
-      </div>
 
-      <!-- Pagination -->
-      <div class="pagination" v-if="totalPages > 1">
-        <button
-          v-for="p in paginationPages"
-          :key="p"
-          class="page-btn"
-          :class="{
-            'page-btn--active': p === currentPage,
-            'page-btn--ellipsis': p === '...',
-          }"
-          :disabled="p === '...'"
-          @click="typeof p === 'number' && goToPage(p)"
-        >
-          {{ p }}
-        </button>
+        <div class="movie-grid" v-else-if="isLoadingRecommended">
+          <div v-for="i in 10" :key="i" class="poster-skeleton" />
+        </div>
+      </section>
 
-        <div class="page-size-select" ref="pageSizeRef">
-          <button
-            class="page-size-trigger"
-            @click="pageSizeOpen = !pageSizeOpen"
+      <!-- ── Section: Now Playing ────────────────────────────── -->
+      <section class="movie-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <Clapperboard :size="16" class="section-icon" />
+            หนังมาใหม่
+          </h2>
+          <RouterLink to="/movies" class="see-all-btn">
+            ดูทั้งหมด <ChevronRight :size="14" />
+          </RouterLink>
+        </div>
+
+        <div class="movie-grid" v-if="nowPlayingMovies.length">
+          <div
+            v-for="(movie, i) in nowPlayingMovies"
+            :key="movie.id"
+            class="poster-wrap"
+            @mouseenter="hoveredMovie = movie.id"
+            @mouseleave="hoveredMovie = null"
           >
-            {{ pageSize }} <ChevronDown :size="12" />
-          </button>
-          <div class="page-size-dropdown" v-if="pageSizeOpen">
-            <button
-              v-for="s in [20, 50, 100, 200, 500]"
-              :key="s"
-              class="page-size-option"
-              :class="{ active: pageSize === s }"
-              @click="changePageSize(s)"
-            >
-              {{ s }}
-            </button>
+            <RouterLink :to="`/movies/${movie.id}`" class="poster-card">
+              <img
+                v-if="movie.poster_path && !failedPosters.has(movie.id)"
+                :src="`https://image.tmdb.org/t/p/w342${movie.poster_path}`"
+                :alt="movie.title"
+                loading="lazy"
+                @error="failedPosters.add(movie.id)"
+              />
+              <div v-else class="poster-fallback">
+                <span class="poster-fallback__title">{{ movie.title }}</span>
+              </div>
+            </RouterLink>
+
+            <Transition name="popup">
+              <div
+                v-if="hoveredMovie === movie.id"
+                class="hover-popup"
+                :class="getPopupPosition(i)"
+              >
+                <PopupCard :movie="movie" />
+              </div>
+            </Transition>
           </div>
         </div>
-      </div>
+
+        <div class="movie-grid" v-else-if="isLoadingNowPlaying">
+          <div v-for="i in 10" :key="i" class="poster-skeleton" />
+        </div>
+      </section>
     </div>
 
-    <!-- Loading -->
-    <div class="loading-overlay" v-if="isLoading">
-      <div class="spinner" />
-    </div>
+    <!-- ── Global loading overlay (first load only) ────────── -->
+    <Transition name="fade">
+      <div
+        class="loading-overlay"
+        v-if="isLoadingNowPlaying && !nowPlayingMovies.length"
+      >
+        <div class="spinner" />
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { movieApi } from "@/api/api";
+import { useAuthStore } from "@/stores/auth";
+import { Sparkles, Clapperboard, ChevronRight } from "lucide-vue-next";
 import type { Movie } from "@/types";
-import {
-  Play,
-  Star,
-  Eye,
-  PenLine,
-  Heart,
-  BookmarkPlus,
-  ChevronDown,
-} from "lucide-vue-next";
+import PopupCard from "@/components/movie/PopupCard.vue";
 
-const router = useRouter();
+// ── Auth / genre ───────────────────────────────────────────
+const authStore = useAuthStore();
 
+const hasGenres = computed(() => {
+  const g = authStore.user?.favorite_genres;
+  return !!g && g !== "skip";
+});
+
+const genreQuery = computed(() =>
+  hasGenres.value ? authStore.user!.favorite_genres! : "",
+);
+
+// ── State ──────────────────────────────────────────────────
 const heroIndex = ref(0);
-const hoveredMovie = ref<Movie | null>(null);
-const currentPage = ref(1);
-const pageSize = ref(20);
-const pageSizeOpen = ref(false);
-const pageSizeRef = ref<HTMLElement | null>(null);
-
+const currentHero = computed(() => heroMovies.value[heroIndex.value] ?? null);
+const hoveredMovie = ref<number | null>(null);
+const failedPosters = ref(new Set<number>());
+const failedBackdrops = ref(new Set<number>());
 let heroTimer: ReturnType<typeof setInterval> | null = null;
 
-const { data: popularData, isLoading } = useQuery({
-  queryKey: ["movies-popular", currentPage],
-  queryFn: () => movieApi.getPopular(currentPage.value).then((r) => r.data),
+// ── Queries ────────────────────────────────────────────────
+const { data: recommendedData, isLoading: isLoadingRecommended } = useQuery({
+  queryKey: computed(() => ["movies-recommended", genreQuery.value]),
+  queryFn: () => movieApi.getRecommended(genreQuery.value).then((r) => r.data),
+  enabled: hasGenres,
 });
 
-const popularMovies = computed<Movie[]>(() => popularData.value?.results ?? []);
-const totalPages = computed(() => popularData.value?.total_pages ?? 1);
-const featuredMovies = computed(() => popularMovies.value.slice(0, 5));
-
-const paginationPages = computed(() => {
-  const total = Math.min(totalPages.value, 500);
-  const cur = currentPage.value;
-  const pages: (number | string)[] = [1, 2, 3];
-  if (cur > 4) pages.push("...");
-  if (cur > 3 && cur < total - 1) pages.push(cur);
-  pages.push("...");
-  pages.push(total);
-  return [...new Set(pages)];
+const { data: nowPlayingData, isLoading: isLoadingNowPlaying } = useQuery({
+  queryKey: ["movies-now-playing-home"],
+  queryFn: () => movieApi.getNowPlaying(1).then((r) => r.data),
 });
 
-// กำหนดทิศทาง popup ไม่ให้ล้นออกนอกหน้าจอ
-// grid 5 คอลัมน์: index 0,5 = ซ้ายสุด → popup ชิดขวา, index 4,9 = ขวาสุด → popup ชิดซ้าย
+// ── Computed lists ─────────────────────────────────────────
+const recommendedMovies = computed<Movie[]>(
+  () => recommendedData.value?.results?.slice(0, 10) ?? [],
+);
+
+const nowPlayingMovies = computed<Movie[]>(
+  () => nowPlayingData.value?.results?.slice(0, 10) ?? [],
+);
+
+const heroMovies = computed<Movie[]>(() => {
+  const source = recommendedMovies.value.length
+    ? recommendedMovies.value
+    : nowPlayingMovies.value;
+  return source.slice(0, 5);
+});
+
+// ── Helpers ────────────────────────────────────────────────
 function getPopupPosition(index: number): string {
   const col = index % 5;
   if (col === 0) return "popup--right";
@@ -214,44 +231,14 @@ function resetTimer() {
   if (heroTimer) clearInterval(heroTimer);
   heroTimer = setInterval(() => {
     heroIndex.value =
-      (heroIndex.value + 1) % Math.max(featuredMovies.value.length, 1);
+      (heroIndex.value + 1) % Math.max(heroMovies.value.length, 1);
   }, 4000);
 }
 
-function goToPage(p: number) {
-  currentPage.value = p;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function changePageSize(s: number) {
-  pageSize.value = s;
-  pageSizeOpen.value = false;
-  currentPage.value = 1;
-}
-
-function truncate(str: string, len: number) {
-  if (!str) return "";
-  return str.length > len ? str.slice(0, len) + "…" : str;
-}
-
-function fmtCount(n: number) {
-  if (n >= 1000) return (n / 1000).toFixed(0) + "k";
-  return String(n);
-}
-
-function onClickOutside(e: MouseEvent) {
-  if (pageSizeRef.value && !pageSizeRef.value.contains(e.target as Node)) {
-    pageSizeOpen.value = false;
-  }
-}
-
-onMounted(() => {
-  resetTimer();
-  document.addEventListener("click", onClickOutside);
-});
+// ── Lifecycle ──────────────────────────────────────────────
+onMounted(() => resetTimer());
 onUnmounted(() => {
   if (heroTimer) clearInterval(heroTimer);
-  document.removeEventListener("click", onClickOutside);
 });
 </script>
 
@@ -261,11 +248,11 @@ onUnmounted(() => {
   min-height: 100vh;
 }
 
-/* ── Hero ─────────────────────────────────────────────── */
+/* ── Hero ─────────────────────────────────────────────────── */
 .hero {
   position: relative;
   width: 100%;
-  height: 300px;
+  height: 320px;
   overflow: hidden;
 }
 .hero__slides {
@@ -282,15 +269,63 @@ onUnmounted(() => {
   object-fit: cover;
   object-position: center 30%;
 }
+.hero__backdrop--fallback {
+  background: #1a1a1a;
+  display: flex;
+  align-items: flex-end;
+  padding: 2rem;
+}
+.hero__fallback-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #444;
+}
 .hero__overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.05) 0%,
-    rgba(20, 20, 20, 0.75) 100%
+    rgba(20, 20, 20, 0.85) 100%
   );
 }
+
+/* Hero text overlay */
+.hero__content {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1100px;
+  padding: 0 1.5rem;
+  z-index: 2;
+  pointer-events: none;
+}
+.hero__movie-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.25rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+.hero__meta {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.hero__dot-sep {
+  opacity: 0.4;
+}
+
+/* Dots */
 .hero__dots {
   position: absolute;
   bottom: 16px;
@@ -301,19 +336,20 @@ onUnmounted(() => {
   z-index: 2;
 }
 .hero__dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.3);
   border: none;
   cursor: pointer;
   transition:
     background 0.2s,
     transform 0.2s;
+  padding: 0;
 }
 .hero__dot--active {
   background: #e50914;
-  transform: scale(1.2);
+  transform: scale(1.25);
 }
 .hero-slide-enter-active,
 .hero-slide-leave-active {
@@ -324,25 +360,56 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* ── Content ──────────────────────────────────────────── */
+/* ── Content area ─────────────────────────────────────────── */
 .content-area {
-  padding: 1.5rem 1.5rem 3rem;
+  padding: 1.75rem 1.5rem 4rem;
   max-width: 1100px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
 }
 
-/* ── Movie grid ───────────────────────────────────────── */
-.movie-grid-section {
-  margin-bottom: 1.5rem;
+/* ── Section header ───────────────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.875rem;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.2px;
+}
+.section-icon {
+  color: #e50914;
 }
 
+.see-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: #666;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.see-all-btn:hover {
+  color: #fff;
+}
+
+/* ── Movie grid ───────────────────────────────────────────── */
 .movie-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
-
-/* Each poster cell needs position:relative for popup anchor */
 .poster-wrap {
   position: relative;
 }
@@ -355,10 +422,11 @@ onUnmounted(() => {
   transition:
     transform 0.2s,
     box-shadow 0.2s;
+  background: #1a1a1a;
 }
 .poster-card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  transform: scale(1.04);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 .poster-card img {
   width: 100%;
@@ -367,21 +435,58 @@ onUnmounted(() => {
   display: block;
 }
 
-/* ── Hover popup ──────────────────────────────────────── */
+/* ── Fallback card ────────────────────────────────────────── */
+.poster-fallback {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: #1a1a1a;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+.poster-fallback__title {
+  font-size: 0.72rem;
+  color: #484848;
+  text-align: center;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Skeleton ─────────────────────────────────────────────── */
+.poster-skeleton {
+  aspect-ratio: 2/3;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #1a1a1a 25%, #242424 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Hover popup ──────────────────────────────────────────── */
 .hover-popup {
   position: absolute;
   top: 0;
   z-index: 50;
   width: 280px;
   background: #1c1c1c;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-  pointer-events: auto;
 }
-
-/* Position variants */
 .popup--right {
   left: calc(100% + 8px);
 }
@@ -393,101 +498,6 @@ onUnmounted(() => {
   transform: translateX(-50%);
 }
 
-.popup__trailer {
-  aspect-ratio: 16/9;
-  background: #000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-.popup__play-icon {
-  color: #555;
-}
-.popup__trailer-label {
-  font-size: 0.72rem;
-  color: #555;
-}
-
-.popup__info {
-  padding: 0.875rem;
-}
-
-.popup__title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
-}
-.popup__title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.popup__star {
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-.popup__rating {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-
-.popup__overview {
-  font-size: 0.72rem;
-  color: #888;
-  line-height: 1.55;
-  margin: 0 0 0.75rem;
-}
-
-/* Action buttons */
-.popup__actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
-.action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 0.5rem 0.2rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: #fff;
-  transition:
-    filter 0.15s,
-    transform 0.1s;
-}
-.action-btn:hover {
-  filter: brightness(1.15);
-  transform: translateY(-1px);
-}
-.action-btn--watched {
-  background: #1d4ed8;
-}
-.action-btn--review {
-  background: #16a34a;
-}
-.action-btn--favorite {
-  background: #e50914;
-}
-.action-btn--watchlist {
-  background: #d97706;
-}
-
-/* Popup transition */
 .popup-enter-active {
   transition:
     opacity 0.15s,
@@ -504,92 +514,7 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* ── Pagination ───────────────────────────────────────── */
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-}
-.page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 0.5rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  color: #a3a3a3;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.page-btn:hover:not(:disabled):not(.page-btn--ellipsis) {
-  background: #2a2a2a;
-  color: #fff;
-}
-.page-btn--active {
-  background: #e50914;
-  border-color: #e50914;
-  color: #fff;
-}
-.page-btn--ellipsis {
-  cursor: default;
-}
-
-.page-size-select {
-  position: relative;
-  margin-left: 8px;
-}
-.page-size-trigger {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 60px;
-  height: 36px;
-  padding: 0 0.75rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  color: #a3a3a3;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-.page-size-dropdown {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  overflow: hidden;
-  min-width: 70px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-.page-size-option {
-  display: block;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: none;
-  color: #a3a3a3;
-  font-size: 0.875rem;
-  cursor: pointer;
-  text-align: center;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.page-size-option:hover,
-.page-size-option.active {
-  background: rgba(229, 9, 20, 0.15);
-  color: #fff;
-}
-
-/* ── Loading ──────────────────────────────────────────── */
+/* ── Loading overlay ──────────────────────────────────────── */
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -600,16 +525,25 @@ onUnmounted(() => {
   z-index: 200;
 }
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.15);
+  width: 38px;
+  height: 38px;
+  border: 2.5px solid rgba(255, 255, 255, 0.12);
   border-top-color: #e50914;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.75s linear infinite;
 }
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

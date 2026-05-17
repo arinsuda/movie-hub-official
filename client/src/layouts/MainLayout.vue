@@ -85,7 +85,14 @@
                 <BookMarked :size="14" />My Library
               </RouterLink>
               <RouterLink
-                to="/feed"
+                :to="`/users/${authStore.user.id}/achievements`"
+                class="dropdown-item"
+                @click="userMenuOpen = false"
+              >
+                <Trophy :size="14" />Achievement
+              </RouterLink>
+              <RouterLink
+                :to="`/users/${authStore.user.id}/feed`"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
@@ -121,6 +128,7 @@ import {
   User as UserIcon,
   ChevronDown,
   BookMarked,
+  Trophy,
   Rss,
   LogOut,
 } from "lucide-vue-next";

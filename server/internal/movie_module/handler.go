@@ -193,3 +193,25 @@ func (h *Handler) GetSimilarSeries(c fiber.Ctx) error {
 	}
 	return c.JSON(result)
 }
+
+func (h *Handler) GetRecommended(c fiber.Ctx) error {
+	// รับ genre_ids จาก query string
+	// FE ส่งมาเป็น "28,12,878" (genre IDs คั่นด้วย comma)
+	genreIDs := c.Query("with_genres")
+	if genreIDs == "" {
+		// ถ้าไม่มี genre ให้ fallback เป็น popular
+		return h.GetPopular(c)
+	}
+
+	result, err := tmdb.DiscoverMovies(genreIDs, 1)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลไม่สำเร็จ"})
+	}
+
+	// return แค่ 10 เรื่องแรก
+	if len(result.Results) > 10 {
+		result.Results = result.Results[:10]
+	}
+
+	return c.JSON(result)
+}

@@ -24,7 +24,15 @@ const router = createRouter({
       component: () => import("@/views/auth/VerifyEmailView.vue"),
     },
 
-    // ── Main (protected) ──────────────────────────────────────
+    // ── Onboarding (protected, no MainLayout/Navbar) ───────────
+    {
+      path: "/onboarding",
+      name: "onboarding",
+      component: () => import("@/views/onboarding/FavoriteGenreView.vue"),
+      meta: { requiresAuth: true },
+    },
+
+    // ── Main (protected, with MainLayout + Navbar) ─────────────
     {
       path: "/",
       component: () => import("@/layouts/MainLayout.vue"),
@@ -84,6 +92,8 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
+
+  // โหลด user ถ้ายังไม่มีและ route ต้อง auth
   if (!authStore.user && to.meta.requiresAuth) {
     try {
       await authStore.fetchMe();
@@ -91,9 +101,31 @@ router.beforeEach(async (to) => {
       console.error(error);
     }
   }
+
+  // ยังไม่ login → ไป login
   if (to.meta.requiresAuth && !authStore.isLoggedIn)
     return { name: "login", query: { redirect: to.fullPath } };
+
+  // login แล้วเข้า guest-only page → ไป home
   if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" };
+
+  // login แล้ว ยังไม่เคยทำ onboarding → บังคับไป onboarding
+  if (
+    authStore.isLoggedIn &&
+    !authStore.user?.favorite_genres &&
+    to.name !== "onboarding"
+  ) {
+    return { name: "onboarding" };
+  }
+
+  // ทำ onboarding แล้ว แต่พยายามกลับมาหน้า onboarding → ไป home
+  if (
+    authStore.isLoggedIn &&
+    authStore.user?.favorite_genres &&
+    to.name === "onboarding"
+  ) {
+    return { name: "home" };
+  }
 });
 
 export default router;

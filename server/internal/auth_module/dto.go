@@ -13,13 +13,14 @@ type LoginRequest struct {
 }
 
 type UserResponse struct {
-	ID          uint    `json:"id"`
-	Username    string  `json:"username"`
-	Email       string  `json:"email"`
-	DisplayName *string `json:"display_name"`
-	AvatarURL   *string `json:"avatar_url"`
-	IsVerified  bool    `json:"is_verified"`
-	Role        string  `json:"role"`
+	ID             uint    `json:"id"`
+	Username       string  `json:"username"`
+	Email          string  `json:"email"`
+	DisplayName    *string `json:"display_name"`
+	AvatarURL      *string `json:"avatar_url"`
+	IsVerified     bool    `json:"is_verified"`
+	Role           string  `json:"role"`
+	FavoriteGenres *string `json:"favorite_genres"`
 }
 
 type AuthResponse struct {

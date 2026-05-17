@@ -196,3 +196,15 @@ func GetSeriesGenres() ([]Genre, error) {
 	}
 	return result.Genres, nil
 }
+
+func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error) {
+	params := pageParams(page)
+	params.Set("with_genres", withGenres) // "28,12,878"
+	params.Set("sort_by", "popularity.desc")
+
+	var result PaginatedResult[Movie]
+	if err := get("/discover/movie", params, &result); err != nil {
+		return nil, fmt.Errorf("DiscoverMovies: %w", err)
+	}
+	return &result, nil
+}
