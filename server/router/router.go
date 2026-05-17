@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/arinsuda/movie-hub/config"
+	"github.com/arinsuda/movie-hub/internal/analytics_module"
 	"github.com/arinsuda/movie-hub/internal/auth_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
@@ -26,6 +27,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	mw := auth_module.NewMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
 
+	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)
 	library_module.RegisterRoutes(protected, db)
 	user_module.RegisterRoutes(protected, db)

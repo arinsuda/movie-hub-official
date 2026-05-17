@@ -1,6 +1,8 @@
 package user_module
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 )
 
@@ -47,6 +49,10 @@ func (s *Service) UpdateProfile(targetUserID uint, requesterID uint, req UpdateP
 		updates["avatar_url"] = req.AvatarURL
 	}
 	if req.Gender != "" {
+		if !isValidGender(req.Gender) {
+			return nil, errors.New("invalid gender")
+		}
+
 		updates["gender"] = req.Gender
 	}
 	if req.GenderOther != nil {

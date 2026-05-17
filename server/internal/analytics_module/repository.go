@@ -1,0 +1,120 @@
+package analytics_module
+
+import (
+	"errors"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+var (
+	ErrInvalidMediaType = errors.New("media_type must be 'movie' or 'tv'")
+	ErrInvalidMediaID   = errors.New("invalid media_id")
+)
+
+type repository struct {
+	db *gorm.DB
+}
+
+func newRepository(db *gorm.DB) *repository {
+	return &repository{db: db}
+}
+
+// libraryStatsRow รับผลจาก aggregate query ของ library
+type libraryStatsRow struct {
+	WatchlistCount int
+	FavoriteCount  int
+	WatchedCount   int
+}
+
+// reviewStatsRow รับผลจาก aggregate query ของ review
+type reviewStatsRow struct {
+	ReviewCount   int
+	AverageRating float32
+}
+
+// trendingRow ใช้ใน query trending list
+type trendingRow struct {
+	MediaID        int
+	WatchlistCount int
+	FavoriteCount  int
+	WatchedCount   int
+	RecentActivity int // จำนวน action ใน 7 วันที่ผ่านมา
+}
+
+// GetLibraryStats คืน watchlist / favorite / watched count ของ media นั้น
+func (r *repository) GetLibraryStats(mediaID int, mediaType string) (*libraryStatsRow, error) {
+	type row struct {
+		ListType string
+		Count    int
+	}
+	var rows []row
+
+	err := r.db.Table("library_items").
+		Select("list_type, COUNT(*) AS count").
+		Where("media_id = ? AND media_type = ? AND deleted_at IS NULL", mediaID, mediaType).
+		Group("list_type").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := &libraryStatsRow{}
+	for _, row := range rows {
+		switch row.ListType {
+		case "watchlist":
+			result.WatchlistCount = row.Count
+		case "favorite":
+			result.FavoriteCount = row.Count
+		case "watched":
+			result.WatchedCount = row.Count
+		}
+	}
+	return result, nil
+}
+
+// GetReviewStats คืน review count และ average rating ของ media นั้น (public reviews)
+func (r *repository) GetReviewStats(mediaID int, mediaType string) (*reviewStatsRow, error) {
+	var result reviewStatsRow
+	err := r.db.Table("reviews").
+		Select("COUNT(*) AS review_count, COALESCE(AVG(rating), 0) AS average_rating").
+		Where("media_id = ? AND media_type = ? AND is_public = true AND deleted_at IS NULL",
+			mediaID, mediaType).
+		Scan(&result).Error
+	return &result, err
+}
+
+// GetTrending คืน top N media ของ mediaType โดยเรียงตาม trending score
+// Trending score = watchlist×1 + favorite×2 + watched×3 + recent_activity×1.5
+func (r *repository) GetTrending(mediaType string, limit int) ([]trendingRow, error) {
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+
+	// Sub-query: นับ activity ใน 7 วัน
+	recentSQL := r.db.Table("library_items").
+		Select("media_id, COUNT(*) AS recent_activity").
+		Where("media_type = ? AND deleted_at IS NULL AND created_at >= ?", mediaType, sevenDaysAgo).
+		Group("media_id")
+
+	var rows []trendingRow
+	err := r.db.Table("library_items AS li").
+		Select(`
+			li.media_id,
+			SUM(CASE WHEN li.list_type = 'watchlist' THEN 1 ELSE 0 END) AS watchlist_count,
+			SUM(CASE WHEN li.list_type = 'favorite'  THEN 1 ELSE 0 END) AS favorite_count,
+			SUM(CASE WHEN li.list_type = 'watched'   THEN 1 ELSE 0 END) AS watched_count,
+			COALESCE(r.recent_activity, 0)                               AS recent_activity
+		`).
+		Joins("LEFT JOIN (?) AS r ON r.media_id = li.media_id", recentSQL).
+		Where("li.media_type = ? AND li.deleted_at IS NULL", mediaType).
+		Group("li.media_id, r.recent_activity").
+		Order(`
+			(SUM(CASE WHEN li.list_type = 'watchlist' THEN 1 ELSE 0 END) * 1.0
+			+ SUM(CASE WHEN li.list_type = 'favorite'  THEN 1 ELSE 0 END) * 2.0
+			+ SUM(CASE WHEN li.list_type = 'watched'   THEN 1 ELSE 0 END) * 3.0
+			+ COALESCE(r.recent_activity, 0) * 1.5) DESC
+		`).
+		Limit(limit).
+		Scan(&rows).Error
+
+	return rows, err
+}

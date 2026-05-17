@@ -43,9 +43,6 @@ type User struct {
 	RoleID          uint       `gorm:"not null;default:2"`
 	Role            Role       `gorm:"foreignKey:RoleID"`
 	FavoriteGenres  *string    `gorm:"type:text"`
-	ReviewCount     int        `gorm:"default:0"`
-	FollowerCount   int        `gorm:"default:0"`
-	FollowingCount  int        `gorm:"default:0"`
 	IsPrivate       bool       `gorm:"default:false"`
 	IsActive        bool       `gorm:"default:true"`
 }
@@ -90,4 +87,13 @@ func (u *User) GetAge() *int {
 	}
 
 	return &age
+}
+
+func isValidGender(g GenderType) bool {
+	switch g {
+	case GenderMale, GenderFemale, GenderOther:
+		return true
+	default:
+		return false
+	}
 }

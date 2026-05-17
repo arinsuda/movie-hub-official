@@ -64,7 +64,7 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       // ใช้ me endpoint
       // interceptor จะ refresh ให้อัตโนมัติถ้า access token หมด
-      const res = await authApi.me();
+      const res = await authApi.refresh(); 
 
       setUser(res.data.user);
     } catch {

@@ -12,8 +12,7 @@ export const authApi = {
 
   refresh: () => api.post<AuthResponse>("/auth/refresh"),
 
-  // เพิ่มตรงนี้
-  me: () => api.get<AuthResponse>("/auth/me"),
+  me: (userId: number) => api.get<AuthResponse>(`/users/${userId}`),
 
   verifyEmail: (token: string) => api.get(`/auth/verify-email?token=${token}`),
 
