@@ -78,3 +78,29 @@ type Video struct {
 type VideoResult struct {
 	Results []Video `json:"results"`
 }
+
+type TVSeries struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	OriginalName string  `json:"original_name"`
+	Overview     string  `json:"overview"`
+	PosterPath   string  `json:"poster_path"`
+	BackdropPath string  `json:"backdrop_path"`
+	FirstAirDate string  `json:"first_air_date"`
+	VoteAverage  float32 `json:"vote_average"`
+	VoteCount    int     `json:"vote_count"`
+	Popularity   float32 `json:"popularity"`
+	GenreIDs     []int   `json:"genre_ids"`
+	Adult        bool    `json:"adult"`
+}
+
+type TVSeriesDetail struct {
+	TVSeries
+	NumberOfSeasons     int                 `json:"number_of_seasons"`
+	NumberOfEpisodes    int                 `json:"number_of_episodes"`
+	Status              string              `json:"status"`
+	Tagline             string              `json:"tagline"`
+	Homepage            string              `json:"homepage"`
+	Genres              []Genre             `json:"genres"`
+	ProductionCompanies []ProductionCompany `json:"production_companies"`
+}

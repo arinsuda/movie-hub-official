@@ -1,8 +1,9 @@
 package user_module
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type RoleName string
@@ -36,15 +37,63 @@ type User struct {
 	DisplayName     *string `gorm:"type:varchar(100)"`
 	Bio             *string `gorm:"type:text"`
 	AvatarURL       *string `gorm:"type:varchar(255)"`
-	Age             int
+	DateOfBirth     *time.Time
 	Gender          GenderType `gorm:"type:varchar(20)"`
 	GenderOther     *string    `gorm:"type:varchar(100)"`
 	RoleID          uint       `gorm:"not null;default:2"`
 	Role            Role       `gorm:"foreignKey:RoleID"`
 	FavoriteGenres  *string    `gorm:"type:text"`
-	ReviewCount     int        `gorm:"default:0"`
-	FollowerCount   int        `gorm:"default:0"`
-	FollowingCount  int        `gorm:"default:0"`
 	IsPrivate       bool       `gorm:"default:false"`
 	IsActive        bool       `gorm:"default:true"`
+}
+
+type EmailVerification struct {
+	ID        uint      `gorm:"primarykey;autoIncrement"`
+	UserID    uint      `gorm:"not null;index"`
+	Token     string    `gorm:"type:varchar(64);uniqueIndex;not null"`
+	ExpiresAt time.Time `gorm:"not null"`
+	CreatedAt time.Time
+}
+
+func (e *EmailVerification) IsExpired() bool {
+	return time.Now().After(e.ExpiresAt)
+}
+
+type RefreshToken struct {
+	ID          uint      `gorm:"primarykey;autoIncrement"`
+	UserID      uint      `gorm:"not null;index"`
+	HashedToken string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+	ExpiresAt   time.Time `gorm:"not null"`
+	CreatedAt   time.Time
+	UserAgent   string `gorm:"type:varchar(255)"`
+	IPAddress   string `gorm:"type:varchar(45)"`
+}
+
+func (r *RefreshToken) IsExpired() bool {
+	return time.Now().After(r.ExpiresAt)
+}
+
+func (u *User) GetAge() *int {
+	if u.DateOfBirth == nil {
+		return nil
+	}
+
+	now := time.Now()
+
+	age := now.Year() - u.DateOfBirth.Year()
+
+	if now.YearDay() < u.DateOfBirth.YearDay() {
+		age--
+	}
+
+	return &age
+}
+
+func isValidGender(g GenderType) bool {
+	switch g {
+	case GenderMale, GenderFemale, GenderOther:
+		return true
+	default:
+		return false
+	}
 }

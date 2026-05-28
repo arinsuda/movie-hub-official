@@ -1,0 +1,43 @@
+package middleware
+
+import (
+	"errors"
+
+	"github.com/arinsuda/movie-hub/config"
+	"github.com/gofiber/fiber/v3"
+)
+
+var ErrInvalidToken = errors.New("invalid or expired token")
+
+type AuthMiddleware struct {
+	cfg *config.Config
+}
+
+func NewAuthMiddleware(cfg *config.Config) *AuthMiddleware {
+	return &AuthMiddleware{cfg: cfg}
+}
+
+func (m *AuthMiddleware) RequireAuth(c fiber.Ctx) error {
+	token := c.Cookies("access_token")
+	if token == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	claims, err := ParseAccess(token, m.cfg.JWT.AccessSecret)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	c.Locals("claims", claims)
+	return c.Next()
+}
+
+func (m *AuthMiddleware) RequireRole(role string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		claims, ok := c.Locals("claims").(*Claims)
+		if !ok || claims.Role != role {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		}
+		return c.Next()
+	}
+}
