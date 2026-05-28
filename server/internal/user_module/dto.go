@@ -28,3 +28,7 @@ type UpdateProfileRequest struct {
 	FavoriteGenres *string    `json:"favorite_genres"`
 	IsPrivate      *bool      `json:"is_private"`
 }
+
+type UpdateFavoriteGenresRequest struct {
+	FavoriteGenres []int `json:"favorite_genres"`
+}

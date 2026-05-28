@@ -36,6 +36,15 @@ export const movieApi = {
       `/movies/${id}`,
     ),
 
+  getVideos: (id: number) =>
+    api
+      .get<{
+        movie: MovieDetail;
+        credits: Credits;
+        videos: Video[];
+      }>(`/movies/${id}`)
+      .then((res) => ({ data: { results: res.data.videos } })),
+
   getSimilar: (id: number, page = 1) =>
     api.get<PaginatedResult<Movie>>(`/movies/${id}/similar`, {
       params: { page },

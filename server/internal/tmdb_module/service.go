@@ -3,6 +3,7 @@ package tmdbmodule
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 func pageParams(page int) url.Values {
@@ -199,7 +200,9 @@ func GetSeriesGenres() ([]Genre, error) {
 
 func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error) {
 	params := pageParams(page)
-	params.Set("with_genres", withGenres) // "28,12,878"
+	// ✅ เปลี่ยน , เป็น | เพื่อให้ TMDB ใช้ OR แทน AND
+	orGenres := strings.ReplaceAll(withGenres, ",", "|")
+	params.Set("with_genres", orGenres)
 	params.Set("sort_by", "popularity.desc")
 
 	var result PaginatedResult[Movie]

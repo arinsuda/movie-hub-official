@@ -66,8 +66,8 @@
             v-for="(movie, i) in recommendedMovies"
             :key="movie.id"
             class="poster-wrap"
-            @mouseenter="hoveredMovie = movie.id"
-            @mouseleave="hoveredMovie = null"
+            @mouseenter="onCardEnter(movie.id, i, $event)"
+            @mouseleave="onCardLeave(movie.id)"
           >
             <RouterLink :to="`/movies/${movie.id}`" class="poster-card">
               <img
@@ -82,13 +82,24 @@
               </div>
             </RouterLink>
 
+            <!-- Popup -->
             <Transition name="popup">
               <div
                 v-if="hoveredMovie === movie.id"
                 class="hover-popup"
                 :class="getPopupPosition(i)"
+                @mouseenter="onPopupEnter"
+                @mouseleave="onPopupLeave(movie.id)"
               >
-                <PopupCard :movie="movie" />
+                <PopupCard
+                  :movie="movie"
+                  :trailer="getTrailer(movie.id)"
+                  :is-iframe-mounted="getState(movie.id).isIframeMounted.value"
+                  :is-iframe-loaded="getState(movie.id).isIframeLoaded.value"
+                  :show-skeleton="getState(movie.id).showSkeleton.value"
+                  :show-fallback="getState(movie.id).showFallback.value"
+                  @iframe-load="getState(movie.id).onIframeLoad()"
+                />
               </div>
             </Transition>
           </div>
@@ -116,8 +127,8 @@
             v-for="(movie, i) in nowPlayingMovies"
             :key="movie.id"
             class="poster-wrap"
-            @mouseenter="hoveredMovie = movie.id"
-            @mouseleave="hoveredMovie = null"
+            @mouseenter="onCardEnter(movie.id, i, $event)"
+            @mouseleave="onCardLeave(movie.id)"
           >
             <RouterLink :to="`/movies/${movie.id}`" class="poster-card">
               <img
@@ -132,13 +143,24 @@
               </div>
             </RouterLink>
 
+            <!-- Popup -->
             <Transition name="popup">
               <div
                 v-if="hoveredMovie === movie.id"
                 class="hover-popup"
                 :class="getPopupPosition(i)"
+                @mouseenter="onPopupEnter"
+                @mouseleave="onPopupLeave(movie.id)"
               >
-                <PopupCard :movie="movie" />
+                <PopupCard
+                  :movie="movie"
+                  :trailer="getTrailer(movie.id)"
+                  :is-iframe-mounted="getState(movie.id).isIframeMounted.value"
+                  :is-iframe-loaded="getState(movie.id).isIframeLoaded.value"
+                  :show-skeleton="getState(movie.id).showSkeleton.value"
+                  :show-fallback="getState(movie.id).showFallback.value"
+                  @iframe-load="getState(movie.id).onIframeLoad()"
+                />
               </div>
             </Transition>
           </div>
@@ -170,18 +192,36 @@ import { useAuthStore } from "@/stores/auth";
 import { Sparkles, Clapperboard, ChevronRight } from "lucide-vue-next";
 import type { Movie } from "@/types";
 import PopupCard from "@/components/movie/PopupCard.vue";
+import {
+  resolveTrailer,
+  useTrailerPreview,
+  type ResolvedTrailer,
+} from "@/composables/useTrailerPreview";
 
 // ── Auth / genre ───────────────────────────────────────────
 const authStore = useAuthStore();
 
 const hasGenres = computed(() => {
   const g = authStore.user?.favorite_genres;
-  return !!g && g !== "skip";
+  if (!g || g === "null" || g === "skip") return false;
+  try {
+    const parsed = JSON.parse(g);
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return g.length > 0;
+  }
 });
 
-const genreQuery = computed(() =>
-  hasGenres.value ? authStore.user!.favorite_genres! : "",
-);
+const genreQuery = computed(() => {
+  if (!hasGenres.value) return "";
+  const raw = authStore.user?.favorite_genres;
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.join(",");
+  } catch {}
+  return raw;
+});
 
 // ── State ──────────────────────────────────────────────────
 const heroIndex = ref(0);
@@ -190,6 +230,17 @@ const hoveredMovie = ref<number | null>(null);
 const failedPosters = ref(new Set<number>());
 const failedBackdrops = ref(new Set<number>());
 let heroTimer: ReturnType<typeof setInterval> | null = null;
+
+// ── Per-card trailer state store ──────────────────────────
+// Each hovered card gets its own lightweight useTrailerPreview instance.
+// We keep a Map so state survives while popup is visible.
+const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>();
+const cardTrailers = new Map<number, ResolvedTrailer | null>();
+const videoCache = new Map<number, any[]>(); // cached TMDB video results
+
+let insidePopup = false;
+let showTimer: ReturnType<typeof setTimeout> | null = null;
+const SHOW_DELAY = 200; // ms before popup opens
 
 // ── Queries ────────────────────────────────────────────────
 const { data: recommendedData, isLoading: isLoadingRecommended } = useQuery({
@@ -219,7 +270,84 @@ const heroMovies = computed<Movie[]>(() => {
   return source.slice(0, 5);
 });
 
-// ── Helpers ────────────────────────────────────────────────
+// ── Per-card helpers ───────────────────────────────────────
+function getState(movieId: number): ReturnType<typeof useTrailerPreview> {
+  if (!cardStates.has(movieId)) {
+    cardStates.set(movieId, useTrailerPreview({ mountDelay: 500 }));
+  }
+  return cardStates.get(movieId)!;
+}
+
+function getTrailer(movieId: number): ResolvedTrailer | null {
+  return cardTrailers.get(movieId) ?? null;
+}
+
+async function fetchAndCacheTrailer(movie: Movie) {
+  if (cardTrailers.has(movie.id)) return;
+  cardTrailers.set(movie.id, null);
+
+  try {
+    const res = await movieApi.getVideos(movie.id);
+    const videos = res.data?.results ?? [];
+    videoCache.set(movie.id, videos);
+    const trailer = resolveTrailer(videos);
+    cardTrailers.set(movie.id, trailer);
+
+    // ✅ ถ้า popup เปิดอยู่แล้วและยังไม่ได้ mount → mount ตอนนี้เลย
+    if (hoveredMovie.value === movie.id && trailer) {
+      getState(movie.id).scheduleMount();
+    }
+  } catch {
+    cardTrailers.set(movie.id, null);
+  }
+}
+
+// ── Hover handlers ─────────────────────────────────────────
+function onCardEnter(movieId: number, index: number, event: MouseEvent) {
+  clearTimeout(showTimer ?? undefined);
+  insidePopup = false;
+
+  const movie = [...recommendedMovies.value, ...nowPlayingMovies.value].find(
+    (m) => m.id === movieId,
+  );
+  if (movie) fetchAndCacheTrailer(movie);
+
+  showTimer = setTimeout(() => {
+    hoveredMovie.value = movieId;
+
+    // ✅ scheduleMount เฉพาะเมื่อ trailer โหลดเสร็จก่อน popup เปิด
+    // กรณี fetch ช้ากว่า → fetchAndCacheTrailer จะ scheduleMount เอง
+    const trailer = getTrailer(movieId);
+    if (trailer) {
+      getState(movieId).scheduleMount();
+    }
+  }, SHOW_DELAY);
+}
+
+function onCardLeave(movieId: number) {
+  clearTimeout(showTimer ?? undefined);
+  setTimeout(() => {
+    if (!insidePopup) closeCard(movieId);
+  }, 80);
+}
+
+function onPopupEnter() {
+  insidePopup = true;
+}
+
+function onPopupLeave(movieId: number) {
+  insidePopup = false;
+  closeCard(movieId);
+}
+
+function closeCard(movieId: number) {
+  if (hoveredMovie.value !== movieId) return;
+  hoveredMovie.value = null;
+  const state = cardStates.get(movieId);
+  if (state) state.unmount();
+}
+
+// ── Popup position (same logic as original) ────────────────
 function getPopupPosition(index: number): string {
   const col = index % 5;
   if (col === 0) return "popup--right";
@@ -227,6 +355,7 @@ function getPopupPosition(index: number): string {
   return "popup--center";
 }
 
+// ── Hero timer ─────────────────────────────────────────────
 function resetTimer() {
   if (heroTimer) clearInterval(heroTimer);
   heroTimer = setInterval(() => {
@@ -235,10 +364,12 @@ function resetTimer() {
   }, 4000);
 }
 
-// ── Lifecycle ──────────────────────────────────────────────
 onMounted(() => resetTimer());
 onUnmounted(() => {
   if (heroTimer) clearInterval(heroTimer);
+  clearTimeout(showTimer ?? undefined);
+  cardStates.forEach((s) => s.unmount());
+  cardStates.clear();
 });
 </script>
 
@@ -289,8 +420,6 @@ onUnmounted(() => {
     rgba(20, 20, 20, 0.85) 100%
   );
 }
-
-/* Hero text overlay */
 .hero__content {
   position: absolute;
   bottom: 48px;
@@ -324,8 +453,6 @@ onUnmounted(() => {
 .hero__dot-sep {
   opacity: 0.4;
 }
-
-/* Dots */
 .hero__dots {
   position: absolute;
   bottom: 16px;
@@ -390,7 +517,6 @@ onUnmounted(() => {
 .section-icon {
   color: #e50914;
 }
-
 .see-all-btn {
   display: flex;
   align-items: center;
@@ -413,7 +539,6 @@ onUnmounted(() => {
 .poster-wrap {
   position: relative;
 }
-
 .poster-card {
   display: block;
   border-radius: 8px;
@@ -480,12 +605,14 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   z-index: 50;
-  width: 280px;
+  width: 300px;
   background: #1c1c1c;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 .popup--right {
   left: calc(100% + 8px);
@@ -500,15 +627,18 @@ onUnmounted(() => {
 
 .popup-enter-active {
   transition:
-    opacity 0.15s,
-    transform 0.15s;
+    opacity 0.18s,
+    transform 0.18s cubic-bezier(0.2, 0, 0.13, 1.35);
 }
 .popup-leave-active {
-  transition: opacity 0.1s;
+  transition: opacity 0.12s;
 }
 .popup-enter-from {
   opacity: 0;
-  transform: translateY(6px) scale(0.97);
+  transform: scale(0.93) translateY(4px);
+}
+.popup--center.popup-enter-from {
+  transform: translateX(-50%) scale(0.93) translateY(4px);
 }
 .popup-leave-to {
   opacity: 0;

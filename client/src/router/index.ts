@@ -1,6 +1,17 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
+function hasGenres(genres: string | null | undefined): boolean {
+  if (!genres) return false;
+  if (genres === "null") return false;
+  try {
+    const parsed = JSON.parse(genres);
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior: () => ({ top: 0 }),
@@ -93,7 +104,6 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const authStore = useAuthStore();
 
-  // โหลด user ถ้ายังไม่มีและ route ต้อง auth
   if (!authStore.user && to.meta.requiresAuth) {
     try {
       await authStore.fetchMe();
@@ -109,19 +119,20 @@ router.beforeEach(async (to) => {
   // login แล้วเข้า guest-only page → ไป home
   if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" };
 
-  // login แล้ว ยังไม่เคยทำ onboarding → บังคับไป onboarding
+  // ✅ ต้อง requiresAuth ด้วย ไม่งั้น guest route ก็โดน redirect
   if (
+    to.meta.requiresAuth &&
     authStore.isLoggedIn &&
-    !authStore.user?.favorite_genres &&
+    !hasGenres(authStore.user?.favorite_genres) &&
     to.name !== "onboarding"
   ) {
     return { name: "onboarding" };
   }
 
-  // ทำ onboarding แล้ว แต่พยายามกลับมาหน้า onboarding → ไป home
+  // ✅ ใช้ hasGenres ให้สอดคล้องกัน
   if (
     authStore.isLoggedIn &&
-    authStore.user?.favorite_genres &&
+    hasGenres(authStore.user?.favorite_genres) &&
     to.name === "onboarding"
   ) {
     return { name: "home" };

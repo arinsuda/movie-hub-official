@@ -14,4 +14,5 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	users.Get("/:userId", h.GetProfile)
 	users.Patch("/:userId", h.UpdateProfile)
 	users.Delete("/:userId", h.DeleteUser)
+	users.Patch("/:userId/genres", h.UpdateFavoriteGenres)
 }

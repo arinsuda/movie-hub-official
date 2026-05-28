@@ -1,6 +1,7 @@
 package movie_module
 
 import (
+	"math/rand/v2"
 	"strconv"
 
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
@@ -195,23 +196,35 @@ func (h *Handler) GetSimilarSeries(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetRecommended(c fiber.Ctx) error {
-	// รับ genre_ids จาก query string
-	// FE ส่งมาเป็น "28,12,878" (genre IDs คั่นด้วย comma)
 	genreIDs := c.Query("with_genres")
 	if genreIDs == "" {
-		// ถ้าไม่มี genre ให้ fallback เป็น popular
 		return h.GetPopular(c)
 	}
 
-	result, err := tmdb.DiscoverMovies(genreIDs, 1)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลไม่สำเร็จ"})
+	// ดึงหลาย page แล้วรวมกัน เพื่อให้ได้หนังมากพอ
+	var allResults []tmdb.Movie
+
+	for page := 1; page <= 3; page++ {
+		result, err := tmdb.DiscoverMovies(genreIDs, page)
+		if err != nil {
+			break
+		}
+		allResults = append(allResults, result.Results...)
+		if page >= result.TotalPages {
+			break
+		}
 	}
 
-	// return แค่ 10 เรื่องแรก
-	if len(result.Results) > 10 {
-		result.Results = result.Results[:10]
+	rand.Shuffle(len(allResults), func(i, j int) {
+		allResults[i], allResults[j] = allResults[j], allResults[i]
+	})
+
+	if len(allResults) > 10 {
+		allResults = allResults[:10]
 	}
 
-	return c.JSON(result)
+	return c.JSON(fiber.Map{
+		"results":       allResults,
+		"total_results": len(allResults),
+	})
 }

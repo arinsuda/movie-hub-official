@@ -70,6 +70,27 @@ func (h *Handler) DeleteUser(c fiber.Ctx) error {
 	return c.Status(fiber.StatusNoContent).Send(nil)
 }
 
+func (h *Handler) UpdateFavoriteGenres(c fiber.Ctx) error {
+	targetID, err := parseUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
+	}
+
+	claims := mw.GetClaims(c)
+
+	var req UpdateFavoriteGenresRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	profile, err := h.svc.UpdateFavoriteGenres(targetID, claims.UserID, req.FavoriteGenres)
+	if err != nil {
+		return handleError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"user": profile})
+}
+
 func parseUserID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("userId"))
 	if err != nil || id <= 0 {

@@ -130,7 +130,7 @@ function toggleMovie(movie: Movie) {
 }
 
 /** Extract unique genre IDs from selected movies, sorted by frequency */
-function extractGenres(): string {
+function extractGenres(): number[] {
   const freq: Record<number, number> = {};
   for (const movie of selectedMovies.value) {
     for (const gid of movie.genre_ids ?? []) {
@@ -140,22 +140,23 @@ function extractGenres(): string {
   return Object.entries(freq)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([id]) => id)
-    .join(",");
+    .map(([id]) => Number(id));
 }
 
 async function handleConfirm() {
   if (selectedIds.value.length < MIN_PICKS || isSaving.value) return;
   isSaving.value = true;
   try {
-    const genreStr = extractGenres();
-    await userApi.updateProfile(authStore.user!.id, {
-      favorite_genres: genreStr,
+    const genres = extractGenres(); // number[]
+    await userApi.updateFavoriteGenres(authStore.user!.id, genres);
+    // store ต้องเก็บเป็น JSON string ให้ hasGenres parse ได้
+    authStore.setUser({
+      ...authStore.user!,
+      favorite_genres: JSON.stringify(genres),
     });
-    authStore.setUser({ ...authStore.user!, favorite_genres: genreStr });
     router.push({ name: "home" });
   } catch {
-    // handle error silently; could add toast
+    // handle error
   } finally {
     isSaving.value = false;
   }

@@ -1,6 +1,7 @@
 package user_module
 
 import (
+	"encoding/json"
 	"errors"
 
 	"gorm.io/gorm"
@@ -84,6 +85,35 @@ func (s *Service) DeleteUser(targetUserID uint, requesterID uint, requesterRole 
 		return ErrForbidden
 	}
 	return s.repo.DeleteUser(targetUserID)
+}
+
+func (s *Service) UpdateFavoriteGenres(
+	targetUserID uint,
+	requesterID uint,
+	genres []int,
+) (*UserProfileResponse, error) {
+	if targetUserID != requesterID {
+		return nil, ErrForbidden
+	}
+
+	var stored *string
+
+	if len(genres) > 0 {
+		b, err := json.Marshal(genres)
+		if err != nil {
+			return nil, err
+		}
+		str := string(b)
+		stored = &str
+	}
+
+	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
+		"favorite_genres": stored,
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.GetProfile(targetUserID, requesterID)
 }
 
 // toProfileResponse รับ stats แยกจาก view แทนที่จะอ่านจาก User model โดยตรง

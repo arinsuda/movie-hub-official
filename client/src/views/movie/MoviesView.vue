@@ -217,6 +217,11 @@ import {
   BookmarkPlus,
   Film,
 } from "lucide-vue-next";
+import {
+  resolveTrailer,
+  useTrailerPreview,
+  type ResolvedTrailer,
+} from "@/composables/useTrailerPreview";
 
 const route = useRoute();
 
@@ -240,6 +245,11 @@ const searchQuery = ref((route.query.q as string) ?? "");
 const currentPage = ref(1);
 const pageSize = ref(20);
 const hoveredId = ref<number | null>(null);
+const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>();
+const cardTrailers = new Map<number, ResolvedTrailer | null>();
+let insidePopup = false;
+let showTimer: ReturnType<typeof setTimeout> | null = null;
+const SHOW_DELAY = 200;
 const genres = ref<Genre[]>([]);
 const genreOpen = ref(false);
 const sortOpen = ref(false);
@@ -352,6 +362,66 @@ function onClickOutside(e: MouseEvent) {
     pageSizeOpen.value = false;
 }
 
+function getState(movieId: number) {
+  if (!cardStates.has(movieId)) {
+    cardStates.set(movieId, useTrailerPreview({ mountDelay: 500 }));
+  }
+  return cardStates.get(movieId)!;
+}
+
+function getTrailer(movieId: number): ResolvedTrailer | null {
+  return cardTrailers.get(movieId) ?? null;
+}
+
+async function fetchAndCacheTrailer(movie: Movie) {
+  if (cardTrailers.has(movie.id)) return;
+  cardTrailers.set(movie.id, null);
+  try {
+    const res = await movieApi.getVideos(movie.id);
+    const videos = res.data?.results ?? [];
+    const trailer = resolveTrailer(videos);
+    cardTrailers.set(movie.id, trailer);
+    if (hoveredId.value === movie.id && trailer) {
+      getState(movie.id).scheduleMount();
+    }
+  } catch {
+    cardTrailers.set(movie.id, null);
+  }
+}
+
+function onCardEnter(movieId: number, movie: Movie) {
+  clearTimeout(showTimer ?? undefined);
+  insidePopup = false;
+  fetchAndCacheTrailer(movie);
+  showTimer = setTimeout(() => {
+    hoveredId.value = movieId;
+    const trailer = getTrailer(movieId);
+    if (trailer) getState(movieId).scheduleMount();
+  }, SHOW_DELAY);
+}
+
+function onCardLeave(movieId: number) {
+  clearTimeout(showTimer ?? undefined);
+  setTimeout(() => {
+    if (!insidePopup) closeCard(movieId);
+  }, 80);
+}
+
+function onPopupEnter() {
+  insidePopup = true;
+}
+
+function onPopupLeave(movieId: number) {
+  insidePopup = false;
+  closeCard(movieId);
+}
+
+function closeCard(movieId: number) {
+  if (hoveredId.value !== movieId) return;
+  hoveredId.value = null;
+  cardStates.get(movieId)?.unmount();
+}
+
 watch(
   () => route.query.q,
   (q) => {
@@ -364,7 +434,12 @@ onMounted(async () => {
   const res = await movieApi.getGenres();
   genres.value = res.data.genres;
 });
-onUnmounted(() => document.removeEventListener("click", onClickOutside));
+onUnmounted(() => {
+  document.removeEventListener("click", onClickOutside);
+  clearTimeout(showTimer ?? undefined);
+  cardStates.forEach((s) => s.unmount());
+  cardStates.clear();
+});
 </script>
 
 <style scoped>
