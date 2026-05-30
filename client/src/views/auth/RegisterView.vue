@@ -144,7 +144,7 @@ async function handleRegister() {
   isLoading.value = true;
   try {
     await authStore.register(form.value);
-    router.push({ name: "verify-email" });
+    router.push({ name: "check-email" });
   } catch (e: any) {
     errorMsg.value =
       e?.response?.data?.error ?? "Registration failed. Please try again.";

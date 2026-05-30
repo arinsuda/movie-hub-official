@@ -2,6 +2,7 @@ package auth_module
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
@@ -56,10 +57,17 @@ func (s *Service) Register(req RegisterRequest) (*user_module.User, error) {
 	}
 
 	go func() {
-		_ = s.sendVerificationEmail(user)
+		if err := s.sendVerificationEmail(user); err != nil {
+			log.Printf("ERROR: send verification email to %s: %v", user.Email, err)
+		}
 	}()
 
-	return user, nil
+	created, err := s.repo.FindByID(user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("register: reload user: %w", err)
+	}
+
+	return created, nil
 }
 
 func (s *Service) Login(req LoginRequest, userAgent, ip string) (*TokenPair, *user_module.User, error) {

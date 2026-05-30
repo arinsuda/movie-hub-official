@@ -27,6 +27,12 @@ func main() {
 		log.Fatalf("❌ Config error: %v", err)
 	}
 
+	log.Println("HOST =", cfg.DB.Host)
+	log.Println("USER =", cfg.DB.User)
+	log.Println("PASS =", cfg.DB.Password)
+	log.Println("DB =", cfg.DB.Name)
+	log.Println("DSN =", cfg.DB.DSN())
+
 	tmdb.Init(cfg)
 	database.Connect(cfg)
 

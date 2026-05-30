@@ -1,6 +1,11 @@
-import api from "../index";
+import api from "../index"
 
-import type { AuthResponse, LoginRequest, RegisterRequest } from "@/types";
+import type {
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  UserProfile,
+} from "@/types"
 
 export const authApi = {
   login: (data: LoginRequest) => api.post<AuthResponse>("/auth/login", data),
@@ -12,7 +17,7 @@ export const authApi = {
 
   refresh: () => api.post<AuthResponse>("/auth/refresh"),
 
-  me: (userId: number) => api.get<AuthResponse>(`/users/${userId}`),
+  me: (userId: number) => api.get<{ user: UserProfile }>(`/users/${userId}`),
 
   verifyEmail: (token: string) => api.get(`/auth/verify-email?token=${token}`),
 
@@ -20,4 +25,4 @@ export const authApi = {
     api.post("/auth/resend-verification", {
       email,
     }),
-};
+}

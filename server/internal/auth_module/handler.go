@@ -177,6 +177,6 @@ func toUserResponse(u *user_module.User) UserResponse {
 		AvatarURL:      u.AvatarURL,
 		IsVerified:     u.VerifiedEmailAt != nil,
 		Role:           string(u.Role.RoleName),
-		FavoriteGenres: u.FavoriteGenres, 
+		FavoriteGenres: u.FavoriteGenres,
 	}
 }
