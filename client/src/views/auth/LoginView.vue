@@ -245,7 +245,7 @@
     text-align: center;
   }
   .brand-logo {
-    font-family: "Impact", "Arial Black", sans-serif;
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
     font-size: 3.5rem;
     font-weight: 900;
     letter-spacing: -1px;
@@ -278,7 +278,7 @@
     padding: 3rem 2.5rem;
   }
   .auth-title {
-    font-family: "Impact", "Arial Black", sans-serif;
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
     font-size: 2rem;
     font-weight: 900;
     letter-spacing: 3px;
@@ -382,7 +382,7 @@
     color: #fff;
     border: none;
     border-radius: 9999px;
-    font-family: "Impact", "Arial Black", sans-serif;
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
     font-size: 1.1rem;
     font-weight: 900;
     letter-spacing: 2px;

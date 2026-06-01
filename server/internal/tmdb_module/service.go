@@ -44,6 +44,24 @@ func GetUpcoming(page int) (*PaginatedResult[Movie], error) {
 	return &result, nil
 }
 
+func DiscoverUpcomingByYear(year, page int) (*PaginatedResult[Movie], error) {
+	params := pageParams(page)
+
+	params.Set("primary_release_year",
+		fmt.Sprintf("%d", year))
+
+	params.Set("sort_by", "popularity.desc")
+
+	params.Set("include_adult", "false")
+	params.Set("include_video", "false")
+
+	var result PaginatedResult[Movie]
+
+	err := get("/discover/movie", params, &result)
+
+	return &result, err
+}
+
 func GetMovieByID(tmdbID int) (*MovieDetail, error) {
 	var movie MovieDetail
 	path := fmt.Sprintf("/movie/%d", tmdbID)

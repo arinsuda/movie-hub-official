@@ -3,6 +3,7 @@ package movie_module
 import (
 	"math/rand/v2"
 	"strconv"
+	"time"
 
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/gofiber/fiber/v3"
@@ -49,8 +50,44 @@ func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 
 	result, err := tmdb.GetUpcoming(page)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+		return c.Status(500).JSON(fiber.Map{
+			"error": "ดึงข้อมูลหนังไม่สำเร็จ",
+		})
 	}
+
+	currentYear := time.Now().Year()
+
+	filtered := make([]tmdb.Movie, 0)
+
+	for _, movie := range result.Results {
+		if len(movie.ReleaseDate) < 4 {
+			continue
+		}
+
+		year, _ := strconv.Atoi(movie.ReleaseDate[:4])
+
+		if year >= currentYear {
+			filtered = append(filtered, movie)
+		}
+	}
+
+	result.Results = filtered
+
+	return c.JSON(result)
+}
+
+func (h *Handler) GetUpcomingByYear(c fiber.Ctx) error {
+	year, _ := strconv.Atoi(c.Params("year"))
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+
+	result, err := tmdb.DiscoverUpcomingByYear(year, page)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
 	return c.JSON(result)
 }
 

@@ -1,4 +1,4 @@
-import api from "../index";
+import api from "../index"
 import type {
   PaginatedResult,
   Movie,
@@ -8,7 +8,7 @@ import type {
   Genre,
   TVSeries,
   TVSeriesDetail,
-} from "@/types";
+} from "@/types"
 
 export const movieApi = {
   // Movies
@@ -25,6 +25,11 @@ export const movieApi = {
 
   getUpcoming: (page = 1) =>
     api.get<PaginatedResult<Movie>>("/movies/upcoming", { params: { page } }),
+  
+  getDiscoverUpcomingByYear: (year: number, page = 1) =>
+    api.get<PaginatedResult<Movie>>(`/movies/upcoming/${year}`, {
+      params: { page },
+    }),
 
   search: (q: string, page = 1) =>
     api.get<PaginatedResult<Movie>>("/movies/search", { params: { q, page } }),
@@ -39,11 +44,11 @@ export const movieApi = {
   getVideos: (id: number) =>
     api
       .get<{
-        movie: MovieDetail;
-        credits: Credits;
-        videos: Video[];
+        movie: MovieDetail
+        credits: Credits
+        videos: Video[]
       }>(`/movies/${id}`)
-      .then((res) => ({ data: { results: res.data.videos } })),
+      .then(res => ({ data: { results: res.data.videos } })),
 
   getSimilar: (id: number, page = 1) =>
     api.get<PaginatedResult<Movie>>(`/movies/${id}/similar`, {
@@ -80,4 +85,4 @@ export const movieApi = {
     api.get<PaginatedResult<TVSeries>>(`/tv/${id}/similar`, {
       params: { page },
     }),
-};
+}

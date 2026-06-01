@@ -455,7 +455,7 @@
   }
 
   .brand-logo {
-    font-family: "Impact", "Arial Black", sans-serif;
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
     font-size: 2rem;
     font-weight: 900;
     margin-bottom: 1rem;
@@ -730,7 +730,7 @@
     color: #fff;
     border: none;
     border-radius: 9999px;
-    font-family: "Impact", "Arial Black", sans-serif;
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
     font-size: 1.1rem;
     font-weight: 900;
     letter-spacing: 2px;

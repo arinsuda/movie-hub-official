@@ -378,7 +378,7 @@ onUnmounted(() => document.removeEventListener("click", onClickOutside));
   margin: 0 auto;
 }
 .page-title {
-  font-family: "Impact", "Arial Black", sans-serif;
+  font-family: "Noto Sans Thai", "Arial Black", sans-serif;
   font-size: 1.75rem;
   font-weight: 900;
   letter-spacing: 2px;

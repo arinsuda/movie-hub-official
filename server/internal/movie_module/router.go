@@ -10,6 +10,7 @@ func RegisterRoutes(router fiber.Router) {
 	movies.Get("/now-playing", h.GetNowPlaying)
 	movies.Get("/top-rated", h.GetTopRated)
 	movies.Get("/upcoming", h.GetUpcoming)
+	movies.Get("/upcoming/:year", h.GetUpcomingByYear)
 	movies.Get("/search", h.Search)
 	movies.Get("/genres", h.GetGenres)
 	movies.Get("/recommended", h.GetRecommended)
