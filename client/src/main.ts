@@ -1,27 +1,28 @@
-import { createApp } from "vue";
-import { createPinia } from "pinia";
-import { VueQueryPlugin } from "@tanstack/vue-query";
+import { createApp } from "vue"
+import { createPinia } from "pinia"
+import { VueQueryPlugin } from "@tanstack/vue-query"
 
-import App from "./App.vue";
-import router from "./router";
+import App from "./App.vue"
+import router from "./router"
 
-import { useAuthStore } from "@/stores/auth";
+import { useAuthStore } from "@/stores/auth"
 
-import "./assets/styles/main.css";
+import "./assets/styles/main.css"
+import "primeicons/primeicons.css"
 
 async function bootstrap() {
-  const app = createApp(App);
+  const app = createApp(App)
 
-  const pinia = createPinia();
+  const pinia = createPinia()
 
-  app.use(pinia);
+  app.use(pinia)
 
   // restore session
-  const authStore = useAuthStore();
+  const authStore = useAuthStore()
 
-  await authStore.fetchMe();
+  await authStore.fetchMe()
 
-  app.use(router);
+  app.use(router)
 
   app.use(VueQueryPlugin, {
     queryClientConfig: {
@@ -32,9 +33,9 @@ async function bootstrap() {
         },
       },
     },
-  });
+  })
 
-  app.mount("#app");
+  app.mount("#app")
 }
 
-bootstrap();
+bootstrap()

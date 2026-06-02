@@ -46,35 +46,105 @@ func (h *Handler) GetTopRated(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetUpcoming(c fiber.Ctx) error {
+	// 1. รับค่า page จาก query string ตามจริง (ถ้าไม่ส่งมาให้เป็นหน้า 1)
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
+	// 2. ยิงไปขอข้อมูลจาก TMDB ตรงๆ ตาม page นั้นๆ
 	result, err := tmdb.GetUpcoming(page)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{
-			"error": "ดึงข้อมูลหนังไม่สำเร็จ",
-		})
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
 
-	currentYear := time.Now().Year()
+	today := time.Now().Truncate(24 * time.Hour)
+	var upcomingOnly []tmdb.Movie
 
-	filtered := make([]tmdb.Movie, 0)
-
+	// 3. กรองเอาเฉพาะเรื่องที่ "ยังไม่ฉาย" หรือ "ฉายวันนี้" จริงๆ (กันเรื่องฉายแล้วหลุดเข้ามา)
 	for _, movie := range result.Results {
-		if len(movie.ReleaseDate) < 4 {
+		if len(movie.ReleaseDate) < 10 {
+			continue
+		}
+		releaseDate, err := time.Parse("2006-01-02", movie.ReleaseDate)
+		if err != nil {
 			continue
 		}
 
-		year, _ := strconv.Atoi(movie.ReleaseDate[:4])
-
-		if year >= currentYear {
-			filtered = append(filtered, movie)
+		if releaseDate.After(today) || releaseDate.Equal(today) {
+			upcomingOnly = append(upcomingOnly, movie)
 		}
 	}
 
-	result.Results = filtered
-
-	return c.JSON(result)
+	// 4. ส่งกลับไปใน Format เดิมของ TMDB เพื่อให้ Frontend เอาเลข page ไปเล่นต่อได้
+	return c.JSON(fiber.Map{
+		"page":          result.Page,
+		"results":       upcomingOnly,
+		"total_pages":   result.TotalPages,
+		"total_results": result.TotalResults,
+	})
 }
+
+// func (h *Handler) GetUpcoming(c fiber.Ctx) error {
+// 	wantUpcoming := 10 // ยังไม่ฉาย
+// 	wantReleased := 10 // ฉายแล้ว (ภายใน 30 วัน)
+
+// 	today := time.Now().Truncate(24 * time.Hour)
+// 	monthAgo := today.AddDate(0, 0, -30)
+
+// 	var upcoming []tmdb.Movie
+// 	var released []tmdb.Movie
+
+// 	for page := 1; page <= 10; page++ { // cap ไว้ที่ 10 pages กันวน
+// 		result, err := tmdb.GetUpcoming(page)
+// 		if err != nil {
+// 			break
+// 		}
+
+// 		for _, movie := range result.Results {
+// 			if len(movie.ReleaseDate) < 10 {
+// 				continue
+// 			}
+// 			releaseDate, err := time.Parse("2006-01-02", movie.ReleaseDate)
+// 			if err != nil {
+// 				continue
+// 			}
+
+// 			if releaseDate.After(today) || releaseDate.Equal(today) {
+// 				// ยังไม่ฉาย
+// 				upcoming = append(upcoming, movie)
+// 			} else if releaseDate.After(monthAgo) {
+// 				// ฉายแล้วแต่ไม่เกิน 30 วัน
+// 				released = append(released, movie)
+// 			}
+// 		}
+
+// 		// ได้ครบแล้ว หยุด
+// 		if len(upcoming) >= wantUpcoming && len(released) >= wantReleased {
+// 			break
+// 		}
+
+// 		// ไม่มี page ต่อแล้ว
+// 		if page >= result.TotalPages {
+// 			break
+// 		}
+// 	}
+
+// 	// Trim ให้พอดี
+// 	if len(upcoming) > wantUpcoming {
+// 		upcoming = upcoming[:wantUpcoming]
+// 	}
+// 	if len(released) > wantReleased {
+// 		released = released[:wantReleased]
+// 	}
+
+// 	// รวมกันแล้วส่ง — upcoming ก่อน, released ตามหลัง
+// 	combined := append(upcoming, released...)
+
+// 	return c.JSON(fiber.Map{
+// 		"results":       combined,
+// 		"total_results": len(combined),
+// 		"page":          1,
+// 		"total_pages":   1, // Frontend ไม่ต้อง paginate แล้ว
+// 	})
+// }
 
 func (h *Handler) GetUpcomingByYear(c fiber.Ctx) error {
 	year, _ := strconv.Atoi(c.Params("year"))
