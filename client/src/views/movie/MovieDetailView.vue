@@ -69,11 +69,11 @@
             </span>
             <span class="meta-badge rating-tmdb" v-if="movie.vote_average">
               <i class="pi pi-star-fill"></i>
-              TMDB: {{ movie.vote_average.toFixed(1) }}
+              TMDB: {{ movie.vote_average.toFixed(2) }}
             </span>
             <span class="meta-badge rating-remov">
               <i class="pi pi-heart-fill"></i>
-              REMOV: {{ removStats.rating.toFixed(1) }}
+              REMOV: {{ removStats.rating.toFixed(2) }}
             </span>
           </div>
 
