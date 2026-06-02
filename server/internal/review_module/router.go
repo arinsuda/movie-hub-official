@@ -1,12 +1,14 @@
 package review_module
 
 import (
+	statsmodule "github.com/arinsuda/movie-hub/internal/stats_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
 func RegisterRoutes(router fiber.Router, db *gorm.DB) {
-	svc := NewService(db)
+	statsSvc := statsmodule.NewService(db)
+	svc := NewService(db, statsSvc)
 	h := NewHandler(svc)
 
 	// ── User reviews ─────────────────────────────────────────────
@@ -18,9 +20,6 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 
 	// ── Media reviews & in-app rating ────────────────────────────
 	// :mediaType = "movies" | "series"  (แปลงเป็น "movie" | "tv" ใน handler)
-	//
-	// GET /:mediaType/:mediaId/reviews  → รายการ reviews
-	// GET /:mediaType/:mediaId/rating   → in-app aggregate rating (public, ไม่ต้อง auth)
 	router.Get("/:mediaType/:mediaId/reviews", h.GetMediaReviews)
 	router.Get("/:mediaType/:mediaId/rating", h.GetMediaRating)
 

@@ -4,15 +4,20 @@ import (
 	"math"
 	"time"
 
+	statsmodule "github.com/arinsuda/movie-hub/internal/stats_module"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	repo *repository
+	repo  *repository
+	stats *statsmodule.Service
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{repo: newRepository(db)}
+func NewService(db *gorm.DB, stats *statsmodule.Service) *Service {
+	return &Service{
+		repo:  newRepository(db),
+		stats: stats,
+	}
 }
 
 // ── Review ────────────────────────────────────────────────────────
@@ -47,6 +52,10 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if err := s.repo.CreateReview(review); err != nil {
 		return nil, err
 	}
+
+	// Sync review_count in stats (best-effort — don't fail the main operation)
+	_ = s.stats.IncrementReviewCount(req.MediaID, req.MediaType, 1)
+
 	return toReviewResponse(review, false), nil
 }
 
@@ -146,14 +155,19 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 	if review.UserID != requesterID {
 		return ErrForbidden
 	}
-	return s.repo.DeleteReview(reviewID)
+
+	if err := s.repo.DeleteReview(reviewID); err != nil {
+		return err
+	}
+
+	// Sync review_count in stats (best-effort)
+	_ = s.stats.IncrementReviewCount(review.MediaID, review.MediaType, -1)
+
+	return nil
 }
 
 // ── In-app Rating Aggregate ───────────────────────────────────────
 
-// GetMediaRating คืน aggregate in-app rating ของ media
-// คำนวณจาก public reviews เท่านั้น (ไม่เกี่ยวกับ TMDB)
-// Average ปัดเป็น 1 ทศนิยม
 func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse, error) {
 	if mediaType != "movie" && mediaType != "tv" {
 		return nil, ErrInvalidMediaType
@@ -169,7 +183,6 @@ func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse
 
 	hasRating := row.ReviewCount > 0
 
-	// ปัดเป็น 1 ทศนิยม
 	avg := float32(0)
 	if hasRating {
 		avg = float32(math.Round(float64(row.AvgRating)*10) / 10)
