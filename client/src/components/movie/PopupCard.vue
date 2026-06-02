@@ -1,72 +1,72 @@
 <template>
-  <!-- ── Trailer / Media zone ─────────────────────────────────────────────── -->
   <div class="popup__media">
-    <!-- 1. Skeleton shimmer while iframe loads -->
-    <div v-if="showSkeleton" class="popup__skeleton" aria-hidden="true">
-      <div class="popup__skeleton-bar popup__skeleton-bar--1" />
-      <div class="popup__skeleton-bar popup__skeleton-bar--2" />
-    </div>
-
-    <!-- 2. Fallback: backdrop image (or icon) before iframe mounts -->
-    <template v-if="showFallback">
-      <img
-        v-if="backdropUrl"
-        :src="backdropUrl"
-        :alt="movie.title"
-        class="popup__backdrop"
-      />
-      <div v-else class="popup__no-media">
-        <Film :size="28" class="popup__no-media-icon" />
+    <RouterLink
+      :to="{ name: 'movie-detail', params: { id: movie.id } }"
+      class="popup__media-link"
+    >
+      <div v-if="showSkeleton" class="popup__skeleton" aria-hidden="true">
+        <div class="popup__skeleton-bar popup__skeleton-bar--1" />
+        <div class="popup__skeleton-bar popup__skeleton-bar--2" />
       </div>
-    </template>
 
-    <!-- 3. YouTube iframe — only rendered after hover delay -->
-    <iframe
-      v-if="isIframeMounted && trailer"
-      :src="soundEmbedUrl"
-      class="popup__iframe"
-      :class="{ 'popup__iframe--visible': isIframeLoaded }"
-      frameborder="0"
-      allow="
-        autoplay;
-        encrypted-media;
-        gyroscope;
-        picture-in-picture;
-        web-share;
-      "
-      allowfullscreen
-      referrerpolicy="strict-origin-when-cross-origin"
-      @load="onIframeLoad"
-    />
+      <template v-if="showFallback">
+        <img
+          v-if="backdropUrl"
+          :src="backdropUrl"
+          :alt="movie.title"
+          class="popup__backdrop"
+        />
+        <div v-else class="popup__no-media">
+          <Film :size="28" class="popup__no-media-icon" />
+        </div>
+      </template>
 
-    <!-- No trailer notice (only shown while fallback is active) -->
-    <div v-if="showFallback && !trailer" class="popup__no-trailer">
-      <VolumeX :size="12" />
-      <span>No trailer</span>
-    </div>
+      <iframe
+        v-if="isIframeMounted && trailer"
+        :src="soundEmbedUrl"
+        class="popup__iframe"
+        :class="{ 'popup__iframe--visible': isIframeLoaded }"
+        frameborder="0"
+        allow="
+          autoplay;
+          encrypted-media;
+          gyroscope;
+          picture-in-picture;
+          web-share;
+        "
+        allowfullscreen
+        referrerpolicy="strict-origin-when-cross-origin"
+        @load="onIframeLoad"
+      />
 
-    <!-- Live badge when trailer is playing -->
-    <div v-if="isIframeMounted && trailer" class="popup__badge">
-      <span class="popup__badge-dot" />
-      {{ trailer.type }}
-    </div>
+      <div v-if="showFallback && !trailer" class="popup__no-trailer">
+        <VolumeX :size="12" />
+        <span>No trailer</span>
+      </div>
 
-    <!-- Gradient overlay fading into info section -->
-    <div class="popup__media-fade" />
+      <div v-if="isIframeMounted && trailer" class="popup__badge">
+        <span class="popup__badge-dot" />
+        {{ trailer.type }}
+      </div>
+
+      <div class="popup__media-fade" />
+    </RouterLink>
   </div>
 
-  <!-- ── Info section ──────────────────────────────────────────────────────── -->
   <div class="popup__info">
-    <!-- Title + rating -->
     <div class="popup__title-row">
-      <h3 class="popup__title">{{ movie.title }}</h3>
+      <RouterLink
+        :to="{ name: 'movie-detail', params: { id: movie.id } }"
+        class="popup__title-link"
+      >
+        <h3 class="popup__title">{{ movie.title }}</h3>
+      </RouterLink>
       <div class="popup__rating">
         <Star :size="11" class="popup__star" />
         <span>{{ movie.vote_average?.toFixed(1) }}</span>
       </div>
     </div>
 
-    <!-- Meta: year + runtime -->
     <div class="popup__meta" v-if="releaseYear">
       <span class="popup__chip">{{ releaseYear }}</span>
       <span
@@ -77,10 +77,8 @@
       </span>
     </div>
 
-    <!-- Overview -->
     <p class="popup__overview">{{ truncate(movie.overview, 130) }}</p>
 
-    <!-- Action buttons -->
     <div class="popup__actions">
       <button class="action-btn action-btn--watched" title="Watched">
         <Eye :size="15" />
@@ -233,6 +231,7 @@
     border: none;
     opacity: 0;
     transition: opacity 0.45s ease;
+    pointer-events: none;
   }
 
   .popup__iframe--visible {
@@ -291,6 +290,16 @@
     border-radius: 50%;
     background: #e50914;
     animation: pulse-dot 1.8s ease-in-out infinite;
+  }
+
+  .popup__media-link {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 4;
+    cursor: pointer;
   }
 
   @keyframes pulse-dot {
@@ -353,6 +362,11 @@
     align-items: flex-start;
     gap: 0.4rem;
     margin-bottom: 0.4rem;
+  }
+
+  .popup__title-link {
+    cursor: pointer;
+    color: inherit;
   }
 
   .popup__title {
