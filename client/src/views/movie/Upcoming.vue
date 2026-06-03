@@ -16,7 +16,7 @@
       <header class="page-header" ref="introRef">
         <div class="page-header__eyebrow">
           <span class="eyebrow-dot" />
-          <span class="eyebrow-text">MOVIE HUB HUB</span>
+          <span class="eyebrow-text">REMOV</span>
         </div>
         <div class="page-header__row">
           <div>

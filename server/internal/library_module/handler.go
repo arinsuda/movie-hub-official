@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/arinsuda/movie-hub/internal/movie_module"
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 )
@@ -47,15 +48,15 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 		return forbidden(c)
 	}
 
-	var listType *ListType
+	var listType *movie_module.ListType
 	if q := c.Query("list_type"); q != "" {
-		lt := ListType(q)
+		lt := movie_module.ListType(q)
 		listType = &lt
 	}
 
-	var mediaType *MediaType
+	var mediaType *movie_module.MediaType
 	if q := c.Query("media_type"); q != "" {
-		mt := MediaType(q)
+		mt := movie_module.MediaType(q)
 		mediaType = &mt
 	}
 
@@ -119,8 +120,8 @@ func (h *Handler) GetMediaStatus(c fiber.Ctx) error {
 		return badRequest(c, "invalid media_id")
 	}
 
-	mediaType := MediaType(c.Query("media_type"))
-	if mediaType != MediaMovie && mediaType != MediaSeries {
+	mediaType := movie_module.MediaType(c.Query("media_type"))
+	if mediaType != movie_module.MediaMovie && mediaType != movie_module.MediaSeries {
 		return badRequest(c, "invalid media_type")
 	}
 

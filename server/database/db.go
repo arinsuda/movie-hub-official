@@ -7,8 +7,11 @@ import (
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
+	"github.com/arinsuda/movie-hub/internal/like_module"
+	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
+	"github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -27,7 +30,6 @@ func Connect(cfg *config.Config) {
 		log.Fatalf("❌ Cannot connect to DB: %v", err)
 	}
 
-	// Connection pool tuning
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatalf("❌ Cannot get sql.DB: %v", err)
@@ -44,7 +46,6 @@ func Connect(cfg *config.Config) {
 		log.Fatalf("❌ AutoMigrate failed: %v", err)
 	}
 
-	// รัน SQL migrations (views, functions, indexes ที่ GORM AutoMigrate ทำไม่ได้)
 	if err := runSQLMigrations(db); err != nil {
 		log.Fatalf("❌ SQL migrations failed: %v", err)
 	}
@@ -57,15 +58,23 @@ func Connect(cfg *config.Config) {
 func autoMigrate(db *gorm.DB) error {
 	log.Println("⏳ Running AutoMigrate...")
 	err := db.AutoMigrate(
+		// User
 		&user_module.Role{},
 		&user_module.User{},
 		&user_module.EmailVerification{},
 		&user_module.RefreshToken{},
+		// Social
 		&follow_module.UserFollow{},
+		// Library (watchlist / favorite / watched)
 		&library_module.LibraryItem{},
+		// Review
 		&review_module.Review{},
 		&review_module.ReviewLike{},
 		&review_module.ReviewComment{},
+		// Media
+		&like_module.MediaLike{}, // like ต่อ media — source of truth ของ like_count
+		&media_stats_module.MediaStat{},
+		&user_stats_module.UserStat{}, // เก็บแค่ view_count
 	)
 	if err != nil {
 		return err
@@ -74,8 +83,8 @@ func autoMigrate(db *gorm.DB) error {
 	return nil
 }
 
-// runSQLMigrations รัน SQL ที่ GORM AutoMigrate ทำไม่ได้ เช่น VIEW, FUNCTION, INDEX แบบพิเศษ
-// ใช้ CREATE OR REPLACE ทั้งหมด → รันซ้ำกี่ครั้งก็ได้ (idempotent)
+// runSQLMigrations รัน SQL ที่ GORM AutoMigrate ทำไม่ได้ (VIEW, FUNCTION, INDEX พิเศษ)
+// ใช้ CREATE OR REPLACE ทั้งหมด → idempotent รันซ้ำกี่ครั้งก็ได้
 func runSQLMigrations(db *gorm.DB) error {
 	log.Println("⏳ Running SQL migrations...")
 
@@ -86,17 +95,27 @@ func runSQLMigrations(db *gorm.DB) error {
 		{
 			name: "user_stats view",
 			sql: `
+			        DROP TABLE IF EXISTS user_stats;
 				CREATE OR REPLACE VIEW user_stats AS
 				SELECT
 					u.id AS user_id,
 
-					-- reviews ที่ยังไม่ถูก soft-delete
-					COUNT(DISTINCT r.id) AS review_count,
+					-- จำนวน reviews ที่ user เขียน (soft-delete safe)
+					COUNT(DISTINCT r.id)   AS review_count,
 
-					-- คนอื่น follow user นี้ (follower)
-					COUNT(DISTINCT f_in.id) AS follower_count,
+					-- จำนวน media ที่ user กด like
+					COUNT(DISTINCT ml.id)  AS like_count,
 
-					-- user นี้ follow คนอื่น (following)
+					-- จำนวน watchlist
+					COUNT(DISTINCT CASE WHEN li_w.list_type  = 'watchlist' THEN li_w.id END) AS watchlist_count,
+
+					-- จำนวน watched
+					COUNT(DISTINCT CASE WHEN li_wd.list_type = 'watched'   THEN li_wd.id END) AS watched_count,
+
+					-- จำนวน followers (คนอื่น follow user นี้)
+					COUNT(DISTINCT f_in.id)  AS follower_count,
+
+					-- จำนวน following (user นี้ follow คนอื่น)
 					COUNT(DISTINCT f_out.id) AS following_count
 
 				FROM users u
@@ -105,35 +124,30 @@ func runSQLMigrations(db *gorm.DB) error {
 					ON r.user_id = u.id
 					AND r.deleted_at IS NULL
 
+				LEFT JOIN media_likes ml
+					ON ml.user_id = u.id
+					AND ml.deleted_at IS NULL
+
+				LEFT JOIN library_items li_w
+					ON li_w.user_id = u.id
+					AND li_w.list_type = 'watchlist'
+					AND li_w.deleted_at IS NULL
+
+				LEFT JOIN library_items li_wd
+					ON li_wd.user_id = u.id
+					AND li_wd.list_type = 'watched'
+					AND li_wd.deleted_at IS NULL
+
 				LEFT JOIN user_follows f_in
 					ON f_in.followee_id = u.id
+					AND f_in.status = 'accepted'
 
 				LEFT JOIN user_follows f_out
 					ON f_out.follower_id = u.id
+					AND f_out.status = 'accepted'
 
 				GROUP BY u.id
 			`,
-		}, {
-			name: "user_stats view",
-			sql: `
-        CREATE OR REPLACE VIEW user_stats AS
-        SELECT
-            u.id AS user_id,
-            COUNT(DISTINCT r.id)     AS review_count,
-            COUNT(DISTINCT f_in.id)  AS follower_count,
-            COUNT(DISTINCT f_out.id) AS following_count
-        FROM users u
-        LEFT JOIN reviews r
-            ON r.user_id = u.id
-            AND r.deleted_at IS NULL
-        LEFT JOIN user_follows f_in
-            ON f_in.followee_id = u.id
-            AND f_in.status = 'accepted'
-        LEFT JOIN user_follows f_out
-            ON f_out.follower_id = u.id
-            AND f_out.status = 'accepted'
-        GROUP BY u.id
-    `,
 		},
 	}
 
@@ -154,14 +168,12 @@ func seedRoles(db *gorm.DB) error {
 		{RoleName: user_module.RoleAdmin},
 		{RoleName: user_module.RoleUser},
 	}
-
 	for _, role := range roles {
 		result := db.FirstOrCreate(&role, user_module.Role{RoleName: role.RoleName})
 		if result.Error != nil {
 			return result.Error
 		}
 	}
-
 	log.Println("✅ Roles seeded")
 	return nil
 }

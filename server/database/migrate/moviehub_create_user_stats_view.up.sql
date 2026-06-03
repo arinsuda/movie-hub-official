@@ -1,26 +1,57 @@
 -- View: user_stats
 -- คำนวณ stats ของ user แบบ real-time จาก tables จริง
--- ไม่พึ่ง denormalized counter บน users table อีกต่อไป
 --
--- review_count  : นับ reviews ที่ยังไม่ถูกลบ (soft-delete safe)
--- follower_count: นับ user_follows ที่ user นี้เป็น followee
--- following_count: นับ user_follows ที่ user นี้เป็น follower
-CREATE
-OR REPLACE VIEW user_stats AS
+-- review_count   : reviews ที่ user เขียน (soft-delete safe)
+-- like_count     : media ที่ user กด like
+-- watchlist_count: library_items ที่ list_type = 'watchlist'
+-- watched_count  : library_items ที่ list_type = 'watched'
+-- follower_count : คนอื่น follow user นี้ (status = accepted)
+-- following_count: user นี้ follow คนอื่น (status = accepted)
+CREATE OR REPLACE VIEW user_stats AS
 SELECT
     u.id AS user_id,
-    -- จำนวน reviews ที่ user เขียน (ไม่นับที่ถูก soft-delete)
-    COUNT(DISTINCT r.id) AS review_count,
-    -- จำนวน followers (คนอื่น follow user นี้)
-    COUNT(DISTINCT f_in.id) AS follower_count,
-    -- จำนวน following (user นี้ follow คนอื่น)
+
+    COUNT(DISTINCT r.id)   AS review_count,
+    COUNT(DISTINCT ml.id)  AS like_count,
+
+    COUNT(DISTINCT CASE WHEN li_w.list_type  = 'watchlist' THEN li_w.id END) AS watchlist_count,
+    COUNT(DISTINCT CASE WHEN li_wd.list_type = 'watched'   THEN li_wd.id END) AS watched_count,
+
+    COUNT(DISTINCT f_in.id)  AS follower_count,
     COUNT(DISTINCT f_out.id) AS following_count
-FROM
-    users u
-    LEFT JOIN reviews r ON r.user_id = u.id
-    AND r.deleted_at IS NULL -- ถ้ายังไม่มี user_follows table ให้ comment 2 join นี้ออกก่อน
-    -- แล้วค่อย uncomment เมื่อสร้าง follow system แล้ว
-    LEFT JOIN user_follows f_in ON f_in.followee_id = u.id
-    LEFT JOIN user_follows f_out ON f_out.follower_id = u.id
-GROUP BY
-    u.id;
+
+FROM users u
+
+-- reviews ที่ยังไม่ถูก soft-delete
+LEFT JOIN reviews r
+    ON r.user_id = u.id
+    AND r.deleted_at IS NULL
+
+-- media ที่ user กด like
+LEFT JOIN media_likes ml
+    ON ml.user_id = u.id
+    AND ml.deleted_at IS NULL
+
+-- watchlist
+LEFT JOIN library_items li_w
+    ON li_w.user_id = u.id
+    AND li_w.list_type = 'watchlist'
+    AND li_w.deleted_at IS NULL
+
+-- watched
+LEFT JOIN library_items li_wd
+    ON li_wd.user_id = u.id
+    AND li_wd.list_type = 'watched'
+    AND li_wd.deleted_at IS NULL
+
+-- followers
+LEFT JOIN user_follows f_in
+    ON f_in.followee_id = u.id
+    AND f_in.status = 'accepted'
+
+-- following
+LEFT JOIN user_follows f_out
+    ON f_out.follower_id = u.id
+    AND f_out.status = 'accepted'
+
+GROUP BY u.id;

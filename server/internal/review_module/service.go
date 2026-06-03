@@ -4,20 +4,15 @@ import (
 	"math"
 	"time"
 
-	statsmodule "github.com/arinsuda/movie-hub/internal/stats_module"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	repo  *repository
-	stats *statsmodule.Service
+	repo *repository
 }
 
-func NewService(db *gorm.DB, stats *statsmodule.Service) *Service {
-	return &Service{
-		repo:  newRepository(db),
-		stats: stats,
-	}
+func NewService(db *gorm.DB) *Service {
+	return &Service{repo: newRepository(db)}
 }
 
 // ── Review ────────────────────────────────────────────────────────
@@ -53,8 +48,8 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		return nil, err
 	}
 
-	// Sync review_count in stats (best-effort — don't fail the main operation)
-	_ = s.stats.IncrementReviewCount(req.MediaID, req.MediaType, 1)
+	// ไม่ต้อง IncrementReviewCount แล้ว
+	// stats_module จะ COUNT จาก reviews table โดยตรง
 
 	return toReviewResponse(review, false), nil
 }
@@ -156,14 +151,10 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 		return ErrForbidden
 	}
 
-	if err := s.repo.DeleteReview(reviewID); err != nil {
-		return err
-	}
+	// ไม่ต้อง IncrementReviewCount -1 แล้ว
+	// stats_module จะ COUNT จาก reviews table โดยตรง
 
-	// Sync review_count in stats (best-effort)
-	_ = s.stats.IncrementReviewCount(review.MediaID, review.MediaType, -1)
-
-	return nil
+	return s.repo.DeleteReview(reviewID)
 }
 
 // ── In-app Rating Aggregate ───────────────────────────────────────
@@ -182,7 +173,6 @@ func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse
 	}
 
 	hasRating := row.ReviewCount > 0
-
 	avg := float32(0)
 	if hasRating {
 		avg = float32(math.Round(float64(row.AvgRating)*10) / 10)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/movie_module"
 	"gorm.io/gorm"
 )
 
@@ -16,10 +17,10 @@ func NewService(db *gorm.DB) *Service {
 }
 
 func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse, error) {
-	if req.MediaType != MediaMovie && req.MediaType != MediaSeries {
+	if req.MediaType != movie_module.MediaMovie && req.MediaType != movie_module.MediaSeries {
 		return nil, ErrInvalidMediaType 
 	}
-	if req.ListType != ListWatchlist && req.ListType != ListFavorite && req.ListType != ListWatched {
+	if req.ListType != movie_module.ListWatchlist && req.ListType != movie_module.ListFavorite && req.ListType != movie_module.ListWatched {
 		return nil, ErrInvalidListType
 	}
 	if req.MediaID <= 0 {
@@ -41,12 +42,6 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 		item.WatchedAt = &t
 	}
 
-	if len(req.Tags) > 0 {
-		b, _ := json.Marshal(req.Tags)
-		s := string(b)
-		item.Tags = &s
-	}
-
 	if err := s.repo.Create(item); err != nil {
 		return nil, err
 	}
@@ -54,7 +49,7 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 	return toResponse(item), nil
 }
 
-func (s *Service) GetLibrary(userID uint, listType *ListType, mediaType *MediaType) ([]LibraryItemResponse, error) {
+func (s *Service) GetLibrary(userID uint, listType *movie_module.ListType, mediaType *movie_module.MediaType) ([]LibraryItemResponse, error) {
 	items, err := s.repo.FindByUser(userID, listType, mediaType)
 	if err != nil {
 		return nil, err
@@ -121,13 +116,13 @@ func (s *Service) UpdateItem(itemID, requesterID uint, req UpdateItemRequest) (*
 	return toResponse(updated), nil
 }
 
-func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType MediaType) (*MediaStatusResponse, error) {
+func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_module.MediaType) (*MediaStatusResponse, error) {
 	items, err := s.repo.FindMediaStatus(userID, mediaID, mediaType)
 	if err != nil {
 		return nil, err
 	}
 
-	inLists := make([]ListType, len(items))
+	inLists := make([]movie_module.ListType, len(items))
 	for i, item := range items {
 		inLists[i] = item.ListType
 	}
@@ -141,9 +136,6 @@ func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType MediaType) 
 
 func toResponse(item *LibraryItem) *LibraryItemResponse {
 	var tags []string
-	if item.Tags != nil {
-		_ = json.Unmarshal([]byte(*item.Tags), &tags)
-	}
 	if tags == nil {
 		tags = []string{}
 	}
@@ -153,9 +145,7 @@ func toResponse(item *LibraryItem) *LibraryItemResponse {
 		MediaID:   item.MediaID,
 		MediaType: item.MediaType,
 		ListType:  item.ListType,
-		WatchedAt: item.WatchedAt,
 		Tags:      tags,
-		Note:      item.Note,
 		CreatedAt: item.CreatedAt,
 	}
 }

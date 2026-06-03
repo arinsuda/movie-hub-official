@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/arinsuda/movie-hub/internal/movie_module"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +34,7 @@ func (r *repository) Create(item *LibraryItem) error {
 	return err
 }
 
-func (r *repository) FindByUser(userID uint, listType *ListType, mediaType *MediaType) ([]LibraryItem, error) {
+func (r *repository) FindByUser(userID uint, listType *movie_module.ListType, mediaType *movie_module.MediaType) ([]LibraryItem, error) {
 	query := r.db.Where("user_id = ?", userID)
 	if listType != nil {
 		query = query.Where("list_type = ?", *listType)
@@ -57,7 +58,7 @@ func (r *repository) FindOne(id, userID uint) (*LibraryItem, error) {
 }
 
 // ดึงสถานะของ media นึงว่าอยู่ใน list ไหนบ้าง
-func (r *repository) FindMediaStatus(userID uint, mediaID int, mediaType MediaType) ([]LibraryItem, error) {
+func (r *repository) FindMediaStatus(userID uint, mediaID int, mediaType movie_module.MediaType) ([]LibraryItem, error) {
 	var items []LibraryItem
 	err := r.db.Where("user_id = ? AND media_id = ? AND media_type = ?", userID, mediaID, mediaType).
 		Find(&items).Error
