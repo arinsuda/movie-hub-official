@@ -9,9 +9,11 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 	svc := NewService(db)
 	h := NewHandler(svc)
 
-	stats := router.Group("/stats")
-	stats.Get("/", h.GetStats)           // GET  /stats?media_id=&media_type=
-	stats.Post("/view", h.RecordView)    // POST /stats/view?media_id=&media_type=
-	stats.Post("/like", h.LikeMedia)     // POST /stats/like?media_id=&media_type=
-	stats.Delete("/like", h.UnlikeMedia) // DELETE /stats/like?media_id=&media_type=
+	// กำหนด Base Path ให้มี Path Parameters สำหรับทุกสถิติ
+	stats := router.Group("/stats/:media_type/:media_id")
+
+	stats.Get("/", h.GetStats)           // GET    /stats/movie/123
+	stats.Post("/view", h.RecordView)    // POST   /stats/movie/123/view
+	stats.Post("/like", h.LikeMedia)     // POST   /stats/movie/123/like
+	stats.Delete("/like", h.UnlikeMedia) // DELETE /stats/movie/123/like
 }

@@ -46,6 +46,14 @@ func (s *Service) GetStats(mediaID int, mediaType movie_module.MediaType, reques
 		}
 	}
 
+	var watchlistedAt *time.Time
+	if requesterID > 0 {
+		watchlistedAt, err = s.repo.GetWatchlistedAt(requesterID, mediaID, mediaType)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &StatsResponse{
 		MediaID:        mediaID,
 		MediaType:      mediaType,
@@ -53,7 +61,8 @@ func (s *Service) GetStats(mediaID int, mediaType movie_module.MediaType, reques
 		ViewCount:      viewCount,
 		ReviewCount:    reviewCount,
 		WatchlistCount: watchlistCount,
-		LikedAt:          likedAt,
+		LikedAt:        likedAt,
+		WatchlistedAt:  watchlistedAt, // 💡 แตกข้อมูลส่งต่อไปให้เรียบร้อย
 	}, nil
 }
 

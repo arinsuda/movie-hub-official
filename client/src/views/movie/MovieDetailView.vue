@@ -43,9 +43,41 @@
               />
             </Teleport>
 
-            <button class="btn-secondary-action">
-              <i class="pi pi-bookmark"></i>
-              <span>เพิ่มในรายการโปรด</span>
+            <button
+              :class="['btn-secondary-action', { 'active-like': isLiked }]"
+              @click="toggleLike"
+            >
+              <i
+                :class="isLiked ? 'pi pi-thumbs-up-fill' : 'pi pi-thumbs-up'"
+              ></i>
+              <span>{{ isLiked ? "ถูกใจแล้ว" : "ถูกใจหนังเรื่องนี้" }}</span>
+            </button>
+
+            <button
+              :class="[
+                'btn-secondary-action',
+                { 'active-watchlist': isWatchlisted },
+              ]"
+              @click="toggleWatchlist"
+            >
+              <i
+                :class="
+                  isWatchlisted ? 'pi pi-bookmark-fill' : 'pi pi-bookmark'
+                "
+              ></i>
+              <span>{{
+                isWatchlisted ? "อยู่ในเพลย์ลิสต์" : "เพิ่มในรายการโปรด"
+              }}</span>
+            </button>
+
+            <button
+              :class="['btn-secondary-action', { 'active-watched': isWatched }]"
+              @click="toggleWatched"
+            >
+              <i :class="isWatched ? 'pi pi-check-circle' : 'pi pi-circle'"></i>
+              <span>{{
+                isWatched ? "รับชมแล้ว" : "ทำเครื่องหมายว่าดูแล้ว"
+              }}</span>
             </button>
           </div>
         </div>
@@ -92,7 +124,7 @@
               <i class="pi pi-eye"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.views.toLocaleString()
+                  removStats.view_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">ยอดเข้าชม</span>
               </div>
@@ -101,7 +133,7 @@
               <i class="pi pi-thumbs-up-fill"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.likes.toLocaleString()
+                  removStats.like_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">ถูกใจ</span>
               </div>
@@ -110,7 +142,7 @@
               <i class="pi pi-comment"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.reviewsCount.toLocaleString()
+                  removStats.review_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">รีวิว</span>
               </div>
@@ -119,7 +151,7 @@
               <i class="pi pi-bookmark-fill"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.watchlist.toLocaleString()
+                  removStats.watchlist_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">เพลย์ลิสต์</span>
               </div>
@@ -199,15 +231,20 @@
   import { ref, onMounted, computed, watchEffect } from "vue"
   import { useRoute, useRouter } from "vue-router"
   import { movieApi } from "@/api/api"
+  import { libraryApi } from "@/api/endpoints/library" // 👈 1. นำเข้า libraryApi เข้ามาร่วมงาน
   import { gsap } from "gsap"
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
+  import { useAuthStore } from "@/stores/auth"
 
   const route = useRoute()
   const router = useRouter()
   const movieId = computed(() => Number(route.params.id))
 
+  // 💡 กำหนดค่า userId ชั่วคราวตามโครงสร้างล็อกอิน (สามารถผูกเข้ากับ Auth Store ของคุณได้เลย)
+  const authStore = useAuthStore()
+  const currentUserId = computed(() => authStore.user?.id ?? null)
   const showTrailerPopup = ref(false)
   const movieTrailerUrl = computed(() => {
     const videos = videoList.value
@@ -227,14 +264,27 @@
   const videoList = ref<any[]>([])
   const isLoading = ref(true)
 
-  // 💎 เพิ่ม Remov Main State สำหรับคำนวณสถิติภายในแอป
+  // ─── Stats & Library States ──────────────────────────────────────────────────
   const removStats = ref({
-    views: 0,
-    likes: 0,
-    reviewsCount: 0,
-    watchlist: 0,
+    media_id: 0,
+    media_type: "movie",
+    like_count: 0,
+    view_count: 0,
+    review_count: 0,
+    watchlist_count: 0,
+    liked_at: null as string | null,
     rating: 0.0,
   })
+
+  const isLiked = computed(() => removStats.value.liked_at !== null)
+
+  // สถานะการเปิด/ปิดปุ่มบนหน้า UI
+  const isWatchlisted = ref(false)
+  const isWatched = ref(false)
+
+  // 💡 อมไอดีแถว (item_id) แยกกันไว้ เพื่อส่งไปทำลายที่หลังบ้านเวลาผู้ใช้กดยกเลิกสเตตัส
+  const watchlist_ItemId = ref<number | null>(null)
+  const watched_ItemId = ref<number | null>(null)
 
   watchEffect(() => {
     console.log("เช็คข้อมูลหนังในหน้านี้:", movie.value)
@@ -270,6 +320,137 @@
       Planned: "วางแผนการสร้าง",
     }
     return statusMap[status] || status
+  }
+
+  // ─── Interaction Handlers ──────────────────────────────────────────────────
+
+  // ⚡ ฟังก์ชันจัดการส่งคำขอสลับสถานะกด Like / Unlike หนัง
+  async function toggleLike() {
+    try {
+      if (isLiked.value) {
+        await movieApi.unlikeMedia("movie", movieId.value)
+        removStats.value.liked_at = null
+        removStats.value.like_count = Math.max(
+          0,
+          removStats.value.like_count - 1,
+        )
+        window.$toast?.info("ลบภาพยนตร์ออกจากรายการที่ชอบแล้ว")
+      } else {
+        await movieApi.likeMedia("movie", movieId.value)
+        removStats.value.liked_at = new Date().toISOString()
+        removStats.value.like_count += 1
+        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️")
+      }
+    } catch (err) {
+      console.error("ล้มเหลวในการบันทึกสถานะถูกใจ:", err)
+      window.$toast?.error("เกิดข้อผิดพลาดในการบันทึกสถานะไลก์")
+    }
+  }
+
+  async function toggleWatchlist() {
+    if (!currentUserId.value) {
+      window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน")
+      return
+    }
+
+    try {
+      // 💡 1. เอาสถานะปุ่มบนหน้า UI เป็นหลักในการตัดสินใจว่าจะ ลบ หรือ เพิ่ม
+      if (isWatchlisted.value) {
+        // 🚨 กรณีที่หน้าเว็บโชว์ว่ากดแล้ว แต่ตัวแปรไอดีสำหรับลบดันไม่มี (เป็น null)
+        if (!watchlist_ItemId.value) {
+          // ทางเลือกที่ 1: ยิงหาตัวตนล่าสุดก่อนเพื่อความชัวร์ หรือดักแจ้งเตือน
+          // ทางเลือกที่ 2: ดึงใหม่แบบ Real-time ณ ตอนนั้นเลย
+          const libRes = await libraryApi.getMediaStatus(
+            currentUserId.value,
+            movieId.value,
+            "movie",
+          )
+          const inLists = libRes.data?.in_lists || []
+          const watchlistInfo = inLists.find(
+            (l: any) => l.list_type === "watchlist",
+          )
+
+          if (watchlistInfo) {
+            watchlist_ItemId.value = watchlistInfo.item_id
+          } else {
+            // ถ้าหลังบ้านไม่มีอยู่จริง แสดงว่าหน้า UI เพี้ยน ให้รีเซ็ตกลับแล้วหยุดการทำงาน
+            isWatchlisted.value = false
+            return
+          }
+        }
+
+        //ทำการลบไอเทมออกจากคลังด้วยไอดีที่ได้มาแน่นอนแล้ว
+        await libraryApi.removeItem(
+          currentUserId.value,
+          watchlist_ItemId.value!,
+        )
+
+        removStats.value.watchlist_count = Math.max(
+          0,
+          removStats.value.watchlist_count - 1,
+        )
+        isWatchlisted.value = false
+        watchlist_ItemId.value = null
+        window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว")
+      } else {
+        // 💡 2. ฝั่งนี้คือยังไม่ได้กด ก็ทำการเพิ่มตามปกติ
+        const res = await libraryApi.addItem(currentUserId.value, {
+          media_id: movieId.value,
+          media_type: "movie",
+          list_type: "watchlist",
+        })
+
+        // หลังบ้านส่งข้อมูลไอเทมตัวใหม่ที่พึ่งแอดกลับมาให้ เอามาเซ็ตลง ref ทันที
+        if (res.data?.item) {
+          watchlist_ItemId.value = res.data.item.id
+        }
+
+        removStats.value.watchlist_count += 1
+        isWatchlisted.value = true
+        window.$toast?.success("เพิ่มเข้าเพลย์ลิสต์สำเร็จ 🍿")
+      }
+    } catch (err) {
+      console.error("ล้มเหลวในการแก้ไขสถานะ Watchlist:", err)
+      window.$toast?.error("ไม่สามารถบันทึกข้อมูลเพลย์ลิสต์ได้")
+    }
+  }
+
+  // ⚡ 3. แก้ไขฟังก์ชันทำเครื่องหมายรับชมภาพยนตร์แล้ว (Watched)
+  async function toggleWatched() {
+    // 👈 ครอบเช็คตัวตนของผู้ใช้ก่อนยิง API
+    if (!currentUserId.value) {
+      window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน")
+      return
+    }
+
+    try {
+      if (isWatched.value && watched_ItemId.value) {
+        // 💡 เติม .value ที่คีย์ของตัวแปร ref ทั้งสองตัว
+        await libraryApi.removeItem(currentUserId.value, watched_ItemId.value)
+
+        isWatched.value = false
+        watched_ItemId.value = null
+        window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม")
+      } else {
+        // 💡 เติม .value ที่ currentUserId
+        const res = await libraryApi.addItem(currentUserId.value, {
+          media_id: movieId.value,
+          media_type: "movie",
+          list_type: "watched",
+          watched_at: new Date().toISOString().split("T")[0],
+        })
+
+        if (res.data?.item) {
+          watched_ItemId.value = res.data.item.id
+        }
+
+        isWatched.value = true
+        window.$toast?.success("มาร์กสถานะว่ารับชมหนังเรื่องนี้แล้ว! ✔️")
+      }
+    } catch (err) {
+      console.error("ล้มเหลวในการแก้ไขสถานะ Watched:", err)
+      window.$toast?.error("ไม่สามารถบันทึกสถานะการรับชมได้")
+    }
   }
 
   // Entrance GSAP Animation
@@ -309,20 +490,66 @@
 
     try {
       isLoading.value = true
-      const res = await movieApi.getById(movieId.value)
 
+      // 2. ดึงข้อมูลรายละเอียดตัวหนังหลัก
+      const res = await movieApi.getById(movieId.value)
       movie.value = res.data.movie
       castList.value = res.data.credits?.cast?.slice(0, 8) || []
       videoList.value = res.data.videos || []
 
-      // 💎 จำลองการดึง/คำนวณข้อมูลสถิติของแอป REMOV (ปรับใช้ตาม API จริงของคุณ)
-      //ตัวอย่าง: const removRes = await removApi.getMovieStats(movieId.value)
-      removStats.value = {
-        views: 14520,
-        likes: 3240,
-        reviewsCount: 188,
-        watchlist: 850,
-        rating: 8.7,
+      // 3. ดึงค่าสถิติรวมจริงทั้งหมด (ที่แนบสเตตัสไลก์ส่วนตัวมาด้วย)
+      const statsRes = await movieApi.getMediaStats("movie", movieId.value)
+
+      if (statsRes.data && statsRes.data.stats) {
+        const incomingStats = statsRes.data.stats
+
+        // อัปเดตข้อมูลสถิติทั้งหมดลงใน ref
+        removStats.value = {
+          media_id: incomingStats.media_id ?? 0,
+          media_type: incomingStats.media_type ?? "movie",
+          like_count: incomingStats.like_count ?? 0,
+          view_count: incomingStats.view_count ?? 0,
+          review_count: incomingStats.review_count ?? 0,
+          watchlist_count: incomingStats.watchlist_count ?? 0,
+          // 💡 เช็คว่าถ้ามีฟิลด์ liked_at ส่งมา ให้ใช้ค่าจาก API ถ้าไม่มี (กรณีลบไลก์หรือไม่ได้กด) ให้เป็น null
+          liked_at:
+            incomingStats.liked_at !== undefined
+              ? incomingStats.liked_at
+              : null,
+          rating: incomingStats.rating ?? 0.0,
+        }
+        if (incomingStats.watchlisted_at) {
+          isWatchlisted.value = true
+        }
+      }
+
+      // 4. 🔒 ยิงเรียกสถานะคลังหนัง (สำหรับ Watchlist / Watched ไอเทมไอดี เพื่อเอาไว้ใช้เวลาลบ)
+      if (currentUserId.value) {
+        try {
+          const libRes = await libraryApi.getMediaStatus(
+            currentUserId.value,
+            movieId.value,
+            "movie",
+          )
+          const inLists = libRes.data?.in_lists || []
+
+          const watchlistInfo = inLists.find(l => l.list_type === "watchlist")
+          if (watchlistInfo) {
+            isWatchlisted.value = true
+            watchlist_ItemId.value = watchlistInfo.item_id
+          }
+
+          const watchedInfo = inLists.find(l => l.list_type === "watched")
+          if (watchedInfo) {
+            isWatched.value = true
+            watched_ItemId.value = watchedInfo.item_id
+          }
+        } catch (libErr) {
+          console.error(
+            "ไม่สามารถดึงข้อมูลลิสต์สถานะของผู้ใช้จากห้องสมุดได้:",
+            libErr,
+          )
+        }
       }
 
       isLoading.value = false
@@ -337,6 +564,7 @@
 </script>
 
 <style scoped>
+  /* ... โค้ดสไตล์ CSS ทั้งหมดของคุณคงเดิมไว้ได้เลยครับ ... */
   @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap");
 
   .movie-detail-page {
@@ -358,7 +586,26 @@
     overflow-x: hidden;
   }
 
-  /* ── Backdrop ── */
+  /* 🎨 คลาสตกแต่งเพิ่มเติมสำหรับสถานะปุ่มกดสลับ Active สีสันสวยงาม */
+  .btn-secondary-action.active-like {
+    background: rgba(255, 42, 116, 0.2) !important;
+    border-color: var(--neon-pink) !important;
+    color: var(--neon-pink) !important;
+  }
+
+  .btn-secondary-action.active-watchlist {
+    background: rgba(245, 197, 24, 0.15) !important;
+    border-color: var(--gold) !important;
+    color: var(--gold) !important;
+  }
+
+  .btn-secondary-action.active-watched {
+    background: rgba(46, 213, 115, 0.15) !important;
+    border-color: #2ed573 !important;
+    color: #2ed573 !important;
+  }
+
+  /* ... สไตล์เดิมทั้งหมดด้านล่างที่เคยส่งมาดึงใช้งานต่อได้ตามปกติเลยครับ ... */
   .detail-backdrop {
     position: absolute;
     top: 0;
@@ -394,8 +641,6 @@
         var(--bg) 100%
       );
   }
-
-  /* ── ปุ่มย้อนกลับ ── */
   .btn-back {
     position: absolute;
     top: 2rem;
@@ -420,8 +665,6 @@
     background: var(--surface2);
     border-color: rgba(255, 255, 255, 0.2);
   }
-
-  /* ── Layout ── */
   .detail-container {
     position: relative;
     z-index: 2;
@@ -435,8 +678,6 @@
     gap: 3.5rem;
     align-items: flex-start;
   }
-
-  /* ── Sidebar ── */
   .poster-wrapper {
     position: relative;
     border-radius: 14px;
@@ -458,7 +699,6 @@
     justify-content: center;
     color: var(--muted);
   }
-
   .action-buttons {
     display: flex;
     flex-direction: column;
@@ -504,8 +744,6 @@
     background: rgba(255, 255, 255, 0.09);
     border-color: rgba(255, 255, 255, 0.2);
   }
-
-  /* ── Content ── */
   .detail-content {
     display: flex;
     flex-direction: column;
@@ -525,7 +763,6 @@
     font-weight: 300;
     margin: -0.5rem 0 0;
   }
-
   .metadata-row {
     display: flex;
     gap: 0.75rem;
@@ -556,8 +793,6 @@
   .rating-tmdb i {
     color: var(--gold);
   }
-
-  /* Redesign Rating Badge ของแอปหลัก */
   .rating-remov {
     background: rgba(255, 42, 116, 0.15);
     border-color: rgba(255, 42, 116, 0.3);
@@ -567,7 +802,6 @@
   .rating-remov i {
     color: var(--neon-pink);
   }
-
   .genres-list {
     display: flex;
     gap: 0.5rem;
@@ -581,14 +815,11 @@
     font-size: 0.75rem;
     color: #ddd;
   }
-
   .section-divider {
     border: none;
     border-top: 1px solid var(--border);
     margin: 0.5rem 0;
   }
-
-  /* ── 🌟 Redesign ส่วน Remov Info Section (Glassmorphism & Balanced Colors) ── */
   .remov-info-section {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -629,8 +860,6 @@
     font-size: 0.68rem;
     color: var(--muted);
   }
-
-  /* คุมโทนสีไอคอนให้โมเดิร์น ไม่ฉูดฉาดเกะกะสายตา */
   .remov-stat-card.view i {
     background: rgba(115, 164, 255, 0.15);
     color: #73a4ff;
@@ -647,7 +876,6 @@
     background: rgba(245, 197, 24, 0.15);
     color: var(--gold);
   }
-
   .info-section {
     display: flex;
     flex-direction: column;
@@ -673,8 +901,6 @@
     margin: 0;
     font-weight: 300;
   }
-
-  /* ── กล่องสถิติการสร้าง ── */
   .grid-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -701,8 +927,6 @@
     font-weight: 600;
     color: #fff;
   }
-
-  /* ── รายชื่อนักแสดง ── */
   .cast-scroll {
     display: flex;
     gap: 1rem;
@@ -765,15 +989,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  /* ── Zone Review ── */
   .review-zone {
     margin-top: 1rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--border);
   }
-
-  /* ── Loading ── */
   .loading-state {
     position: fixed;
     inset: 0;
@@ -791,7 +1011,6 @@
     color: var(--red);
   }
 
-  /* ── Responsive ── */
   @media (max-width: 820px) {
     .detail-grid {
       grid-template-columns: 1fr;

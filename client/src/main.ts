@@ -14,15 +14,14 @@ async function bootstrap() {
   const app = createApp(App)
 
   const pinia = createPinia()
-
   app.use(pinia)
 
   // restore session
   const authStore = useAuthStore()
-
   await authStore.fetchMe()
 
   app.use(router)
+
 
   app.use(VueQueryPlugin, {
     queryClientConfig: {

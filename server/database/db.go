@@ -11,7 +11,7 @@ import (
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
-	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+	// "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -74,7 +74,7 @@ func autoMigrate(db *gorm.DB) error {
 		// Media
 		&like_module.MediaLike{}, // like ต่อ media — source of truth ของ like_count
 		&media_stats_module.MediaStat{},
-		&user_stats_module.UserStat{}, // เก็บแค่ view_count
+		// &user_stats_module.UserStat{}, // เก็บแค่ view_count
 	)
 	if err != nil {
 		return err
@@ -93,62 +93,31 @@ func runSQLMigrations(db *gorm.DB) error {
 		sql  string
 	}{
 		{
-			name: "user_stats view",
-			sql: `
-			        DROP TABLE IF EXISTS user_stats;
-				CREATE OR REPLACE VIEW user_stats AS
-				SELECT
-					u.id AS user_id,
+            name: "user_stats view",
+            sql: `
+                -- เคลียร์ของเก่าออกให้หมดก่อนเพื่อความสะอาด ไม่ว่ามันจะเป็น Table หรือ View
+                DROP VIEW IF EXISTS user_stats CASCADE;
+                DROP TABLE IF EXISTS user_stats CASCADE;
 
-					-- จำนวน reviews ที่ user เขียน (soft-delete safe)
-					COUNT(DISTINCT r.id)   AS review_count,
-
-					-- จำนวน media ที่ user กด like
-					COUNT(DISTINCT ml.id)  AS like_count,
-
-					-- จำนวน watchlist
-					COUNT(DISTINCT CASE WHEN li_w.list_type  = 'watchlist' THEN li_w.id END) AS watchlist_count,
-
-					-- จำนวน watched
-					COUNT(DISTINCT CASE WHEN li_wd.list_type = 'watched'   THEN li_wd.id END) AS watched_count,
-
-					-- จำนวน followers (คนอื่น follow user นี้)
-					COUNT(DISTINCT f_in.id)  AS follower_count,
-
-					-- จำนวน following (user นี้ follow คนอื่น)
-					COUNT(DISTINCT f_out.id) AS following_count
-
-				FROM users u
-
-				LEFT JOIN reviews r
-					ON r.user_id = u.id
-					AND r.deleted_at IS NULL
-
-				LEFT JOIN media_likes ml
-					ON ml.user_id = u.id
-					AND ml.deleted_at IS NULL
-
-				LEFT JOIN library_items li_w
-					ON li_w.user_id = u.id
-					AND li_w.list_type = 'watchlist'
-					AND li_w.deleted_at IS NULL
-
-				LEFT JOIN library_items li_wd
-					ON li_wd.user_id = u.id
-					AND li_wd.list_type = 'watched'
-					AND li_wd.deleted_at IS NULL
-
-				LEFT JOIN user_follows f_in
-					ON f_in.followee_id = u.id
-					AND f_in.status = 'accepted'
-
-				LEFT JOIN user_follows f_out
-					ON f_out.follower_id = u.id
-					AND f_out.status = 'accepted'
-
-				GROUP BY u.id
-			`,
-		},
+                CREATE VIEW user_stats AS
+                SELECT
+                    u.id AS user_id,
+                    COUNT(DISTINCT r.id)   AS review_count,
+                    COUNT(DISTINCT ml.id)  AS like_count,
+                    COUNT(DISTINCT CASE WHEN li_w.list_type  = 'watchlist' THEN li_w.id END) AS watchlist_count,
+                    COUNT(DISTINCT CASE WHEN li_wd.list_type = 'watched'   THEN li_wd.id END) AS watched_count,
+                    COUNT(DISTINCT f_in.id)  AS follower_count,
+                    COUNT(DISTINCT f_out.id) AS following_count
+                FROM users u
+                LEFT JOIN reviews r ON r.user_id = u.id AND r.deleted_at IS NULL
+                LEFT JOIN media_likes ml ON ml.user_id = u.id AND ml.deleted_at IS NULL
+                LEFT JOIN library_items li_w ON li_w.user_id = u.id AND li_w.list_type = 'watchlist' AND li_w.deleted_at IS NULL
+                LEFT JOIN library_items li_wd ON li_wd.user_id = u.id AND li_wd.list_type = 'watched' AND li_wd.deleted_at IS NULL
+                LEFT JOIN user_follows f_in ON f_in.followee_id = u.id AND f_in.status = 'accepted'
+                LEFT JOIN user_follows f_out ON f_out.follower_id = u.id AND f_out.status = 'accepted'
+                GROUP BY u.id
+            `,
+        },
 	}
 
 	for _, m := range migrations {

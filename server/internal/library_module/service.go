@@ -18,7 +18,7 @@ func NewService(db *gorm.DB) *Service {
 
 func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse, error) {
 	if req.MediaType != movie_module.MediaMovie && req.MediaType != movie_module.MediaSeries {
-		return nil, ErrInvalidMediaType 
+		return nil, ErrInvalidMediaType
 	}
 	if req.ListType != movie_module.ListWatchlist && req.ListType != movie_module.ListFavorite && req.ListType != movie_module.ListWatched {
 		return nil, ErrInvalidListType
@@ -26,6 +26,19 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 	if req.MediaID <= 0 {
 		return nil, ErrInvalidMediaID
 	}
+
+	// 💡 1. ดักจับไอเทมซ้ำ: ยิงตรวจสอบข้อมูลในฐานข้อมูลก่อนเซฟ
+	existingStatus, err := s.repo.FindMediaStatus(userID, req.MediaID, req.MediaType)
+	if err == nil {
+		for _, item := range existingStatus {
+			// ถ้าเจอว่า ListType ตรงกัน เช่น มี watchlist อยู่แล้ว
+			if item.ListType == req.ListType {
+				return nil, ErrDuplicate // 🚨 ดีด Error ซ้ำกลับไป (ซึ่ง Handler จะตอบกลับเป็น 409 Conflict อัตโนมัติ)
+			}
+		}
+	}
+
+	// 2. ถ้าตรวจสอบแล้วไม่ซ้ำ ให้ทำงานสร้างต่อตามปกติ
 	item := &LibraryItem{
 		UserID:    userID,
 		MediaID:   req.MediaID,
@@ -122,9 +135,13 @@ func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_modul
 		return nil, err
 	}
 
-	inLists := make([]movie_module.ListType, len(items))
+	// 💡 ปรับการ Map ข้อมูลให้ส่ง ID หลักของ Record กลับขึ้นไปด้วย
+	inLists := make([]MediaItemStatus, len(items))
 	for i, item := range items {
-		inLists[i] = item.ListType
+		inLists[i] = MediaItemStatus{
+			ListType: item.ListType,
+			ItemID:   item.ID, // ✅ ส่ง ID ของ library_items ไปให้หน้าบ้านถือไว้
+		}
 	}
 
 	return &MediaStatusResponse{

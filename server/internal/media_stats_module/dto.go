@@ -13,6 +13,7 @@ import (
 //   - ReviewCount    → COUNT จาก reviews table (soft-delete safe)
 //   - WatchlistCount → COUNT จาก library_items WHERE list_type = 'watchlist'
 //   - LikedAt        → timestamp ที่ requester กด like media นี้ (ถ้ามี)
+//   - WatchlistedAt  → timestamp ที่ requester กด addToWatchlist media นี้ (ถ้ามี)
 type StatsResponse struct {
 	MediaID        int                    `json:"media_id"`
 	MediaType      movie_module.MediaType `json:"media_type"`
@@ -21,6 +22,7 @@ type StatsResponse struct {
 	ReviewCount    int                    `json:"review_count"`
 	WatchlistCount int                    `json:"watchlist_count"`
 	LikedAt        *time.Time             `json:"liked_at,omitempty"`
+	WatchlistedAt  *time.Time             `json:"watchlisted_at,omitempty"`
 }
 
 type IncrementField string

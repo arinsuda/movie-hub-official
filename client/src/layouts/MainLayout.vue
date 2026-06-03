@@ -1,6 +1,5 @@
 <template>
   <div class="app-shell">
-    <!-- ── Navbar ──────────────────────────────────────────── -->
     <header class="navbar" :class="{ 'navbar--scrolled': scrolled }">
       <RouterLink to="/" class="nav-logo">
         <span class="logo-movie">RE</span><span class="logo-hub">MOV</span>
@@ -34,7 +33,6 @@
       </nav>
 
       <div class="nav-right">
-        <!-- Search -->
         <div class="search-box" :class="{ 'search-box--open': searchOpen }">
           <button class="search-icon-btn" @click="toggleSearch">
             <Search :size="18" />
@@ -50,12 +48,21 @@
           />
         </div>
 
-        <!-- Notification bell -->
-        <button class="icon-btn">
-          <Bell :size="18" />
-        </button>
+        <div class="notification-wrapper">
+          <button
+            class="icon-btn"
+            :class="{ 'has-unread': hasNotifications }"
+            @click="clearNotifications"
+          >
+            <Bell :size="18" />
+            <span v-if="notificationCount > 0" class="bell-badge">{{
+              notificationCount
+            }}</span>
+          </button>
 
-        <!-- User dropdown -->
+          <ToastContainer @toast-added="incrementNotification" />
+        </div>
+
         <div class="user-menu" v-if="authStore.user" ref="userMenuRef">
           <button class="user-trigger" @click="userMenuOpen = !userMenuOpen">
             <div class="user-avatar">
@@ -117,7 +124,6 @@
       </div>
     </header>
 
-    <!-- ── Page content ────────────────────────────────────── -->
     <main class="page-content">
       <RouterView />
     </main>
@@ -125,9 +131,10 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, onUnmounted, nextTick } from "vue"
+  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue"
   import { useRouter, useRoute } from "vue-router"
   import { useAuthStore } from "@/stores/auth"
+  import ToastContainer from "@/components/common/ToastContainer.vue" // นำเข้ามาไว้ที่นี่
   import {
     Search,
     Bell,
@@ -149,6 +156,18 @@
   const searchInput = ref<HTMLInputElement | null>(null)
   const userMenuOpen = ref(false)
   const userMenuRef = ref<HTMLElement | null>(null)
+
+  // จัดการสถานะแจ้งเตือนกระดิ่ง
+  const notificationCount = ref(0)
+  const hasNotifications = computed(() => notificationCount.value > 0)
+
+  function incrementNotification() {
+    notificationCount.value++
+  }
+
+  function clearNotifications() {
+    notificationCount.value = 0
+  }
 
   function onScroll() {
     scrolled.value = window.scrollY > 20
@@ -309,6 +328,44 @@
     color: #666;
   }
 
+  /* Notification Wrapper & Badge */
+  .notification-wrapper {
+    position: relative; /* ให้กระดิ่งและ Toast อิงตำแหน่งกับ Container นี้ */
+    display: flex;
+    align-items: center;
+  }
+
+  .bell-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #e50914;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: bold;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 2px solid #141414;
+    animation: pulse-badge 0.3s ease-out;
+  }
+
+  @keyframes pulse-badge {
+    0% {
+      transform: scale(0.6);
+    }
+    50% {
+      transform: scale(1.2);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
   /* Icon button */
   .icon-btn {
     background: none;
@@ -325,7 +382,8 @@
       color 0.2s,
       background 0.2s;
   }
-  .icon-btn:hover {
+  .icon-btn:hover,
+  .has-unread {
     color: #fff;
     background: rgba(255, 255, 255, 0.08);
   }

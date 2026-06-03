@@ -17,8 +17,6 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// GetStats GET /stats?media_id=&media_type=
-// ไม่ต้อง auth — ถ้า auth อยู่จะได้ is_liked ด้วย
 func (h *Handler) GetStats(c fiber.Ctx) error {
 	mediaID, mediaType, err := parseMediaParams(c)
 	if err != nil {
@@ -37,7 +35,6 @@ func (h *Handler) GetStats(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"stats": stats})
 }
 
-// RecordView POST /stats/view?media_id=&media_type=
 func (h *Handler) RecordView(c fiber.Ctx) error {
 	mediaID, mediaType, err := parseMediaParams(c)
 	if err != nil {
@@ -49,7 +46,6 @@ func (h *Handler) RecordView(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// LikeMedia POST /stats/like?media_id=&media_type=
 func (h *Handler) LikeMedia(c fiber.Ctx) error {
 	mediaID, mediaType, err := parseMediaParams(c)
 	if err != nil {
@@ -62,7 +58,6 @@ func (h *Handler) LikeMedia(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// UnlikeMedia DELETE /stats/like?media_id=&media_type=
 func (h *Handler) UnlikeMedia(c fiber.Ctx) error {
 	mediaID, mediaType, err := parseMediaParams(c)
 	if err != nil {
@@ -75,17 +70,23 @@ func (h *Handler) UnlikeMedia(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
-
 func parseMediaParams(c fiber.Ctx) (int, movie_module.MediaType, error) {
-	mediaID, err := strconv.Atoi(c.Query("media_id"))
+
+	mediaID, err := strconv.Atoi(c.Params("media_id"))
 	if err != nil || mediaID <= 0 {
 		return 0, "", errors.New("invalid media_id")
 	}
-	mediaType := movie_module.MediaType(c.Query("media_type"))
+
+	mediaType := movie_module.MediaType(c.Params("media_type"))
+
+	if mediaType == "tv" {
+		mediaType = movie_module.MediaSeries
+	}
+
 	if mediaType != movie_module.MediaMovie && mediaType != movie_module.MediaSeries {
 		return 0, "", errors.New("invalid media_type, must be 'movie' or 'tv'")
 	}
+
 	return mediaID, mediaType, nil
 }
 

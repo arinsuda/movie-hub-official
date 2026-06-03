@@ -30,12 +30,13 @@
         allow="
           autoplay;
           encrypted-media;
+          generative-ai;
           gyroscope;
           picture-in-picture;
           web-share;
         "
         allowfullscreen
-        referrerpolicy="strict-origin-when-cross-origin"
+        referpolicy="strict-origin-when-cross-origin"
         @load="onIframeLoad"
       />
 
@@ -80,28 +81,53 @@
     <p class="popup__overview">{{ truncate(movie.overview, 130) }}</p>
 
     <div class="popup__actions">
-      <button class="action-btn action-btn--watched" title="Watched">
+      <button class="action-btn action-btn--watched" title="Views Static">
         <Eye :size="15" />
-        <span>{{ fmtCount(movie.vote_count) }}</span>
+        <span>{{ fmtCount(stats.view_count) }}</span>
       </button>
-      <button class="action-btn action-btn--review" title="Review">
+
+      <RouterLink
+        :to="{
+          name: 'movie-detail',
+          params: { id: movie.id },
+          query: { action: 'review' },
+        }"
+        class="action-btn action-btn--review"
+        title="Review"
+      >
         <PenLine :size="15" />
-        <span>Review</span>
+        <span>{{ fmtCount(stats.review_count) }}</span>
+      </RouterLink>
+
+      <button
+        class="action-btn action-btn--favorite"
+        :class="{ 'action-btn--active': isLiked }"
+        title="Favourite"
+        @click.stop="handleLikeToggle"
+      >
+        <Heart :size="15" :fill="isLiked ? 'currentColor' : 'none'" />
+        <span>{{ fmtCount(stats.like_count) }}</span>
       </button>
-      <button class="action-btn action-btn--favorite" title="Favourite">
-        <Heart :size="15" />
-        <span>{{ fmtCount(Math.floor(movie.vote_count * 0.6)) }}</span>
-      </button>
-      <button class="action-btn action-btn--watchlist" title="Watchlist">
-        <BookmarkPlus :size="15" />
-        <span>Watchlist</span>
+
+      <button
+        class="action-btn action-btn--watchlist"
+        :class="{ 'action-btn--active': isInWatchlist }"
+        title="Watchlist"
+        @click.stop="handleWatchlistToggle"
+      >
+        <BookmarkPlus
+          :size="15"
+          :fill="isInWatchlist ? 'currentColor' : 'none'"
+        />
+        <span>{{ fmtCount(stats.watchlist_count) }}</span>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed } from "vue"
+  import { computed, ref, onMounted } from "vue"
+  import { useRouter } from "vue-router"
   import {
     Film,
     Star,
@@ -115,7 +141,9 @@
   import type { Movie } from "@/types"
   import type { ResolvedTrailer } from "@/composables/useTrailerPreview"
 
-  // ─── Props ────────────────────────────────────────────────────────────────────
+  import { movieApi } from "@/api/endpoints/movie"
+  import { libraryApi } from "@/api/endpoints/library"
+  import { useAuthStore } from "@/stores/auth"
 
   const props = defineProps<{
     movie: Movie
@@ -130,11 +158,131 @@
     (e: "iframe-load"): void
   }>()
 
-  // ─── Composables ──────────────────────────────────────────────────────────────
+  const router = useRouter()
+  const authStore = useAuthStore()
+
+  const currentUserId = computed(() => authStore.user?.id ?? null)
+
+  // ─── Reactive Stats State ──────────────────────────────────────────────────
+  const stats = ref({
+    view_count: 0,
+    like_count: 0,
+    review_count: 0,
+    watchlist_count: 0,
+  })
+  const isLiked = ref(false)
+  const isInWatchlist = ref(false)
+  const watchlistItemId = ref<number | null>(null)
+
+  onMounted(async () => {
+    try {
+      const resStats = await movieApi.getMediaStats("movie", props.movie.id)
+      const s = resStats.data?.stats || (resStats.data as any)?.stats
+
+      if (s) {
+        stats.value = {
+          view_count: s.view_count || 0,
+          like_count: s.like_count || 0,
+          review_count: s.review_count || 0,
+          watchlist_count: s.watchlist_count || 0,
+        }
+        isLiked.value = !!s.liked_at
+      }
+
+      if (!currentUserId.value) return
+
+      const userId = currentUserId.value
+      const resLibrary = await libraryApi.getMediaStatus(
+        userId,
+        props.movie.id,
+        "movie",
+      )
+      const watchlistInfo = resLibrary.data?.in_lists?.find(
+        item => item.list_type === "watchlist",
+      )
+
+      if (watchlistInfo) {
+        isInWatchlist.value = true
+        watchlistItemId.value = watchlistInfo.item_id
+      }
+    } catch (err) {
+      console.error("ไม่สามารถโหลดสถิติจริงจากระบบหลังบ้านได้:", err)
+    }
+  })
+
+  // ─── Interaction Handlers (เปลี่ยนมาใช้ Custom Toast) ───────────────────────
+
+  // จัดการระบบ กดถูกใจการ์ดภาพยนตร์ (Like/Unlike)
+  async function handleLikeToggle() {
+    try {
+      if (isLiked.value) {
+        await movieApi.unlikeMedia("movie", props.movie.id)
+        stats.value.like_count = Math.max(0, stats.value.like_count - 1)
+        isLiked.value = false
+        window.$toast?.info(`ลบออกจากรายการที่ชอบแล้ว`, props.movie.title)
+      } else {
+        await movieApi.likeMedia("movie", props.movie.id)
+        stats.value.like_count++
+        isLiked.value = true
+        window.$toast?.success(
+          `เพิ่มไปยังรายการที่ชอบเรียบร้อย! ❤️`,
+          props.movie.title,
+        )
+      }
+    } catch (err) {
+      window.$toast?.error("เกิดข้อผิดพลาด กรุณาลองใหมี่อีกครั้ง", "REMOV HUB")
+    }
+  }
+
+  // จัดการระบบ กดเซฟ/ถอนคิวออกจาก Watchlist ส่วนตัวแบบ Real-time
+  async function handleWatchlistToggle() {
+    if (!currentUserId.value) {
+      window.$toast?.warning("กรุณาเข้าสู่ระบบก่อนใช้งาน", "แจ้งเตือน")
+      return
+    }
+    const userId = currentUserId.value
+
+    try {
+      if (isInWatchlist.value && watchlistItemId.value) {
+        await libraryApi.removeItem(userId, watchlistItemId.value)
+
+        stats.value.watchlist_count = Math.max(
+          0,
+          stats.value.watchlist_count - 1,
+        )
+        isInWatchlist.value = false
+        watchlistItemId.value = null
+        window.$toast?.info(`ลบออกจาก Watchlist แล้ว`, props.movie.title)
+      } else {
+        const res = await libraryApi.addItem(userId, {
+          media_id: props.movie.id,
+          media_type: "movie",
+          list_type: "watchlist",
+        })
+
+        if (res.data?.item) {
+          watchlistItemId.value = res.data.item.id
+        }
+
+        stats.value.watchlist_count++
+        isInWatchlist.value = true
+        window.$toast?.success(
+          `เพิ่มเข้า Watchlist สำเร็จ! 🍿`,
+          props.movie.title,
+        )
+      }
+    } catch (err) {
+      console.error("Watchlist Error:", err)
+      window.$toast?.error(
+        "บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+        "REMOV HUB",
+      )
+    }
+  }
+
+  // ─── Composables & Computed ──────────────────────────────────────────────────
 
   const { backdropImage } = useImageUrl()
-
-  // ─── Computed ──────────────────────────────────────────────────────────────────
 
   const backdropUrl = computed(() => {
     const path = props.movie.backdrop_path
@@ -147,31 +295,22 @@
 
   const soundEmbedUrl = computed(() => {
     if (!props.trailer?.embedUrl) return ""
-
-    // สร้าง URL Object ขึ้นมาเพื่อจัดการ Query Params ได้อย่างปลอดภัย
     try {
       const url = new URL(props.trailer.embedUrl)
       url.searchParams.delete("mute")
       url.searchParams.delete("muted")
-
-      // บังคับให้เล่นอัตโนมัติ (เผื่อตัวแปรต้นทางไม่ได้ใส่มา)
       url.searchParams.set("autoplay", "1")
-
       return url.toString()
     } catch (e) {
-      // กรณีที่ไม่ใช่ URL สมบูรณ์ ให้เปลี่ยนข้อความตรงๆ
       return props.trailer.embedUrl
         .replace(/[?&]mute=1/, "")
         .replace(/[?&]muted=1/, "")
     }
   })
-  // ─── Handlers ────────────────────────────────────────────────────────────────
 
   function onIframeLoad() {
     emit("iframe-load")
   }
-
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   function truncate(str: string, len: number) {
     if (!str) return ""
@@ -192,14 +331,39 @@
 </script>
 
 <style scoped>
-  /* ── Media zone ──────────────────────────────────────────────────────────── */
+  .action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    gap: 3px;
+    padding: 0.45rem 0.15rem;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 0.59rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    transition:
+      filter 0.15s,
+      transform 0.12s,
+      background-color 0.2s;
+  }
+  .action-btn:hover {
+    filter: brightness(1.2);
+    transform: translateY(-1px);
+  }
+  .action-btn--active {
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+    filter: saturate(1.4) brightness(1.1);
+  }
+
   .popup__media {
     position: relative;
     aspect-ratio: 16 / 9;
     background: #080808;
     overflow: hidden;
   }
-
   .popup__backdrop {
     position: absolute;
     inset: 0;
@@ -208,7 +372,6 @@
     object-fit: cover;
     object-position: center top;
   }
-
   .popup__no-media {
     position: absolute;
     inset: 0;
@@ -217,12 +380,9 @@
     justify-content: center;
     background: linear-gradient(135deg, #111 0%, #1c1c1c 100%);
   }
-
   .popup__no-media-icon {
     color: #2a2a2a;
   }
-
-  /* iframe */
   .popup__iframe {
     position: absolute;
     inset: -1px;
@@ -233,12 +393,9 @@
     transition: opacity 0.45s ease;
     pointer-events: none;
   }
-
   .popup__iframe--visible {
     opacity: 1;
   }
-
-  /* Gradient fade into info */
   .popup__media-fade {
     position: absolute;
     bottom: 0;
@@ -248,8 +405,6 @@
     background: linear-gradient(to bottom, transparent, #1c1c1c);
     pointer-events: none;
   }
-
-  /* No-trailer notice */
   .popup__no-trailer {
     position: absolute;
     bottom: 8px;
@@ -261,8 +416,6 @@
     color: #444;
     z-index: 2;
   }
-
-  /* Live trailer badge */
   .popup__badge {
     position: absolute;
     top: 8px;
@@ -282,7 +435,6 @@
     backdrop-filter: blur(6px);
     z-index: 3;
   }
-
   .popup__badge-dot {
     display: inline-block;
     width: 5px;
@@ -291,7 +443,6 @@
     background: #e50914;
     animation: pulse-dot 1.8s ease-in-out infinite;
   }
-
   .popup__media-link {
     display: block;
     position: absolute;
@@ -301,7 +452,6 @@
     z-index: 4;
     cursor: pointer;
   }
-
   @keyframes pulse-dot {
     0%,
     100% {
@@ -313,8 +463,6 @@
       transform: scale(0.65);
     }
   }
-
-  /* ── Skeleton shimmer ──────────────────────────────────────────────────── */
   .popup__skeleton {
     position: absolute;
     inset: 0;
@@ -326,14 +474,12 @@
     gap: 10px;
     z-index: 1;
   }
-
   .popup__skeleton-bar {
     border-radius: 4px;
     background: linear-gradient(90deg, #1a1a1a 25%, #252525 50%, #1a1a1a 75%);
     background-size: 200% 100%;
     animation: shimmer 1.4s ease-in-out infinite;
   }
-
   .popup__skeleton-bar--1 {
     width: 55%;
     height: 7px;
@@ -342,7 +488,6 @@
     width: 38%;
     height: 5px;
   }
-
   @keyframes shimmer {
     0% {
       background-position: 200% 0;
@@ -351,24 +496,19 @@
       background-position: -200% 0;
     }
   }
-
-  /* ── Info section ──────────────────────────────────────────────────────── */
   .popup__info {
     padding: 0.8rem 0.875rem 0.875rem;
   }
-
   .popup__title-row {
     display: flex;
     align-items: flex-start;
     gap: 0.4rem;
     margin-bottom: 0.4rem;
   }
-
   .popup__title-link {
     cursor: pointer;
     color: inherit;
   }
-
   .popup__title {
     flex: 1;
     font-size: 0.88rem;
@@ -381,7 +521,6 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
-
   .popup__rating {
     display: flex;
     align-items: center;
@@ -392,19 +531,15 @@
     font-weight: 700;
     color: #f59e0b;
   }
-
   .popup__star {
     color: #f59e0b;
   }
-
-  /* Meta chips */
   .popup__meta {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     margin-bottom: 0.5rem;
   }
-
   .popup__chip {
     font-size: 0.6rem;
     font-weight: 600;
@@ -414,49 +549,17 @@
     border-radius: 4px;
     padding: 2px 6px;
   }
-
-  /* Overview */
   .popup__overview {
     font-size: 0.7rem;
     color: #666;
     line-height: 1.6;
     margin: 0 0 0.75rem;
   }
-
-  /* Action buttons */
   .popup__actions {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 5px;
   }
-
-  .action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    padding: 0.45rem 0.15rem;
-    border: none;
-    border-radius: 7px;
-    cursor: pointer;
-    font-size: 0.59rem;
-    font-weight: 700;
-    color: rgba(255, 255, 255, 0.9);
-    transition:
-      filter 0.15s,
-      transform 0.12s;
-  }
-
-  .action-btn:hover {
-    filter: brightness(1.2);
-    transform: translateY(-1px);
-  }
-
-  .action-btn:active {
-    transform: translateY(0);
-    filter: brightness(0.9);
-  }
-
   .action-btn--watched {
     background: #1d4ed8;
   }
