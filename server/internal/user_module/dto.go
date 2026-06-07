@@ -32,3 +32,10 @@ type UpdateProfileRequest struct {
 type UpdateFavoriteGenresRequest struct {
 	FavoriteGenres []int `json:"favorite_genres"`
 }
+
+type UserSummaryResponse struct {
+	ID          uint    `json:"id"`
+	Username    string  `json:"username"`
+	DisplayName *string `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url"`
+}

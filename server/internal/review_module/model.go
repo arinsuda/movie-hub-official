@@ -1,13 +1,16 @@
 package review_module
 
 import (
+	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 	"time"
 )
 
 type Review struct {
 	gorm.Model
-	UserID    uint   `gorm:"not null;index"`
+	UserID uint       `gorm:"not null;index"`
+	User   users.User `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+
 	MediaID   int    `gorm:"not null;index"`
 	MediaType string `gorm:"type:varchar(10);not null"`
 
@@ -25,12 +28,13 @@ type ReviewLike struct {
 	ReviewID  uint `gorm:"not null;index"`
 	UserID    uint `gorm:"not null;index"`
 	CreatedAt time.Time
-	// UNIQUE: (review_id, user_id)
 }
 
 type ReviewComment struct {
 	gorm.Model
-	ReviewID uint   `gorm:"not null;index"`
-	UserID   uint   `gorm:"not null;index"`
-	Body     string `gorm:"type:text;not null"`
+	ReviewID uint `gorm:"not null;index"`
+	UserID   uint `gorm:"not null;index"`
+	// ── แนะนำให้แก้คอมเมนต์ชี้ไปหาตารางจริงเช่นกัน ──
+	User users.User `gorm:"foreignKey:UserID"`
+	Body string     `gorm:"type:text;not null"`
 }

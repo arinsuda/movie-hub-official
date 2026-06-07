@@ -14,7 +14,7 @@ var (
 	ErrAlreadyLiked     = errors.New("already liked")
 	ErrNotLiked         = errors.New("not liked")
 	ErrInvalidWatchedAt = errors.New("invalid watched_at")
-	ErrInvalidRating    = errors.New("rating must be between 0 and 10")
+	ErrInvalidRating    = errors.New("rating must be 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, or 5")
 	ErrInvalidMediaType = errors.New("media_type must be 'movie' or 'tv'")
 	ErrInvalidMediaID   = errors.New("invalid media_id")
 )
@@ -30,12 +30,15 @@ func newRepository(db *gorm.DB) *repository {
 // ── Review ────────────────────────────────────────────────────────
 
 func (r *repository) CreateReview(review *Review) error {
+	// บันทึกตัวรีวิวเพียวๆ ลงไปก่อน
 	return r.db.Create(review).Error
 }
 
 func (r *repository) FindReviewsByUser(userID uint) ([]Review, error) {
 	var reviews []Review
-	err := r.db.Where("user_id = ?", userID).
+	// เติม Preload("User") เข้าไปตรงนี้
+	err := r.db.Preload("User").
+		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&reviews).Error
 	return reviews, err
@@ -43,7 +46,8 @@ func (r *repository) FindReviewsByUser(userID uint) ([]Review, error) {
 
 func (r *repository) FindReviewsByMedia(mediaID int, mediaType string) ([]Review, error) {
 	var reviews []Review
-	err := r.db.Where("media_id = ? AND media_type = ? AND is_public = true", mediaID, mediaType).
+	err := r.db.Preload("User").
+		Where("media_id = ? AND media_type = ? AND is_public = true", mediaID, mediaType).
 		Order("created_at DESC").
 		Find(&reviews).Error
 	return reviews, err
@@ -51,7 +55,8 @@ func (r *repository) FindReviewsByMedia(mediaID int, mediaType string) ([]Review
 
 func (r *repository) FindReviewByID(reviewID uint) (*Review, error) {
 	var review Review
-	err := r.db.First(&review, reviewID).Error
+	// เติม Preload("User") เข้าไปตรงนี้ด้วย เพื่อให้ตอน Update/Delete ทำงานได้ถูกต้อง
+	err := r.db.Preload("User").First(&review, reviewID).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrReviewNotFound
 	}

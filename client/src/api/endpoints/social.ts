@@ -1,4 +1,4 @@
-import api from "../index";
+import api from "../index"
 import type {
   ReviewResponse,
   CreateReviewRequest,
@@ -14,7 +14,7 @@ import type {
   FeedItemResponse,
   MediaType,
   ListType,
-} from "@/types";
+} from "@/types"
 
 // ── Review ─────────────────────────────────────────────────────────
 export const reviewApi = {
@@ -31,7 +31,7 @@ export const reviewApi = {
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
   ) =>
-    api.get<PaginatedResponse<ReviewResponse>>(
+    api.get<{ reviews: ReviewResponse[] }>( // เปลี่ยนตรงนี้
       `/${mediaType}/${mediaId}/reviews`,
       {
         params: { page: 1, limit: 20, ...params },
@@ -73,7 +73,7 @@ export const reviewApi = {
 
   deleteComment: (reviewId: number, commentId: number) =>
     api.delete(`/reviews/${reviewId}/comments/${commentId}`),
-};
+}
 
 // ── Library ────────────────────────────────────────────────────────
 export const libraryApi = {
@@ -105,7 +105,7 @@ export const libraryApi = {
 
   removeItem: (userId: number, itemId: number) =>
     api.delete(`/users/${userId}/library/${itemId}`),
-};
+}
 
 // ── Follow / Feed ──────────────────────────────────────────────────
 export const followApi = {
@@ -136,7 +136,7 @@ export const followApi = {
     api.get<PaginatedResponse<FeedItemResponse>>("/feed", {
       params: { page, limit },
     }),
-};
+}
 
 // ── User ───────────────────────────────────────────────────────────
 export const userApi = {
@@ -149,4 +149,4 @@ export const userApi = {
 
   updateFavoriteGenres: (userId: number, genres: number[]) =>
     api.patch(`/users/${userId}/genres`, { favorite_genres: genres }),
-};
+}

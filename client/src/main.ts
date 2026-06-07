@@ -22,7 +22,6 @@ async function bootstrap() {
 
   app.use(router)
 
-
   app.use(VueQueryPlugin, {
     queryClientConfig: {
       defaultOptions: {

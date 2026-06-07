@@ -1,6 +1,9 @@
 package review_module
 
-import "time"
+import (
+	users "github.com/arinsuda/movie-hub/internal/user_module"
+	"time"
+)
 
 // ── Review ────────────────────────────────────────────────────────
 
@@ -21,19 +24,19 @@ type UpdateReviewRequest struct {
 }
 
 type ReviewResponse struct {
-	ID           uint       `json:"id"`
-	UserID       uint       `json:"user_id"`
-	MediaID      int        `json:"media_id"`
-	MediaType    string     `json:"media_type"`
-	Rating       float32    `json:"rating"`
-	Body         string     `json:"body"`
-	IsPublic     bool       `json:"is_public"`
-	WatchedAt    *time.Time `json:"watched_at"`
-	LikeCount    int        `json:"like_count"`
-	CommentCount int        `json:"comment_count"`
-	IsLiked      bool       `json:"is_liked"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uint                      `json:"id"`
+	User         users.UserSummaryResponse `json:"user"`
+	MediaID      int                       `json:"media_id"`
+	MediaType    string                    `json:"media_type"`
+	Rating       float32                   `json:"rating"`
+	Body         string                    `json:"body"`
+	IsPublic     bool                      `json:"is_public"`
+	WatchedAt    *time.Time                `json:"watched_at"`
+	LikeCount    int                       `json:"like_count"`
+	CommentCount int                       `json:"comment_count"`
+	IsLiked      bool                      `json:"is_liked"`
+	CreatedAt    time.Time                 `json:"created_at"`
+	UpdatedAt    time.Time                 `json:"updated_at"`
 }
 
 // ── In-app Rating (aggregate) ─────────────────────────────────────

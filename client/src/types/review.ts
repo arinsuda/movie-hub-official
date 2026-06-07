@@ -1,11 +1,12 @@
-import type { UserSummary } from './auth'
-import type { MediaSummary } from './movie'
+import type { UserSummary } from "./auth"
+import type { MediaSummary } from "./movie"
 
 export interface ReviewResponse {
   id: number
-  user: UserSummary
-  media: MediaSummary
-  rating: number
+  user: UserSummary // { id, username, display_name, avatar_url }
+  media_id: number // BE ส่งแยก field ไม่ใช่ object
+  media_type: string
+  rating: number // 0.0 - 10.0
   body: string
   is_public: boolean
   watched_at: string | null
@@ -18,7 +19,7 @@ export interface ReviewResponse {
 
 export interface CreateReviewRequest {
   media_id: number
-  media_type: 'movie' | 'tv'
+  media_type: "movie" | "tv"
   rating: number
   body: string
   is_public: boolean
@@ -46,8 +47,8 @@ export interface CreateCommentRequest {
 }
 
 // Library
-export type ListType = 'watchlist' | 'favorite' | 'watched'
-export type MediaType = 'movie' | 'tv'
+export type ListType = "watchlist" | "favorite" | "watched"
+export type MediaType = "movie" | "tv"
 
 export interface LibraryItemResponse {
   id: number

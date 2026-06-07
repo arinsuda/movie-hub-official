@@ -99,4 +99,13 @@ export const movieApi = {
     api.get<PaginatedResult<TVSeries>>(`/tv/${id}/similar`, {
       params: { page },
     }),
+
+  getTVVideos: (id: number) =>
+    api
+      .get<{
+        tv: TVSeriesDetail
+        credits: Credits
+        videos: Video[]
+      }>(`/tv/${id}`)
+      .then(res => ({ data: { results: res.data.videos } })),
 }

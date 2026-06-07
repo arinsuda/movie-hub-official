@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +19,7 @@ func NewService(db *gorm.DB) *Service {
 // ── Review ────────────────────────────────────────────────────────
 
 func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
-	if req.Rating < 0 || req.Rating > 10 {
+	if req.Rating < 0.5 || req.Rating > 5 || math.Mod(float64(req.Rating)*2, 1) != 0 {
 		return nil, ErrInvalidRating
 	}
 	if req.MediaType != "movie" && req.MediaType != "tv" {
@@ -44,14 +45,19 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		review.WatchedAt = &t
 	}
 
+	// 1. สั่งบันทึกรีวิวลง DB
 	if err := s.repo.CreateReview(review); err != nil {
 		return nil, err
 	}
 
-	// ไม่ต้อง IncrementReviewCount แล้ว
-	// stats_module จะ COUNT จาก reviews table โดยตรง
+	// 2. ดึงข้อมูลตัวที่เพิ่งบันทึกขึ้นมาใหม่พร้อมโหลดโครงสร้างความสัมพันธ์ "User" ผ่าน Repo
+	insertedReview, err := s.repo.FindReviewByID(review.ID)
+	if err != nil {
+		return nil, err
+	}
 
-	return toReviewResponse(review, false), nil
+	// 3. ส่งตัวที่โหลด User สมบูรณ์แล้วไปแปลงเป็น Response
+	return toReviewResponse(insertedReview, false), nil
 }
 
 func (s *Service) GetUserReviews(userID uint, requesterID uint) ([]ReviewResponse, error) {
@@ -280,9 +286,13 @@ func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
 // ── Helpers ───────────────────────────────────────────────────────
 
 func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
+	if r == nil {
+		return nil
+	}
+
 	return &ReviewResponse{
 		ID:           r.ID,
-		UserID:       r.UserID,
+		User:         toUserSummaryResponse(&r.User), // ฟังก์ชันที่ปรับปรุงใหม่จะช่วยดักไว้ให้
 		MediaID:      r.MediaID,
 		MediaType:    r.MediaType,
 		Rating:       r.Rating,
@@ -306,4 +316,29 @@ func toCommentResponse(c *ReviewComment) *CommentResponse {
 		CreatedAt: c.CreatedAt,
 		UpdatedAt: c.UpdatedAt,
 	}
+}
+
+func toUserSummaryResponse(u *users.User) users.UserSummaryResponse {
+	if u == nil || u.ID == 0 {
+		return users.UserSummaryResponse{
+			Username: "Unknown User",
+		}
+	}
+
+	res := users.UserSummaryResponse{
+		ID:       u.ID,
+		Username: u.Username,
+	}
+
+	// เช็คประเภทข้อมูล: ถ้า u.DisplayName ในโมเดลหลักเป็น string ธรรมดา
+	// แต่ใน DTO ต้องการ *string เราต้องส่ง Pointer ของค่านั้นไปให้แทนครับ
+	if u.DisplayName != nil && *u.DisplayName != "" {
+		res.DisplayName = u.DisplayName
+	}
+
+	if u.AvatarURL != nil && *u.AvatarURL != "" {
+		res.AvatarURL = u.AvatarURL
+	}
+
+	return res
 }

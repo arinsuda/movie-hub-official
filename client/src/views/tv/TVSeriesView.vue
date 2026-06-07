@@ -19,7 +19,7 @@
             <Tag :size="14" />
             {{
               selectedGenre
-                ? genres.find((g) => g.id === selectedGenre)?.name
+                ? genres.find(g => g.id === selectedGenre)?.name
                 : "All Genres"
             }}
             <ChevronDown
@@ -50,7 +50,7 @@
         <div class="filter-select" ref="sortRef">
           <button class="filter-trigger" @click="sortOpen = !sortOpen">
             <ArrowUpDown :size="14" />
-            {{ sortOptions.find((s) => s.key === sortBy)?.label }}
+            {{ sortOptions.find(s => s.key === sortBy)?.label }}
             <ChevronDown
               :size="13"
               :class="{ 'rotate-180': sortOpen }"
@@ -90,8 +90,8 @@
           v-for="(show, i) in series"
           :key="show.id"
           class="poster-wrap"
-          @mouseenter="hoveredId = show.id"
-          @mouseleave="hoveredId = null"
+          @mouseenter="onCardEnter(show.id, show)"
+          @mouseleave="onCardLeave(show.id)"
         >
           <RouterLink :to="`/tv/${show.id}`" class="poster-card">
             <img
@@ -109,46 +109,18 @@
               v-if="hoveredId === show.id"
               class="hover-popup"
               :class="getPopupPos(i)"
+              @mouseenter="onPopupEnter"
+              @mouseleave="onPopupLeave(show.id)"
             >
-              <div class="popup__trailer">
-                <Play :size="26" class="popup__play-icon" />
-                <span class="popup__trailer-label">trailer auto play</span>
-              </div>
-              <div class="popup__info">
-                <div class="popup__title-row">
-                  <h3 class="popup__title">{{ show.name }}</h3>
-                  <Star :size="12" class="popup__star" />
-                  <span class="popup__rating">{{
-                    show.vote_average?.toFixed(1)
-                  }}</span>
-                </div>
-                <p class="popup__meta">
-                  {{ show.first_air_date?.slice(0, 4) }}
-                </p>
-                <p class="popup__overview">
-                  {{ truncate(show.overview, 130) }}
-                </p>
-                <div class="popup__actions">
-                  <button class="action-btn action-btn--watched">
-                    <Eye :size="15" /><span>{{
-                      fmtCount(show.vote_count)
-                    }}</span>
-                  </button>
-                  <button class="action-btn action-btn--review">
-                    <PenLine :size="15" /><span>Review</span>
-                  </button>
-                  <button class="action-btn action-btn--favorite">
-                    <Heart :size="15" /><span>{{
-                      fmtCount(Math.floor(show.vote_count * 0.6))
-                    }}</span>
-                  </button>
-                  <button class="action-btn action-btn--watchlist">
-                    <BookmarkPlus :size="15" /><span>{{
-                      fmtCount(Math.floor(show.vote_count * 0.4))
-                    }}</span>
-                  </button>
-                </div>
-              </div>
+              <PopupCard
+                :movie="toMovieShape(show)"
+                :trailer="getTrailer(show.id)"
+                :is-iframe-mounted="getState(show.id).isIframeMounted.value"
+                :is-iframe-loaded="getState(show.id).isIframeLoaded.value"
+                :show-skeleton="getState(show.id).showSkeleton.value"
+                :show-fallback="getState(show.id).showFallback.value"
+                @iframe-load="getState(show.id).onIframeLoad()"
+              />
             </div>
           </Transition>
         </div>
@@ -198,603 +170,583 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useRoute } from "vue-router";
-import { useQuery } from "@tanstack/vue-query";
-import { movieApi } from "@/api/api";
-import type { TVSeries, Genre } from "@/types";
-import {
-  Search,
-  X,
-  Tag,
-  ArrowUpDown,
-  ChevronDown,
-  Play,
-  Star,
-  Eye,
-  PenLine,
-  Heart,
-  BookmarkPlus,
-  Tv,
-} from "lucide-vue-next";
+  import { ref, computed, onMounted, onUnmounted, watch } from "vue"
+  import { useRoute } from "vue-router"
+  import { useQuery } from "@tanstack/vue-query"
+  import { movieApi } from "@/api/api"
+  import type { TVSeries, Genre, Movie } from "@/types"
+  import { Search, X, Tag, ArrowUpDown, ChevronDown, Tv } from "lucide-vue-next"
+  import {
+    resolveTrailer,
+    useTrailerPreview,
+    type ResolvedTrailer,
+  } from "@/composables/useTrailerPreview"
+  import PopupCard from "@/components/movie/PopupCard.vue"
 
-const route = useRoute();
+  const route = useRoute()
 
-type TabKey = "popular" | "now_airing" | "top_rated";
-const tabs = [
-  { key: "popular" as TabKey, label: "Popular" },
-  { key: "now_airing" as TabKey, label: "Now Airing" },
-  { key: "top_rated" as TabKey, label: "Top Rated" },
-];
-const sortOptions = [
-  { key: "default", label: "Default" },
-  { key: "rating", label: "Rating" },
-  { key: "date", label: "First Air Date" },
-  { key: "popular", label: "Popularity" },
-];
+  type TabKey = "popular" | "now_airing" | "top_rated"
+  const tabs = [
+    { key: "popular" as TabKey, label: "Popular" },
+    { key: "now_airing" as TabKey, label: "Now Airing" },
+    { key: "top_rated" as TabKey, label: "Top Rated" },
+  ]
+  const sortOptions = [
+    { key: "default", label: "Default" },
+    { key: "rating", label: "Rating" },
+    { key: "date", label: "First Air Date" },
+    { key: "popular", label: "Popularity" },
+  ]
 
-const activeTab = ref<TabKey>("popular");
-const sortBy = ref("default");
-const selectedGenre = ref<number | null>(null);
-const searchQuery = ref((route.query.q as string) ?? "");
-const currentPage = ref(1);
-const pageSize = ref(20);
-const hoveredId = ref<number | null>(null);
-const genres = ref<Genre[]>([]);
-const genreOpen = ref(false);
-const sortOpen = ref(false);
-const pageSizeOpen = ref(false);
-const genreRef = ref<HTMLElement | null>(null);
-const sortRef = ref<HTMLElement | null>(null);
-const pageSizeRef = ref<HTMLElement | null>(null);
+  const activeTab = ref<TabKey>("popular")
+  const sortBy = ref("default")
+  const selectedGenre = ref<number | null>(null)
+  const searchQuery = ref((route.query.q as string) ?? "")
+  const currentPage = ref(1)
+  const pageSize = ref(20)
+  const hoveredId = ref<number | null>(null)
+  const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>()
+  const cardTrailers = new Map<number, ResolvedTrailer | null>()
+  let insidePopup = false
+  let showTimer: ReturnType<typeof setTimeout> | null = null
+  const SHOW_DELAY = 200
+  const genres = ref<Genre[]>([])
+  const genreOpen = ref(false)
+  const sortOpen = ref(false)
+  const pageSizeOpen = ref(false)
+  const genreRef = ref<HTMLElement | null>(null)
+  const sortRef = ref<HTMLElement | null>(null)
+  const pageSizeRef = ref<HTMLElement | null>(null)
 
-const isSearchMode = computed(() => !!searchQuery.value.trim());
-const queryKey = computed(() => [
-  "tv",
-  activeTab.value,
-  currentPage.value,
-  searchQuery.value,
-]);
+  const isSearchMode = computed(() => !!searchQuery.value.trim())
+  const queryKey = computed(() => [
+    "tv",
+    activeTab.value,
+    currentPage.value,
+    searchQuery.value,
+  ])
 
-const { data, isLoading } = useQuery({
-  queryKey,
-  queryFn: async () => {
-    if (isSearchMode.value)
-      return movieApi
-        .searchSeries(searchQuery.value.trim(), currentPage.value)
-        .then((r) => r.data);
-    const fn = {
-      popular: () => movieApi.getPopularSeries(currentPage.value),
-      now_airing: () => movieApi.getNowAiringSeries(currentPage.value),
-      top_rated: () => movieApi.getTopRatedSeries(currentPage.value),
-    }[activeTab.value];
-    return fn().then((r) => r.data);
-  },
-});
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (isSearchMode.value)
+        return movieApi
+          .searchSeries(searchQuery.value.trim(), currentPage.value)
+          .then(r => r.data)
+      const fn = {
+        popular: () => movieApi.getPopularSeries(currentPage.value),
+        now_airing: () => movieApi.getNowAiringSeries(currentPage.value),
+        top_rated: () => movieApi.getTopRatedSeries(currentPage.value),
+      }[activeTab.value]
+      return fn().then(r => r.data)
+    },
+  })
 
-const rawSeries = computed<TVSeries[]>(() => data.value?.results ?? []);
-const totalPages = computed(() => data.value?.total_pages ?? 1);
+  const rawSeries = computed<TVSeries[]>(() => data.value?.results ?? [])
+  const totalPages = computed(() => data.value?.total_pages ?? 1)
 
-const series = computed(() => {
-  let list = [...rawSeries.value];
-  if (selectedGenre.value)
-    list = list.filter((s) => s.genre_ids?.includes(selectedGenre.value!));
-  if (sortBy.value === "rating")
-    list.sort((a, b) => b.vote_average - a.vote_average);
-  if (sortBy.value === "date")
-    list.sort((a, b) =>
-      (b.first_air_date ?? "").localeCompare(a.first_air_date ?? ""),
-    );
-  if (sortBy.value === "popular")
-    list.sort((a, b) => b.popularity - a.popularity);
-  return list;
-});
+  const series = computed(() => {
+    let list = [...rawSeries.value]
+    if (selectedGenre.value)
+      list = list.filter(s => s.genre_ids?.includes(selectedGenre.value!))
+    if (sortBy.value === "rating")
+      list.sort((a, b) => b.vote_average - a.vote_average)
+    if (sortBy.value === "date")
+      list.sort((a, b) =>
+        (b.first_air_date ?? "").localeCompare(a.first_air_date ?? ""),
+      )
+    if (sortBy.value === "popular")
+      list.sort((a, b) => b.popularity - a.popularity)
+    return list
+  })
 
-const paginationPages = computed(() => {
-  const total = Math.min(totalPages.value, 500);
-  const cur = currentPage.value;
-  const p: (number | string)[] = [];
-  if (cur > 2) p.push(1);
-  if (cur > 3) p.push("...");
-  for (let i = Math.max(1, cur - 1); i <= Math.min(total, cur + 1); i++)
-    p.push(i);
-  if (cur < total - 2) p.push("...");
-  if (cur < total - 1) p.push(total);
-  return [...new Set(p)];
-});
+  const paginationPages = computed(() => {
+    const total = Math.min(totalPages.value, 500)
+    const cur = currentPage.value
+    const p: (number | string)[] = []
+    if (cur > 2) p.push(1)
+    if (cur > 3) p.push("...")
+    for (let i = Math.max(1, cur - 1); i <= Math.min(total, cur + 1); i++)
+      p.push(i)
+    if (cur < total - 2) p.push("...")
+    if (cur < total - 1) p.push(total)
+    return [...new Set(p)]
+  })
 
-function getPopupPos(i: number) {
-  const col = i % 5;
-  if (col === 0) return "popup--right";
-  if (col === 4) return "popup--left";
-  return "popup--center";
-}
-function switchTab(key: TabKey) {
-  activeTab.value = key;
-  currentPage.value = 1;
-  searchQuery.value = "";
-}
-function doSearch() {
-  currentPage.value = 1;
-}
-function clearSearch() {
-  searchQuery.value = "";
-  currentPage.value = 1;
-}
-function selectGenre(id: number | null) {
-  selectedGenre.value = id;
-  genreOpen.value = false;
-}
-function selectSort(key: string) {
-  sortBy.value = key;
-  sortOpen.value = false;
-}
-function goToPage(p: number) {
-  currentPage.value = p;
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-function changeSize(s: number) {
-  pageSize.value = s;
-  pageSizeOpen.value = false;
-  currentPage.value = 1;
-}
-function truncate(s: string, n: number) {
-  return s?.length > n ? s.slice(0, n) + "…" : (s ?? "");
-}
-function fmtCount(n: number) {
-  return n >= 1000 ? (n / 1000).toFixed(0) + "k" : String(n);
-}
-function onClickOutside(e: MouseEvent) {
-  const t = e.target as Node;
-  if (genreRef.value && !genreRef.value.contains(t)) genreOpen.value = false;
-  if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false;
-  if (pageSizeRef.value && !pageSizeRef.value.contains(t))
-    pageSizeOpen.value = false;
-}
+  /**
+   * Map TVSeries fields ให้ตรงกับ Movie shape ที่ PopupCard คาดหวัง
+   * - title / original_title  ← name
+   * - release_date            ← first_air_date
+   * - media_type              = "tv"  (ใช้ใน API calls ของ PopupCard)
+   */
+  function toMovieShape(show: TVSeries): Movie {
+    return {
+      ...show,
+      title: show.name,
+      original_title: show.name,
+      release_date: show.first_air_date ?? "",
+      media_type: "tv",
+    } as unknown as Movie
+  }
 
-watch(
-  () => route.query.q,
-  (q) => {
-    searchQuery.value = (q as string) ?? "";
-    currentPage.value = 1;
-  },
-);
-onMounted(async () => {
-  document.addEventListener("click", onClickOutside);
-  const res = await movieApi.getSeriesGenres();
-  genres.value = res.data.genres;
-});
-onUnmounted(() => document.removeEventListener("click", onClickOutside));
+  function getPopupPos(i: number) {
+    const col = i % 5
+    if (col === 0) return "popup--right"
+    if (col === 4) return "popup--left"
+    return "popup--center"
+  }
+  function switchTab(key: TabKey) {
+    activeTab.value = key
+    currentPage.value = 1
+    searchQuery.value = ""
+  }
+  function doSearch() {
+    currentPage.value = 1
+  }
+  function clearSearch() {
+    searchQuery.value = ""
+    currentPage.value = 1
+  }
+  function selectGenre(id: number | null) {
+    selectedGenre.value = id
+    genreOpen.value = false
+  }
+  function selectSort(key: string) {
+    sortBy.value = key
+    sortOpen.value = false
+  }
+  function goToPage(p: number) {
+    currentPage.value = p
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+  function changeSize(s: number) {
+    pageSize.value = s
+    pageSizeOpen.value = false
+    currentPage.value = 1
+  }
+  function onClickOutside(e: MouseEvent) {
+    const t = e.target as Node
+    if (genreRef.value && !genreRef.value.contains(t)) genreOpen.value = false
+    if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false
+    if (pageSizeRef.value && !pageSizeRef.value.contains(t))
+      pageSizeOpen.value = false
+  }
+
+  function getState(seriesId: number) {
+    if (!cardStates.has(seriesId)) {
+      cardStates.set(seriesId, useTrailerPreview({ mountDelay: 500 }))
+    }
+    return cardStates.get(seriesId)!
+  }
+
+  function getTrailer(seriesId: number): ResolvedTrailer | null {
+    return cardTrailers.get(seriesId) ?? null
+  }
+
+  async function fetchAndCacheTrailer(show: TVSeries) {
+    if (cardTrailers.has(show.id)) return
+    cardTrailers.set(show.id, null)
+    try {
+      const res = await movieApi.getTVVideos(show.id)
+      const videos = res.data?.results ?? []
+      const trailer = resolveTrailer(videos)
+      cardTrailers.set(show.id, trailer)
+      if (hoveredId.value === show.id && trailer) {
+        getState(show.id).scheduleMount()
+      }
+    } catch {
+      cardTrailers.set(show.id, null)
+    }
+  }
+
+  function onCardEnter(seriesId: number, show: TVSeries) {
+    clearTimeout(showTimer ?? undefined)
+    insidePopup = false
+    fetchAndCacheTrailer(show)
+    showTimer = setTimeout(() => {
+      hoveredId.value = seriesId
+      const trailer = getTrailer(seriesId)
+      if (trailer) getState(seriesId).scheduleMount()
+    }, SHOW_DELAY)
+  }
+
+  function onCardLeave(seriesId: number) {
+    clearTimeout(showTimer ?? undefined)
+    setTimeout(() => {
+      if (!insidePopup) closeCard(seriesId)
+    }, 80)
+  }
+
+  function onPopupEnter() {
+    insidePopup = true
+  }
+
+  function onPopupLeave(seriesId: number) {
+    insidePopup = false
+    closeCard(seriesId)
+  }
+
+  function closeCard(seriesId: number) {
+    if (hoveredId.value !== seriesId) return
+    hoveredId.value = null
+    cardStates.get(seriesId)?.unmount()
+  }
+
+  watch(
+    () => route.query.q,
+    q => {
+      searchQuery.value = (q as string) ?? ""
+      currentPage.value = 1
+    },
+  )
+  onMounted(async () => {
+    document.addEventListener("click", onClickOutside)
+    const res = await movieApi.getSeriesGenres()
+    genres.value = res.data.genres
+  })
+  onUnmounted(() => {
+    document.removeEventListener("click", onClickOutside)
+    clearTimeout(showTimer ?? undefined)
+    cardStates.forEach(s => s.unmount())
+    cardStates.clear()
+  })
 </script>
 
 <style scoped>
-.list-page {
-  background: #141414;
-  min-height: 100vh;
-}
-.page-header {
-  padding: 5.5rem 1.5rem 0; 
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.page-title {
-  font-family: "Noto Sans Thai", "Arial Black", sans-serif;
-  font-size: 1.75rem;
-  font-weight: 900;
-  letter-spacing: 2px;
-  color: #fff;
-  margin: 0 0 1.25rem;
-}
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 1rem;
-}
-.tab-btn {
-  padding: 0.4rem 1rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 9999px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #a3a3a3;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.tab-btn:hover {
-  color: #fff;
-  border-color: #444;
-}
-.tab-btn.active {
-  background: #e50914;
-  border-color: #e50914;
-  color: #fff;
-}
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-.filter-select {
-  position: relative;
-}
-.filter-trigger {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.875rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  color: #ccc;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  white-space: nowrap;
-}
-.filter-trigger:hover {
-  border-color: #555;
-  color: #fff;
-}
-.chevron {
-  transition: transform 0.2s;
-}
-.rotate-180 {
-  transform: rotate(180deg);
-}
-.filter-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 160px;
-  max-height: 280px;
-  overflow-y: auto;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 10px;
-  padding: 0.35rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  z-index: 30;
-}
-.filter-option {
-  display: block;
-  width: 100%;
-  padding: 0.45rem 0.75rem;
-  background: none;
-  border: none;
-  color: #ccc;
-  font-size: 0.82rem;
-  cursor: pointer;
-  border-radius: 6px;
-  text-align: left;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.filter-option:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
-}
-.filter-option.active {
-  color: #e50914;
-  font-weight: 600;
-}
-.search-inline {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 0.4rem 0.75rem;
-  flex: 1;
-  max-width: 320px;
-}
-.search-inline:focus-within {
-  border-color: #555;
-}
-.search-ic {
-  color: #666;
-  flex-shrink: 0;
-}
-.search-input {
-  background: none;
-  border: none;
-  outline: none;
-  color: #fff;
-  font-size: 0.875rem;
-  width: 100%;
-}
-.search-input::placeholder {
-  color: #555;
-}
-.search-clear {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #666;
-  display: flex;
-  padding: 0;
-}
-.search-clear:hover {
-  color: #ccc;
-}
-.content-area {
-  padding: 0 1.5rem 3rem;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.movie-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 1.5rem;
-}
-.poster-wrap {
-  position: relative;
-}
-.poster-card {
-  display: block;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
-}
-.poster-card:hover {
-  transform: scale(1.03);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-}
-.poster-card img {
-  width: 100%;
-  aspect-ratio: 2/3;
-  object-fit: cover;
-  display: block;
-}
-.hover-popup {
-  position: absolute;
-  top: 0;
-  z-index: 50;
-  width: 280px;
-  background: #1c1c1c;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-}
-.popup--right {
-  left: calc(100% + 8px);
-}
-.popup--left {
-  right: calc(100% + 8px);
-}
-.popup--center {
-  left: 50%;
-  transform: translateX(-50%);
-}
-.popup__trailer {
-  aspect-ratio: 16/9;
-  background: #000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-}
-.popup__play-icon {
-  color: #555;
-}
-.popup__trailer-label {
-  font-size: 0.7rem;
-  color: #555;
-}
-.popup__info {
-  padding: 0.875rem;
-}
-.popup__title-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.25rem;
-}
-.popup__title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.popup__star {
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-.popup__rating {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #f59e0b;
-  flex-shrink: 0;
-}
-.popup__meta {
-  font-size: 0.7rem;
-  color: #666;
-  margin: 0 0 0.35rem;
-}
-.popup__overview {
-  font-size: 0.7rem;
-  color: #888;
-  line-height: 1.5;
-  margin: 0 0 0.75rem;
-}
-.popup__actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
-.action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 0.45rem 0.2rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: #fff;
-  transition:
-    filter 0.15s,
-    transform 0.1s;
-}
-.action-btn:hover {
-  filter: brightness(1.15);
-  transform: translateY(-1px);
-}
-.action-btn--watched {
-  background: #1d4ed8;
-}
-.action-btn--review {
-  background: #16a34a;
-}
-.action-btn--favorite {
-  background: #e50914;
-}
-.action-btn--watchlist {
-  background: #d97706;
-}
-.popup-enter-active {
-  transition:
-    opacity 0.15s,
-    transform 0.15s;
-}
-.popup-leave-active {
-  transition: opacity 0.1s;
-}
-.popup-enter-from {
-  opacity: 0;
-  transform: translateY(6px) scale(0.97);
-}
-.popup-leave-to {
-  opacity: 0;
-}
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 5rem 0;
-  color: #555;
-}
-.empty-icon {
-  opacity: 0.4;
-}
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.page-btn {
-  min-width: 36px;
-  height: 36px;
-  padding: 0 0.5rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  color: #a3a3a3;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.page-btn:hover:not(:disabled):not(.page-btn--ellipsis) {
-  background: #2a2a2a;
-  color: #fff;
-}
-.page-btn--active {
-  background: #e50914;
-  border-color: #e50914;
-  color: #fff;
-}
-.page-btn--ellipsis {
-  cursor: default;
-}
-.page-size-wrap {
-  position: relative;
-  margin-left: 8px;
-}
-.page-size-trigger {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 58px;
-  height: 36px;
-  padding: 0 0.75rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  color: #a3a3a3;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-.page-size-dropdown {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  overflow: hidden;
-  min-width: 70px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-.page-size-opt {
-  display: block;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: none;
-  color: #a3a3a3;
-  font-size: 0.875rem;
-  cursor: pointer;
-  text-align: center;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.page-size-opt:hover,
-.page-size-opt.active {
-  background: rgba(229, 9, 20, 0.15);
-  color: #fff;
-}
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 20, 20, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-}
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.15);
-  border-top-color: #e50914;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+  .list-page {
+    background: #141414;
+    min-height: 100vh;
   }
-}
+  .page-header {
+    padding: 5.5rem 1.5rem 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .page-title {
+    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #fff;
+    margin: 0 0 1.25rem;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 1rem;
+  }
+  .tab-btn {
+    padding: 0.4rem 1rem;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #a3a3a3;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover {
+    color: #fff;
+    border-color: #444;
+  }
+  .tab-btn.active {
+    background: #e50914;
+    border-color: #e50914;
+    color: #fff;
+  }
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .filter-select {
+    position: relative;
+  }
+  .filter-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.875rem;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    color: #ccc;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    white-space: nowrap;
+  }
+  .filter-trigger:hover {
+    border-color: #555;
+    color: #fff;
+  }
+  .chevron {
+    transition: transform 0.2s;
+  }
+  .rotate-180 {
+    transform: rotate(180deg);
+  }
+  .filter-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 160px;
+    max-height: 280px;
+    overflow-y: auto;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    padding: 0.35rem;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    z-index: 30;
+  }
+  .filter-option {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    background: none;
+    border: none;
+    color: #ccc;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border-radius: 6px;
+    text-align: left;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .filter-option:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+  }
+  .filter-option.active {
+    color: #e50914;
+    font-weight: 600;
+  }
+  .search-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 0.4rem 0.75rem;
+    flex: 1;
+    max-width: 320px;
+  }
+  .search-inline:focus-within {
+    border-color: #555;
+  }
+  .search-ic {
+    color: #666;
+    flex-shrink: 0;
+  }
+  .search-input {
+    background: none;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  .search-input::placeholder {
+    color: #555;
+  }
+  .search-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    display: flex;
+    padding: 0;
+  }
+  .search-clear:hover {
+    color: #ccc;
+  }
+  .content-area {
+    padding: 0 1.5rem 3rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .movie-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .poster-wrap {
+    position: relative;
+  }
+  .poster-card {
+    display: block;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
+  }
+  .poster-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  }
+  .poster-card img {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    display: block;
+  }
+  .hover-popup {
+    position: absolute;
+    top: 0;
+    z-index: 50;
+    width: 280px;
+    background: #1c1c1c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  }
+  .popup--right {
+    left: calc(100% + 8px);
+  }
+  .popup--left {
+    right: calc(100% + 8px);
+  }
+  .popup--center {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .popup-enter-active {
+    transition:
+      opacity 0.15s,
+      transform 0.15s;
+  }
+  .popup-leave-active {
+    transition: opacity 0.1s;
+  }
+  .popup-enter-from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  .popup-leave-to {
+    opacity: 0;
+  }
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 5rem 0;
+    color: #555;
+  }
+  .empty-icon {
+    opacity: 0.4;
+  }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .page-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 0.5rem;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    color: #a3a3a3;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .page-btn:hover:not(:disabled):not(.page-btn--ellipsis) {
+    background: #2a2a2a;
+    color: #fff;
+  }
+  .page-btn--active {
+    background: #e50914;
+    border-color: #e50914;
+    color: #fff;
+  }
+  .page-btn--ellipsis {
+    cursor: default;
+  }
+  .page-size-wrap {
+    position: relative;
+    margin-left: 8px;
+  }
+  .page-size-trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 58px;
+    height: 36px;
+    padding: 0 0.75rem;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    color: #a3a3a3;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+  }
+  .page-size-dropdown {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    right: 0;
+    background: #1f1f1f;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    overflow: hidden;
+    min-width: 70px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  .page-size-opt {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: none;
+    color: #a3a3a3;
+    font-size: 0.875rem;
+    cursor: pointer;
+    text-align: center;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+  .page-size-opt:hover,
+  .page-size-opt.active {
+    background: rgba(229, 9, 20, 0.15);
+    color: #fff;
+  }
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 20, 20, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: #e50914;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 </style>
