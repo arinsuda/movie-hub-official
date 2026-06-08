@@ -1,4 +1,5 @@
-// client/src/types/movie.ts
+import type { MediaType, ListType } from "./common"
+
 export interface Genre {
   id: number
   name: string
@@ -27,7 +28,7 @@ export interface MovieDetail extends Movie {
   revenue: number
   homepage: string
   genres: Genre[]
-  videos?: Video[] // ← populated after /movie/{id}/videos fetch
+  videos?: Video[]
 }
 
 export interface TVSeries {
@@ -84,22 +85,11 @@ export interface Video {
   official: boolean
 }
 
-export interface PaginatedResult<T> {
-  page: number
-  results: T[]
-  total_pages: number
-  total_results: number
-}
-
-// enriched media จาก backend (shared.MediaSummary)
 export interface MediaSummary {
   id: number
   title: string
   poster_url: string
-  backdrop_url: string
-  release_year: string
-  vote_average: number
-  media_type: "movie" | "tv"
+  media_type: MediaType
 }
 
 export interface MediaStats {
@@ -119,23 +109,18 @@ export interface MediaStatsResponse {
   stats: MediaStats
 }
 
-// ── เพิ่มเติมต่อท้ายไฟล์ client/src/types/movie.ts ──────────────────
-
-export type ListType = "watchlist" | "favorite" | "watched"
-
 export interface AddItemRequest {
   media_id: number
-  media_type: "movie" | "tv"
+  media_type: MediaType
   list_type: ListType
-  watched_at?: string // รูปแบบ "YYYY-MM-DD" (ใช้เฉพาะกรณี list_type: 'watched')
+  watched_at?: string
   note?: string
   tags?: string[]
 }
 
 export interface LibraryItemResponse {
   id: number
-  media_id: number
-  media_type: "movie" | "tv"
+  media: MediaSummary
   list_type: ListType
   watched_at: string | null
   tags: string[]
@@ -143,7 +128,6 @@ export interface LibraryItemResponse {
   created_at: string
 }
 
-// 💡 โครงสร้างใหม่ที่ส่งไอดีแถวกลับมาให้หน้าบ้านใช้ลบข้อมูลได้
 export interface MediaItemStatus {
   list_type: ListType
   item_id: number
@@ -151,6 +135,6 @@ export interface MediaItemStatus {
 
 export interface MediaStatusResponse {
   media_id: number
-  media_type: "movie" | "tv"
+  media_type: MediaType
   in_lists: MediaItemStatus[]
 }

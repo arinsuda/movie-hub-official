@@ -1,46 +1,39 @@
 <template>
-  <div class="likes-wrap">
-    <!-- ── หัวข้อรายการที่ชอบ ── -->
+  <div class="likes-root">
     <div class="section-head">
-      <span class="section-label">Liked Items</span>
-      <span class="count-badge">{{ likedItems.length }}</span>
-      <div class="section-rule" />
+      <span class="eyebrow">Liked Items</span>
+      <span class="count-chip">{{ likedItems.length }}</span>
+      <div class="rule" />
     </div>
 
-    <!-- ── Loading State ── -->
     <div v-if="loading" class="state-loading">
-      <div class="loading-bar"><div class="loading-fill" /></div>
+      <div class="loader-bar"><div class="loader-fill" /></div>
     </div>
 
-    <!-- ── Empty State ── -->
     <div v-else-if="likedItems.length === 0" class="state-empty">
-      <Heart :size="32" :stroke-width="1.2" aria-hidden="true" />
+      <Heart :size="28" :stroke-width="1.2" />
       <p>No liked items yet</p>
     </div>
 
-    <!-- ── รายการที่ชอบ (List Layout) ── -->
     <div v-else class="likes-list">
-      <div v-for="item in likedItems" :key="item.id" class="like-card">
-        <!-- กลุ่มข้อมูลซ้ายมือ -->
-        <div class="like-main">
-          <!-- ไอคอนหัวใจดวงเล็กสีแดงเนียนตา -->
-          <div class="heart-icon-box" aria-hidden="true">
-            <Heart :size="16" class="heart-icon" />
-          </div>
-
-          <!-- ข้อความและรายละเอียด -->
-          <div class="like-info">
-            <h4 class="like-title">{{ item.title }}</h4>
-            <p class="like-meta">
-              by {{ item.author }} • Liked on {{ item.likedAt }}
-            </p>
-          </div>
+      <div
+        v-for="(item, i) in likedItems"
+        :key="item.id"
+        class="like-row"
+        :style="{ '--i': i }"
+      >
+        <div class="heart-dot" aria-hidden="true">
+          <Heart :size="13" class="heart-icon" />
         </div>
 
-        <!-- ปุ่ม Action ขวามือ -->
+        <div class="like-body">
+          <h4 class="like-title">{{ item.title }}</h4>
+          <p class="like-meta">by {{ item.author }} · {{ item.likedAt }}</p>
+        </div>
+
         <button
           class="unlike-btn"
-          title="Remove from likes"
+          title="Unlike"
           @click="handleUnlike(item.id)"
         >
           Unlike
@@ -54,9 +47,7 @@
   import { onMounted, ref } from "vue"
   import { Heart } from "lucide-vue-next"
 
-  const props = defineProps<{
-    userId: number
-  }>()
+  const props = defineProps<{ userId: number }>()
 
   const loading = ref(false)
 
@@ -72,8 +63,7 @@
   onMounted(async () => {
     try {
       loading.value = true
-      await new Promise(resolve => setTimeout(resolve, 400))
-
+      await new Promise(r => setTimeout(r, 400))
       likedItems.value = [
         {
           id: 201,
@@ -84,7 +74,7 @@
         {
           id: 202,
           title: "State Management in Flutter: Comprehensive Guide to Riverpod",
-          author: "Dev community",
+          author: "Dev Community",
           likedAt: "29 May 2026",
         },
         {
@@ -101,89 +91,78 @@
     }
   })
 
-  const handleUnlike = (id: number) => {
-    likedItems.value = likedItems.value.filter(item => item.id !== id)
-    console.log("Unliked item ID:", id)
+  function handleUnlike(id: number) {
+    likedItems.value = likedItems.value.filter(i => i.id !== id)
   }
 </script>
 
 <style scoped>
-  .likes-wrap {
-    /* Token ระบบ แดง - ดำ คริมนอน */
-    --bg-dark: #0a0a0a;
-    --surface-card: #141414;
-    --brand-red: #e50914;
-    --brand-red-dim: rgba(229, 9, 20, 0.1);
-    --border: rgba(255, 255, 255, 0.06);
-    --border-hover: rgba(235, 9, 20, 0.15);
-    --text: #f5f5f7;
-    --sub: #8e8e93;
-    --muted: #48484a;
-    --ui:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-      system-ui, sans-serif;
+  .likes-root {
+    --c-card: #161616;
+    --c-border: rgba(255, 255, 255, 0.06);
+    --c-border-h: rgba(255, 255, 255, 0.12);
+    --c-red: #e1251b;
+    --c-red-dim: rgba(225, 37, 27, 0.1);
+    --c-text: #f0f0f0;
+    --c-sub: #8a8a8e;
+    --c-muted: #3a3a3c;
+    --font:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-    color: var(--text);
-    font-family: var(--ui);
+    font-family: var(--font);
+    color: var(--c-text);
   }
 
   .section-head {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    gap: 10px;
+    margin-bottom: 20px;
   }
-
-  .section-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+  .eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--c-muted);
     white-space: nowrap;
   }
-
-  .count-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #ffffff;
-    background: var(--brand-red);
-    padding: 2px 8px;
+  .count-chip {
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: var(--c-red);
+    color: #fff;
+    padding: 2px 7px;
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.25);
   }
-
-  .section-rule {
+  .rule {
     flex: 1;
     height: 1px;
-    background: var(--border);
+    background: var(--c-border);
   }
 
-  /* ── Loader States ── */
+  /* States */
   .state-loading {
-    padding: 4rem 0;
+    padding: 48px 0;
     display: flex;
     justify-content: center;
   }
-
-  .loading-bar {
-    width: 120px;
+  .loader-bar {
+    width: 100px;
     height: 2px;
-    background: var(--border);
+    background: var(--c-border);
+    border-radius: 2px;
     overflow: hidden;
     position: relative;
-    border-radius: 2px;
   }
-
-  .loading-fill {
+  .loader-fill {
     height: 100%;
     width: 40%;
-    background: var(--brand-red);
+    background: var(--c-red);
     position: absolute;
-    box-shadow: 0 0 8px var(--brand-red);
-    animation: sweep 1.5s infinite ease-in-out;
+    animation: sweep 1.4s infinite ease-in-out;
   }
-
   @keyframes sweep {
     0% {
       left: -40%;
@@ -197,135 +176,127 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    padding: 5rem 0;
-    color: var(--muted);
+    gap: 10px;
+    padding: 56px 0;
+    color: var(--c-muted);
   }
-
   .state-empty p {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     margin: 0;
-    color: var(--sub);
+    color: var(--c-sub);
   }
 
-  /* ── List Layout & Cards ── */
+  /* List */
   .likes-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
-  .like-card {
+  .like-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 1.5rem;
-    padding: 1rem 1.25rem;
-    background: #111111;
-    border: 1px solid var(--border);
+    gap: 14px;
+    padding: 14px 16px;
+    background: #101010;
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    transition: all 0.22s var(--ease);
+    animation: rowIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
+  }
+  .like-row:hover {
+    background: var(--c-card);
+    border-color: var(--c-border-h);
+    transform: translateX(3px);
+  }
+
+  @keyframes rowIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Heart dot */
+  .heart-dot {
+    width: 34px;
+    height: 34px;
+    background: var(--c-red-dim);
     border-radius: 8px;
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .like-card:hover {
-    background: var(--surface-card);
-    border-color: var(--border-hover);
-    transform: translateX(2px);
-  }
-
-  .like-main {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    min-width: 0; /* แก้ไขปัญหา Text Truncate บั๊กใน Flexbox */
-  }
-
-  /* กล่องไอคอนรูปหัวใจ */
-  .heart-icon-box {
-    width: 36px;
-    height: 36px;
-    background: var(--brand-red-dim);
-    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    transition: background 0.2s;
   }
-
+  .like-row:hover .heart-dot {
+    background: rgba(225, 37, 27, 0.18);
+  }
   .heart-icon {
-    color: var(--brand-red);
-    fill: var(--brand-red); /* ถมสีให้ดูโดดเด่นสไตล์ Like */
+    color: var(--c-red);
+    fill: var(--c-red);
   }
 
-  /* ข้อมูล Content */
-  .like-info {
+  /* Body */
+  .like-body {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    flex: 1;
     min-width: 0;
   }
-
   .like-title {
-    font-size: 0.88rem;
+    font-size: 0.84rem;
     font-weight: 500;
-    color: #ffffff;
+    color: #fff;
     margin: 0;
-    line-height: 1.3;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: color 0.2s ease;
+    transition: color 0.15s;
   }
-
-  .like-card:hover .like-title {
-    color: var(--brand-red);
+  .like-row:hover .like-title {
+    color: rgba(255, 255, 255, 0.85);
   }
-
   .like-meta {
-    font-size: 0.72rem;
-    color: var(--sub);
+    font-size: 0.7rem;
+    color: var(--c-sub);
     margin: 0;
   }
 
-  /* ปุ่ม Unlike แก้วกระจกแดงมินิมอล */
+  /* Unlike btn */
   .unlike-btn {
-    font-family: var(--ui);
-    font-size: 0.72rem;
+    font-family: var(--font);
+    font-size: 0.7rem;
     font-weight: 500;
-    color: var(--sub);
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border);
-    padding: 0.45rem 0.85rem;
+    color: var(--c-sub);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--c-border);
+    padding: 5px 12px;
     border-radius: 6px;
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    transition: all 0.2s ease;
+    transition: all 0.2s var(--ease);
   }
-
   .unlike-btn:hover {
-    color: #ffffff;
-    background: var(--brand-red);
-    border-color: var(--brand-red);
-    box-shadow: 0 2px 10px rgba(229, 9, 20, 0.4);
+    color: #fff;
+    background: var(--c-red);
+    border-color: var(--c-red);
+    box-shadow: 0 3px 12px rgba(225, 37, 27, 0.35);
   }
 
-  /* Mobile Responsive Dropdown */
-  @media (max-width: 480px) {
-    .like-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
-      padding: 1.1rem;
-    }
-    .like-main {
-      width: 100%;
+  @media (max-width: 440px) {
+    .like-row {
+      flex-wrap: wrap;
     }
     .unlike-btn {
-      align-self: flex-end;
       width: 100%;
       text-align: center;
-      padding: 0.55rem 0;
     }
   }
 </style>

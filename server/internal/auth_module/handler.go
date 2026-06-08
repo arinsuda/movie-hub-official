@@ -174,9 +174,14 @@ func toUserResponse(u *user_module.User) UserResponse {
 		Username:       u.Username,
 		Email:          u.Email,
 		DisplayName:    u.DisplayName,
+		Bio:            u.Bio,
 		AvatarURL:      u.AvatarURL,
+		DateOfBirth:    u.DateOfBirth,
+		Gender:         string(u.Gender),
 		IsVerified:     u.VerifiedEmailAt != nil,
 		Role:           string(u.Role.RoleName),
 		FavoriteGenres: u.FavoriteGenres,
+		IsPrivate:      u.IsPrivate,
+		Level: 1,
 	}
 }

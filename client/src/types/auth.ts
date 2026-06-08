@@ -1,37 +1,9 @@
-export interface UserSummary {
-  id: number
-  username: string
-  display_name: string | null
-  avatar_url: string | null
-}
+import type { UserProfile } from "./user"
 
-export interface UserProfile {
-  id: number
-  username: string
-  display_name: string | null
-  bio: string | null
-  avatar_url: string | null
-  gender: string
-  favorite_genres: string | null
-  review_count: number
-  follower_count: number
-  following_count: number
-  is_private: boolean
-  role: string
-  created_at: string
-}
-
-export interface AuthUser {
-  id: number
-  username: string
+export interface AuthUser extends UserProfile {
   email: string
-  display_name: string | null
-  avatar_url: string | null
   is_verified: boolean
-  role: string
-  favorite_genres: string | null
 }
-
 export interface LoginRequest {
   identifier: string
   password: string

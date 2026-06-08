@@ -1,6 +1,7 @@
 package review_module
 
 import (
+	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"time"
 )
@@ -26,8 +27,7 @@ type UpdateReviewRequest struct {
 type ReviewResponse struct {
 	ID           uint                      `json:"id"`
 	User         users.UserSummaryResponse `json:"user"`
-	MediaID      int                       `json:"media_id"`
-	MediaType    string                    `json:"media_type"`
+	Media        tmdb.Media                `json:"media"`
 	Rating       float32                   `json:"rating"`
 	Body         string                    `json:"body"`
 	IsPublic     bool                      `json:"is_public"`

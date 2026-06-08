@@ -10,31 +10,55 @@
         <div class="rating-input">
           <span>ให้คะแนนของคุณ: </span>
           <div class="stars-wrap">
-            <div v-for="star in 5" :key="star" class="star-slot">
-              <!-- ซีกซ้าย = ครึ่งดาว -->
+            <div
+              v-for="n in 5"
+              :key="n"
+              class="star-slot"
+              @mouseleave="hoverRating = 0"
+            >
               <div
                 class="half-zone left"
-                @click="userRating = star - 0.5"
-                @mouseenter="hoverRating = star - 0.5"
-                @mouseleave="hoverRating = 0"
+                @click="userRating = n - 0.5"
+                @mouseenter="hoverRating = n - 0.5"
               />
-              <!-- ซีกขวา = เต็มดาว -->
               <div
                 class="half-zone right"
-                @click="userRating = star"
-                @mouseenter="hoverRating = star"
-                @mouseleave="hoverRating = 0"
+                @click="userRating = n"
+                @mouseenter="hoverRating = n"
               />
-
-              <!-- ดาวเต็ม -->
-              <i v-if="displayRating >= star" class="pi pi-star-fill active" />
-              <!-- ครึ่งดาว — ใช้ clip-path แบ่งครึ่ง -->
-              <span v-else-if="displayRating >= star - 0.5" class="half-star">
-                <i class="pi pi-star-fill active half" />
-                <i class="pi pi-star" />
-              </span>
-              <!-- ดาวว่าง -->
-              <i v-else class="pi pi-star" />
+              <svg
+                class="star-base"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linejoin="round"
+                  fill="none"
+                />
+              </svg>
+              <svg
+                class="star-fill"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <clipPath :id="`clip-movie-${n}-half`">
+                    <rect x="0" y="0" width="12" height="24" />
+                  </clipPath>
+                  <clipPath :id="`clip-movie-${n}-full`">
+                    <rect x="0" y="0" width="24" height="24" />
+                  </clipPath>
+                </defs>
+                <path
+                  d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                  fill="currentColor"
+                  :clip-path="starClip(n, displayRating)"
+                  :class="n - 0.5 <= displayRating ? 'fill--on' : 'fill--off'"
+                />
+              </svg>
             </div>
           </div>
           <span class="rating-label">{{ displayRating }} / 5</span>
@@ -83,7 +107,7 @@
 
 <script setup lang="ts">
   import { reviewApi } from "@/api/api"
-  import { useAuthStore } from "@/stores/auth" // ปรับ path ตาม project
+  import { useAuthStore } from "@/stores/auth"
   import { computed, onMounted, ref } from "vue"
   import type { ReviewResponse } from "@/types/review"
 
@@ -124,6 +148,12 @@
     } catch (err) {
       console.error("submitReview failed:", err)
     }
+  }
+
+  function starClip(n: number, rating: number) {
+    if (rating >= n) return `url(#clip-movie-${n}-full)`
+    if (rating >= n - 0.5) return `url(#clip-movie-${n}-half)`
+    return "none"
   }
 
   onMounted(async () => {
@@ -298,24 +328,36 @@
 
   .stars-wrap {
     display: flex;
-    gap: 4px;
+    gap: 3px;
   }
-
   .star-slot {
     position: relative;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+    flex-shrink: 0;
   }
-
-  /* ซ่อน i ไว้ข้างหลัง zone */
-  .star-slot .pi {
-    font-size: 1.2rem;
+  .star-slot:hover {
+    transform: scale(1.18);
+  }
+  .star-base,
+  .star-fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
   }
-
+  .star-base {
+    color: rgba(255, 255, 255, 0.2);
+  }
+  .fill--on {
+    color: #f5c518;
+  }
+  .fill--off {
+    color: transparent;
+  }
   .half-zone {
     position: absolute;
     top: 0;
@@ -330,27 +372,6 @@
   .half-zone.right {
     right: 0;
   }
-
-  /* ครึ่งดาว — ซ้อน 2 icon แล้ว clip ซีกซ้าย */
-  .half-star {
-    position: relative;
-    display: inline-block;
-    width: 1.2rem;
-    height: 1.2rem;
-  }
-  .half-star .pi {
-    position: absolute;
-    left: 0;
-    top: 0;
-  }
-  .half-star .pi.half {
-    clip-path: inset(0 50% 0 0); /* แสดงแค่ซีกซ้าย */
-  }
-
-  .pi.active {
-    color: #f5c518;
-  }
-
   .rating-label {
     font-size: 0.85rem;
     color: #8a8a8a;

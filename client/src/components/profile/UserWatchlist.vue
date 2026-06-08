@@ -1,63 +1,59 @@
 <template>
-  <div class="watchlist-wrap">
-    <!-- ── หัวข้อรายการเฝ้าดู ── -->
+  <div class="wl-root">
     <div class="section-head">
-      <span class="section-label">Watchlist</span>
-      <span class="count-badge">{{ watchlist.length }}</span>
-      <div class="section-rule" />
+      <span class="eyebrow">Watchlist</span>
+      <span class="count-chip">{{ watchlist.length }}</span>
+      <div class="rule" />
     </div>
 
-    <!-- ── Loading State ── -->
     <div v-if="loading" class="state-loading">
-      <div class="loading-bar"><div class="loading-fill" /></div>
+      <div class="loader-bar"><div class="loader-fill" /></div>
     </div>
 
-    <!-- ── Empty State ── -->
     <div v-else-if="watchlist.length === 0" class="state-empty">
-      <Bookmark :size="32" :stroke-width="1.2" aria-hidden="true" />
+      <Bookmark :size="28" :stroke-width="1.2" />
       <p>Your watchlist is empty</p>
     </div>
 
-    <!-- ── โปสเตอร์กริด (Poster Grid) ── -->
     <div v-else class="poster-grid">
-      <div v-for="item in watchlist" :key="item.id" class="poster-card">
-        <div class="poster-wrap" :aria-label="item.title">
-          <!-- รูปภาพหน้าปก -->
+      <div
+        v-for="(item, i) in watchlist"
+        :key="item.id"
+        class="poster-card"
+        :style="{ '--i': i }"
+      >
+        <div class="poster-frame" tabindex="0">
           <img
             v-if="item.coverUrl"
             :src="item.coverUrl"
             :alt="item.title"
             class="poster-img"
+            loading="lazy"
           />
           <div v-else class="poster-fallback">
-            <Film :size="20" :stroke-width="1.5" aria-hidden="true" />
+            <Film :size="18" :stroke-width="1.4" />
           </div>
 
-          <!-- แท็กหมวดหมู่มุมซ้ายบน -->
-          <span class="category-tag">{{ item.category }}</span>
+          <span class="cat-badge">{{ item.category }}</span>
 
-          <!-- ปุ่มลบออกจากรายการ (Hover แล้วขึ้น) -->
           <button
-            class="remove-btn"
-            :aria-label="`Remove ${item.title} from watchlist`"
-            @click="handleRemove(item.id)"
+            class="rm-btn"
+            :aria-label="`Remove ${item.title}`"
+            @click.stop="handleRemove(item.id)"
           >
-            <X :size="12" aria-hidden="true" />
+            <X :size="11" />
           </button>
 
-          <!-- ตัวเคลือบเงาการ์ดขณะโฮเวอร์ -->
-          <div class="poster-overlay" aria-hidden="true">
-            <p class="overlay-title">{{ item.title }}</p>
+          <div class="poster-overlay">
+            <p class="overlay-name">{{ item.title }}</p>
+            <span class="overlay-date">
+              <Clock :size="9" /> {{ item.addedAt }}
+            </span>
           </div>
         </div>
 
-        <!-- รายละเอียดด้านล่างโปสเตอร์ -->
         <div class="poster-meta">
-          <h4 class="poster-title">{{ item.title }}</h4>
-          <span class="poster-date">
-            <Clock :size="10" aria-hidden="true" />
-            {{ item.addedAt }}
-          </span>
+          <h4 class="poster-name">{{ item.title }}</h4>
         </div>
       </div>
     </div>
@@ -85,7 +81,7 @@
   onMounted(async () => {
     try {
       loading.value = true
-      await new Promise(resolve => setTimeout(resolve, 400))
+      await new Promise(r => setTimeout(r, 400))
       watchlist.value = [
         {
           id: 101,
@@ -125,82 +121,71 @@
 </script>
 
 <style scoped>
-  .watchlist-wrap {
-    /* ชุดตัวแปรสี Premium Crimson Red & Deep Dark */
-    --bg-dark: #0a0a0a;
-    --surface-card: #141414;
-    --brand-red: #e50914;
-    --brand-red-hover: #b20710;
-    --border: rgba(255, 255, 255, 0.06);
-    --border-hover: rgba(235, 9, 20, 0.2);
-    --text: #f5f5f7;
-    --sub: #8e8e93;
-    --muted: #48484a;
-    --ui:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-      system-ui, sans-serif;
+  .wl-root {
+    --c-card: #161616;
+    --c-border: rgba(255, 255, 255, 0.06);
+    --c-border-h: rgba(255, 255, 255, 0.13);
+    --c-red: #e1251b;
+    --c-text: #f0f0f0;
+    --c-sub: #8a8a8e;
+    --c-muted: #3a3a3c;
+    --font:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-    color: var(--text);
-    font-family: var(--ui);
+    font-family: var(--font);
+    color: var(--c-text);
   }
 
   .section-head {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
+    gap: 10px;
+    margin-bottom: 20px;
   }
-
-  .section-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+  .eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--c-muted);
     white-space: nowrap;
   }
-
-  .count-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #ffffff;
-    background: var(--brand-red);
-    padding: 2px 8px;
+  .count-chip {
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: var(--c-red);
+    color: #fff;
+    padding: 2px 7px;
     border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.3);
   }
-
-  .section-rule {
+  .rule {
     flex: 1;
     height: 1px;
-    background: var(--border);
+    background: var(--c-border);
   }
 
-  /* ── Loader States ── */
+  /* States */
   .state-loading {
-    padding: 4rem 0;
+    padding: 48px 0;
     display: flex;
     justify-content: center;
   }
-
-  .loading-bar {
-    width: 120px;
+  .loader-bar {
+    width: 100px;
     height: 2px;
-    background: var(--border);
+    background: var(--c-border);
+    border-radius: 2px;
     overflow: hidden;
     position: relative;
-    border-radius: 2px;
   }
-
-  .loading-fill {
+  .loader-fill {
     height: 100%;
     width: 40%;
-    background: var(--brand-red);
+    background: var(--c-red);
     position: absolute;
-    box-shadow: 0 0 8px var(--brand-red);
-    animation: sweep 1.5s infinite ease-in-out;
+    animation: sweep 1.4s infinite ease-in-out;
   }
-
   @keyframes sweep {
     0% {
       left: -40%;
@@ -214,60 +199,72 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    padding: 5rem 0;
-    color: var(--muted);
+    gap: 10px;
+    padding: 56px 0;
+    color: var(--c-muted);
   }
-
   .state-empty p {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     margin: 0;
-    color: var(--sub);
+    color: var(--c-sub);
   }
 
-  /* ── Poster Grid Layout ── */
+  /* Grid */
   .poster-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 1.25rem 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 16px 12px;
   }
 
   .poster-card {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 8px;
+    animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 60ms)
+      both;
   }
 
-  .poster-wrap {
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Frame */
+  .poster-frame {
     position: relative;
     aspect-ratio: 2/3;
-    background: var(--surface-card);
-    border: 1px solid var(--border);
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    outline: none;
     transition:
-      transform 0.25s ease,
-      border-color 0.25s ease,
-      box-shadow 0.25s ease;
+      transform 0.3s var(--ease),
+      border-color 0.3s,
+      box-shadow 0.3s;
   }
-
-  .poster-wrap:hover {
+  .poster-frame:hover,
+  .poster-frame:focus-visible {
     transform: translateY(-4px);
-    border-color: var(--border-hover);
-    box-shadow: 0 8px 20px rgba(229, 9, 20, 0.15);
+    border-color: var(--c-border-h);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
   }
 
   .poster-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
+    transition: transform 0.4s var(--ease);
   }
-
-  .poster-wrap:hover .poster-img {
-    transform: scale(1.05);
+  .poster-frame:hover .poster-img {
+    transform: scale(1.06);
   }
 
   .poster-fallback {
@@ -276,67 +273,60 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--muted);
+    color: var(--c-muted);
   }
 
-  /* Tags บนรูปภาพ */
-  .category-tag {
+  .cat-badge {
     position: absolute;
-    top: 8px;
-    left: 8px;
-    font-size: 0.55rem;
+    top: 7px;
+    left: 7px;
+    font-size: 0.5rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     background: rgba(0, 0, 0, 0.75);
-    color: #ffffff;
+    color: #fff;
     padding: 3px 6px;
     border-radius: 4px;
     backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
     z-index: 2;
   }
 
-  /* ปุ่มลบ (X) ดีไซน์สไตล์วงกลมกระจกแบบโมเดิร์น */
-  .remove-btn {
+  .rm-btn {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 24px;
-    height: 24px;
-    background: rgba(0, 0, 0, 0.6);
+    top: 7px;
+    right: 7px;
+    width: 22px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.65);
     backdrop-filter: blur(4px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 50%;
-    color: #ffffff;
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     opacity: 0;
-    transform: scale(0.9);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: scale(0.85);
+    transition: all 0.2s var(--ease);
     z-index: 3;
   }
-
-  .poster-wrap:hover .remove-btn {
+  .poster-frame:hover .rm-btn {
     opacity: 1;
     transform: scale(1);
   }
-
-  .remove-btn:hover {
-    background: var(--brand-red);
-    border-color: var(--brand-red);
-    box-shadow: 0 0 8px rgba(229, 9, 20, 0.6);
+  .rm-btn:hover {
+    background: var(--c-red);
+    border-color: var(--c-red);
   }
 
-  /* ไล่เฉดสีมืดด้านล่างการ์ด */
   .poster-overlay {
     position: absolute;
     inset: 0;
     background: linear-gradient(
       to top,
-      rgba(0, 0, 0, 0.95) 0%,
-      rgba(0, 0, 0, 0.4) 40%,
+      rgba(0, 0, 0, 0.9) 0%,
+      rgba(0, 0, 0, 0.4) 45%,
       transparent 80%
     );
     opacity: 0;
@@ -344,53 +334,45 @@
     flex-direction: column;
     justify-content: flex-end;
     padding: 10px;
-    transition: opacity 0.2s ease;
+    gap: 3px;
+    transition: opacity 0.2s;
     z-index: 1;
   }
-
-  .poster-wrap:hover .poster-overlay {
+  .poster-frame:hover .poster-overlay {
     opacity: 1;
   }
 
-  .overlay-title {
-    font-size: 0.65rem;
-    font-weight: 500;
-    color: #ffffff;
+  .overlay-name {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
     line-height: 1.3;
-    margin: 0;
   }
-
-  /* Metadata ส่วนข้อมูลภายนอกการ์ด */
-  .poster-meta {
-    padding: 0 2px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .poster-title {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text);
-    margin: 0;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    cursor: pointer;
-    transition: color 0.2s ease;
-  }
-
-  .poster-title:hover {
-    color: var(--brand-red);
-  }
-
-  .poster-date {
+  .overlay-date {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 0.68rem;
-    color: var(--sub);
+    gap: 3px;
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* Meta */
+  .poster-meta {
+    padding: 0 2px;
+  }
+  .poster-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--c-text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s;
+  }
+  .poster-name:hover {
+    color: var(--c-red);
+    cursor: pointer;
   }
 </style>

@@ -26,21 +26,21 @@ type statRow struct {
 // GetByUserID fetches counts from the user_stats view and level/exp from user_statuses.
 // Returns zero values when either record does not exist yet (new user, no activity).
 func (r *repository) GetByUserID(userID uint) (*statRow, error) {
+	// เปลี่ยนจาก First() → Find() เพราะ user_stats เป็น VIEW
 	var stat UserStat
-	if err := r.db.Where("user_id = ?", userID).First(&stat).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
-		}
-		// No activity yet — zero counts are fine.
+	if err := r.db.Where("user_id = ?", userID).Limit(1).Find(&stat).Error; err != nil {
+		return nil, err
+	}
+	if stat.UserID == 0 {
 		stat = UserStat{UserID: userID}
 	}
 
+	// UserStatus เป็น table ปกติ ใช้ First() ได้เหมือนเดิม
 	var status UserStatus
 	if err := r.db.Where("user_id = ?", userID).First(&status).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
-		// No EXP record yet — default level 1, 0 exp.
 		status = UserStatus{UserID: userID, Level: 1, CurrentExp: 0}
 	}
 

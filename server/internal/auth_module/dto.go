@@ -1,5 +1,7 @@
 package auth_module
 
+import "time"
+
 type RegisterRequest struct {
 	Username        string `json:"username" validate:"required,min=3,max=50,alphanum"`
 	Email           string `json:"email"    validate:"required,email"`
@@ -13,14 +15,19 @@ type LoginRequest struct {
 }
 
 type UserResponse struct {
-	ID             uint    `json:"id"`
-	Username       string  `json:"username"`
-	Email          string  `json:"email"`
-	DisplayName    *string `json:"display_name"`
-	AvatarURL      *string `json:"avatar_url"`
-	IsVerified     bool    `json:"is_verified"`
-	Role           string  `json:"role"`
-	FavoriteGenres *string `json:"favorite_genres"`
+	ID             uint       `json:"id"`
+	Username       string     `json:"username"`
+	Email          string     `json:"email"`
+	DisplayName    *string    `json:"display_name"`
+	Bio            *string    `json:"bio"`
+	AvatarURL      *string    `json:"avatar_url"`
+	DateOfBirth    *time.Time `json:"date_of_birth"`
+	Gender         string     `json:"gender"`
+	IsVerified     bool       `json:"is_verified"`
+	Role           string     `json:"role"`
+	FavoriteGenres *string    `json:"favorite_genres"`
+	IsPrivate      bool       `json:"is_private"`
+	Level          int        `json:"level"`
 }
 
 type AuthResponse struct {

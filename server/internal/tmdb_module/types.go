@@ -18,6 +18,13 @@ type PaginatedResult[T any] struct {
 	TotalResults int `json:"total_results"`
 }
 
+type Media struct {
+	ID        int    `json:"id"`
+	MediaType string `json:"media_type"` 
+	Title     string `json:"title"`      
+	PosterURL string `json:"poster_url"` 
+}
+
 type Movie struct {
 	ID            int     `json:"id"`
 	Title         string  `json:"title"`

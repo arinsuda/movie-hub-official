@@ -9,6 +9,8 @@ import { useAuthStore } from "@/stores/auth"
 
 import "./assets/styles/main.css"
 import "primeicons/primeicons.css"
+import PrimeVue from "primevue/config"
+import Aura from "@primevue/themes/aura"
 
 async function bootstrap() {
   const app = createApp(App)

@@ -66,21 +66,16 @@ export const useAuthStore = defineStore("auth", () => {
 
   async function fetchMe() {
     try {
-      const refreshRes = await authApi.refresh()
+      const refreshRes = await authApi.refreshToken()
       const userId = refreshRes.data.user.id
 
       const meRes = await authApi.me(userId)
       const profile = meRes.data.user
 
       setUser({
-        id: profile.id,
-        username: profile.username,
+        ...profile, 
         email: refreshRes.data.user.email, 
-        display_name: profile.display_name,
-        avatar_url: profile.avatar_url,
-        is_verified: refreshRes.data.user.is_verified,
-        role: profile.role,
-        favorite_genres: profile.favorite_genres,
+        is_verified: refreshRes.data.user.is_verified, 
       })
     } catch {
       clearUser()
@@ -88,6 +83,7 @@ export const useAuthStore = defineStore("auth", () => {
       isInitialized.value = true
     }
   }
+
   return {
     user,
     isLoading,

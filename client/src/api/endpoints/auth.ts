@@ -15,7 +15,7 @@ export const authApi = {
 
   logout: () => api.post("/auth/logout"),
 
-  refresh: () => api.post<AuthResponse>("/auth/refresh"),
+  refreshToken: () => api.post<AuthResponse>("/auth/refresh"),
 
   me: (userId: number) => api.get<{ user: UserProfile }>(`/users/${userId}`),
 

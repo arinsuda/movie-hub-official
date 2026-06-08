@@ -1,44 +1,29 @@
 <template>
-  <div class="profile-info">
+  <div class="pinfo-root">
     <div class="section-head">
-      <span class="section-label">Personal Information</span>
-      <div class="section-rule" />
+      <span class="eyebrow">Personal Information</span>
+      <div class="rule" />
     </div>
 
-    <div class="info-grid">
-      <div class="info-row">
-        <span class="info-icon"><User :size="14" aria-hidden="true" /></span>
-        <span class="info-key">Display Name</span>
-        <span class="info-val">{{ user.display_name || "—" }}</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-icon"><AtSign :size="14" aria-hidden="true" /></span>
-        <span class="info-key">Username</span>
-        <span class="info-val">@{{ user.username }}</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-icon"><Shield :size="14" aria-hidden="true" /></span>
-        <span class="info-key">Account Role</span>
-        <span class="info-val status-premium">Standard Member</span>
-      </div>
-
-      <div class="info-row">
-        <span class="info-icon"
-          ><CalendarDays :size="14" aria-hidden="true"
-        /></span>
-        <span class="info-key">Joined Date</span>
-        <span class="info-val">{{ joinDate }}</span>
+    <div class="info-card">
+      <div
+        v-for="(row, i) in rows"
+        :key="i"
+        class="info-row"
+        :style="{ '--delay': i * 40 + 'ms' }"
+      >
+        <span class="row-icon"><component :is="row.icon" :size="13" /></span>
+        <span class="row-key">{{ row.key }}</span>
+        <span class="row-val" :class="row.class">{{ row.val }}</span>
       </div>
     </div>
 
     <template v-if="user.bio">
-      <div class="section-head mt">
-        <span class="section-label">Biography</span>
-        <div class="section-rule" />
+      <div class="section-head section-head--mt">
+        <span class="eyebrow">Biography</span>
+        <div class="rule" />
       </div>
-      <p class="bio-block">{{ user.bio }}</p>
+      <p class="bio-text">{{ user.bio }}</p>
     </template>
   </div>
 </template>
@@ -58,111 +43,153 @@
       day: "numeric",
     })
   })
+
+  const rows = computed(() => [
+    {
+      icon: User,
+      key: "Display Name",
+      val: props.user.display_name || "—",
+      class: "",
+    },
+    {
+      icon: AtSign,
+      key: "Username",
+      val: `@${props.user.username}`,
+      class: "",
+    },
+    {
+      icon: Shield,
+      key: "Account Role",
+      val: "Standard Member",
+      class: "val-badge",
+    },
+    { icon: CalendarDays, key: "Joined", val: joinDate.value, class: "" },
+  ])
 </script>
 
 <style scoped>
-  .profile-info {
-    /* ใช้ CSS Tokens และดีไซน์แบบเดียวกับหน้าหลัก เพื่อความกลมกลืน */
-    --surface: #121212;
-    --border: rgba(255, 255, 255, 0.05);
-    --text: #f5f5f7;
-    --sub: #8e8e93;
-    --muted: #48484a;
-    --ui:
+  .pinfo-root {
+    --c-surface: #111111;
+    --c-card: #161616;
+    --c-border: rgba(255, 255, 255, 0.06);
+    --c-red: #e1251b;
+    --c-text: #f0f0f0;
+    --c-sub: #8a8a8e;
+    --c-muted: #3a3a3c;
+    --font:
       -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
       system-ui, sans-serif;
 
-    color: var(--text);
-    font-family: var(--ui);
+    font-family: var(--font);
+    color: var(--c-text);
   }
 
   .section-head {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .section-head--mt {
+    margin-top: 32px;
   }
 
-  .section-head.mt {
-    margin-top: 2.5rem;
-  }
-
-  .section-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+  .eyebrow {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--muted);
+    color: var(--c-muted);
     white-space: nowrap;
   }
 
-  .section-rule {
+  .rule {
     flex: 1;
     height: 1px;
-    background: var(--border);
+    background: var(--c-border);
   }
 
-  .info-grid {
-    display: flex;
-    flex-direction: column;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.5rem 1.25rem;
+  .info-card {
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    overflow: hidden;
   }
 
   .info-row {
     display: grid;
-    grid-template-columns: 20px 140px 1fr;
+    grid-template-columns: 18px 150px 1fr;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.85rem 0;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--c-border);
+    animation: rowIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) both;
+    transition: background 0.15s;
+  }
+  .info-row:last-child {
+    border-bottom: none;
+  }
+  .info-row:hover {
+    background: rgba(255, 255, 255, 0.02);
   }
 
-  .info-row:not(:last-child) {
-    border-bottom: 1px solid var(--border);
+  @keyframes rowIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
-  .info-icon {
-    color: var(--sub);
+  .row-icon {
+    color: var(--c-muted);
     display: flex;
     align-items: center;
   }
 
-  .info-key {
-    font-size: 0.8rem;
-    color: var(--sub);
+  .row-key {
+    font-size: 0.78rem;
+    color: var(--c-sub);
     font-weight: 500;
   }
 
-  .info-val {
+  .row-val {
     font-size: 0.85rem;
-    color: #ffffff;
+    color: #fff;
     font-weight: 400;
   }
 
-  .status-premium {
-    color: #ffffff;
+  .val-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.72rem;
     font-weight: 500;
+    color: var(--c-text);
   }
 
-  .bio-block {
-    font-size: 0.9rem;
-    color: var(--sub);
-    line-height: 1.6;
+  .bio-text {
+    font-size: 0.875rem;
+    color: var(--c-sub);
+    line-height: 1.65;
     max-width: 600px;
     margin: 0;
-    padding: 0.25rem 0.5rem;
+    padding: 0 2px;
   }
 
-  /* Responsive handling */
-  @media (max-width: 600px) {
+  @media (max-width: 540px) {
     .info-row {
-      grid-template-columns: 20px 1fr;
-      row-gap: 0.25rem;
-      padding: 1rem 0;
+      grid-template-columns: 18px 1fr;
+      row-gap: 3px;
+      padding: 12px 14px;
     }
-    .info-val {
+    .row-val {
       grid-column: 2;
     }
   }

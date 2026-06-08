@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"mime/multipart"
 	"strings"
 
@@ -98,7 +99,7 @@ func (s *Service) UpdateProfile(
 			_ = s.minio.DeleteObject(context.Background(), oldKey)
 		}
 	}
-
+	log.Printf("DEBUG updates map: %+v", updates)
 	if len(updates) > 0 {
 		if err := s.repo.UpdateProfile(targetUserID, updates); err != nil {
 			return nil, err

@@ -11,6 +11,8 @@ import (
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
+	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+
 	// "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -65,6 +67,7 @@ func autoMigrate(db *gorm.DB) error {
 		&user_module.RefreshToken{},
 		// Social
 		&follow_module.UserFollow{},
+		&user_stats_module.UserStatus{},
 		// Library (watchlist / favorite / watched)
 		&library_module.LibraryItem{},
 		// Review

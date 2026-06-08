@@ -1,5 +1,5 @@
-import type { UserSummary } from './auth'
-import type { MediaSummary } from './movie'
+import type { UserSummary } from "./user"
+import type { MediaSummary } from "./movie"
 
 export interface FollowStatsResponse {
   user_id: number

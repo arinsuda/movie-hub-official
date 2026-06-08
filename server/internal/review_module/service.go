@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/gorm"
@@ -313,11 +314,18 @@ func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 	if r == nil {
 		return nil
 	}
+
+	title, posterURL := fetchMediaSummary(r.MediaID, r.MediaType)
+
 	return &ReviewResponse{
-		ID:           r.ID,
-		User:         toUserSummaryResponse(&r.User),
-		MediaID:      r.MediaID,
-		MediaType:    r.MediaType,
+		ID:   r.ID,
+		User: toUserSummaryResponse(&r.User),
+		Media: tmdbmodule.Media{
+			ID:        r.MediaID,
+			MediaType: r.MediaType,
+			Title:     title,
+			PosterURL: posterURL,
+		},
 		Rating:       r.Rating,
 		Body:         r.Body,
 		IsPublic:     r.IsPublic,
@@ -328,6 +336,22 @@ func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 		CreatedAt:    r.CreatedAt,
 		UpdatedAt:    r.UpdatedAt,
 	}
+}
+
+func fetchMediaSummary(mediaID int, mediaType string) (title, posterURL string) {
+	if mediaType == "movie" {
+		movie, err := tmdbmodule.GetMovieByID(mediaID)
+		if err != nil {
+			return "", ""
+		}
+		return movie.Title, tmdbmodule.ImageURL(movie.PosterPath)
+	}
+
+	series, err := tmdbmodule.GetSeriesByID(mediaID)
+	if err != nil {
+		return "", ""
+	}
+	return series.Name, tmdbmodule.ImageURL(series.PosterPath)
 }
 
 func toCommentResponse(c *ReviewComment) *CommentResponse {

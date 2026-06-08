@@ -22,7 +22,8 @@ export const reviewApi = {
     api.post<{ review: ReviewResponse }>(`/users/${userId}/reviews`, data),
 
   getUserReviews: (userId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<ReviewResponse>>(`/users/${userId}/reviews`, {
+    api.get<{ reviews: ReviewResponse[] }>(`/users/${userId}/reviews`, {
+      // ✅ แก้ตรงนี้
       params: { page, limit },
     }),
 
@@ -142,9 +143,13 @@ export const followApi = {
 export const userApi = {
   getProfile: (userId: number) => api.get(`/users/${userId}`),
 
-  updateProfile: (userId: number, data: object) =>
-    api.patch(`/users/${userId}`, data),
-
+  updateProfile: (userId: number, data: FormData | object) =>
+    api.patch(`/users/${userId}`, data, {
+      headers:
+        data instanceof FormData
+          ? { "Content-Type": "multipart/form-data" }
+          : { "Content-Type": "application/json" },
+    }),
   deleteUser: (userId: number) => api.delete(`/users/${userId}`),
 
   updateFavoriteGenres: (userId: number, genres: number[]) =>
