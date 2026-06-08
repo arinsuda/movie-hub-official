@@ -1,9 +1,11 @@
 package review_module
 
 import (
+	"context"
 	"math"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
@@ -12,11 +14,12 @@ import (
 
 type Service struct {
 	repo    *repository
+	minio   *storage.MinIOClient
 	expPort stats.ExpAdder // port — no direct import of the concrete Service
 }
 
-func NewService(db *gorm.DB, exp stats.ExpAdder) *Service {
-	return &Service{repo: newRepository(db), expPort: exp}
+func NewService(db *gorm.DB, mc *storage.MinIOClient, exp stats.ExpAdder) *Service {
+	return &Service{repo: newRepository(db), minio: mc, expPort: exp}
 }
 
 // ── Review ────────────────────────────────────────────────────────
@@ -53,7 +56,7 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if err != nil {
 		return nil, err
 	}
-	return toReviewResponse(inserted, false), nil
+	return toReviewResponse(inserted, false, s.minio), nil
 }
 
 func (s *Service) GetUserReviews(userID, requesterID uint) ([]ReviewResponse, error) {
@@ -76,7 +79,7 @@ func (s *Service) GetUserReviews(userID, requesterID uint) ([]ReviewResponse, er
 		if userID != requesterID && !r.IsPublic {
 			continue
 		}
-		responses = append(responses, *toReviewResponse(&r, likedMap[r.ID]))
+		responses = append(responses, *toReviewResponse(&r, likedMap[r.ID], s.minio))
 	}
 	return responses, nil
 }
@@ -95,7 +98,7 @@ func (s *Service) GetMediaReviews(mediaID int, mediaType string, requesterID uin
 
 	responses := make([]ReviewResponse, len(reviews))
 	for i, r := range reviews {
-		responses[i] = *toReviewResponse(&r, likedMap[r.ID])
+		responses[i] = *toReviewResponse(&r, likedMap[r.ID], s.minio)
 	}
 	return responses, nil
 }
@@ -112,7 +115,7 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 	updates := buildUpdateMap(req)
 	if len(updates) == 0 {
 		liked, _ := s.repo.IsLiked(reviewID, requesterID)
-		return toReviewResponse(review, liked), nil
+		return toReviewResponse(review, liked, s.minio), nil
 	}
 
 	if err := s.repo.UpdateReview(reviewID, updates); err != nil {
@@ -124,7 +127,7 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 		return nil, err
 	}
 	liked, _ := s.repo.IsLiked(reviewID, requesterID)
-	return toReviewResponse(updated, liked), nil
+	return toReviewResponse(updated, liked, s.minio), nil
 }
 
 func (s *Service) DeleteReview(reviewID, requesterID uint) error {
@@ -310,7 +313,7 @@ func buildUpdateMap(req UpdateReviewRequest) map[string]any {
 	return updates
 }
 
-func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
+func toReviewResponse(r *Review, isLiked bool, minio *storage.MinIOClient) *ReviewResponse {
 	if r == nil {
 		return nil
 	}
@@ -319,7 +322,7 @@ func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 
 	return &ReviewResponse{
 		ID:   r.ID,
-		User: toUserSummaryResponse(&r.User),
+		User: toUserSummaryResponse(&r.User, minio),
 		Media: tmdbmodule.Media{
 			ID:        r.MediaID,
 			MediaType: r.MediaType,
@@ -336,6 +339,28 @@ func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 		CreatedAt:    r.CreatedAt,
 		UpdatedAt:    r.UpdatedAt,
 	}
+}
+
+func toUserSummaryResponse(u *users.User, minio *storage.MinIOClient) users.UserSummaryResponse {
+	if u == nil || u.ID == 0 {
+		return users.UserSummaryResponse{Username: "Unknown User"}
+	}
+	res := users.UserSummaryResponse{ID: u.ID, Username: u.Username}
+	if u.DisplayName != nil && *u.DisplayName != "" {
+		res.DisplayName = u.DisplayName
+	}
+	if u.AvatarURL != nil && *u.AvatarURL != "" {
+		if minio != nil {
+			if presigned, err := minio.PresignURL(context.Background(), *u.AvatarURL); err == nil {
+				res.AvatarURL = &presigned
+			} else {
+				res.AvatarURL = u.AvatarURL
+			}
+		} else {
+			res.AvatarURL = u.AvatarURL
+		}
+	}
+	return res
 }
 
 func fetchMediaSummary(mediaID int, mediaType string) (title, posterURL string) {
@@ -363,18 +388,4 @@ func toCommentResponse(c *ReviewComment) *CommentResponse {
 		CreatedAt: c.CreatedAt,
 		UpdatedAt: c.UpdatedAt,
 	}
-}
-
-func toUserSummaryResponse(u *users.User) users.UserSummaryResponse {
-	if u == nil || u.ID == 0 {
-		return users.UserSummaryResponse{Username: "Unknown User"}
-	}
-	res := users.UserSummaryResponse{ID: u.ID, Username: u.Username}
-	if u.DisplayName != nil && *u.DisplayName != "" {
-		res.DisplayName = u.DisplayName
-	}
-	if u.AvatarURL != nil && *u.AvatarURL != "" {
-		res.AvatarURL = u.AvatarURL
-	}
-	return res
 }

@@ -1,13 +1,14 @@
 package review_module
 
 import (
+	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB, exp stats.ExpAdder) {
-	svc := NewService(db, exp)
+func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, exp stats.ExpAdder) {
+	svc := NewService(db, mc, exp)
 	h := NewHandler(svc)
 
 	// ── User reviews ─────────────────────────────────────────────

@@ -49,7 +49,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	library_module.RegisterRoutes(protected, db, statsSvc)
 	user_module.RegisterRoutes(protected, db, mc, statsSvc)
 	follow_module.RegisterRoutes(api, db)
-	review_module.RegisterRoutes(protected, db, statsSvc)
+	review_module.RegisterRoutes(protected, db, mc, statsSvc)
 	media_stats_module.RegisterRoutes(protected, db)
 	user_stats_module.RegisterRoutes(protected, db)
 }
