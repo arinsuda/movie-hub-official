@@ -16,12 +16,58 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-func (r *repository) GetByUserID(userID uint) (*UserStat, error) {
+// statRow holds the joined result of user_stats + user_statuses.
+type statRow struct {
+	UserStat
+	Level      int
+	CurrentExp int
+}
+
+// GetByUserID fetches counts from the user_stats view and level/exp from user_statuses.
+// Returns zero values when either record does not exist yet (new user, no activity).
+func (r *repository) GetByUserID(userID uint) (*statRow, error) {
 	var stat UserStat
-	err := r.db.Where("user_id = ?", userID).First(&stat).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// user ยังไม่มี activity เลย — คืน zero stats แทน 404
-		return &UserStat{UserID: userID}, nil
+	if err := r.db.Where("user_id = ?", userID).First(&stat).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		// No activity yet — zero counts are fine.
+		stat = UserStat{UserID: userID}
 	}
-	return &stat, err
+
+	var status UserStatus
+	if err := r.db.Where("user_id = ?", userID).First(&status).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		// No EXP record yet — default level 1, 0 exp.
+		status = UserStatus{UserID: userID, Level: 1, CurrentExp: 0}
+	}
+
+	return &statRow{
+		UserStat:   stat,
+		Level:      status.Level,
+		CurrentExp: status.CurrentExp,
+	}, nil
+}
+
+// UpsertStatus creates or updates the UserStatus row and applies level-up logic.
+func (r *repository) UpsertStatus(userID uint, expDelta int) error {
+	var status UserStatus
+	err := r.db.Where("user_id = ?", userID).
+		FirstOrCreate(&status, UserStatus{UserID: userID, Level: 1}).Error
+	if err != nil {
+		return err
+	}
+
+	status.CurrentExp += expDelta
+	for status.CurrentExp >= ExpPerLevel {
+		status.CurrentExp -= ExpPerLevel
+		status.Level++
+	}
+	if status.CurrentExp < 0 {
+		status.CurrentExp = 0
+	}
+
+	return r.db.Save(&status).Error
 }

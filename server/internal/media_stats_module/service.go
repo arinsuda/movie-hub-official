@@ -1,6 +1,7 @@
 package media_stats_module
 
 import (
+	"math"
 	"time"
 
 	"github.com/arinsuda/movie-hub/internal/movie_module"
@@ -38,6 +39,15 @@ func (s *Service) GetStats(mediaID int, mediaType movie_module.MediaType, reques
 		return nil, err
 	}
 
+	// ── ใหม่ ──────────────────────────────────────────────────────
+	ratingRow, err := s.repo.GetAverageRating(mediaID, mediaType)
+	if err != nil {
+		return nil, err
+	}
+	// round ทศนิยม 1 ตำแหน่ง เช่น 3.75 → 3.8
+	avgRating := float32(math.Round(float64(ratingRow.AvgRating)*10) / 10)
+	// ─────────────────────────────────────────────────────────────
+
 	var likedAt *time.Time
 	if requesterID > 0 {
 		likedAt, err = s.repo.GetLikedAt(requesterID, mediaID, mediaType)
@@ -61,8 +71,10 @@ func (s *Service) GetStats(mediaID int, mediaType movie_module.MediaType, reques
 		ViewCount:      viewCount,
 		ReviewCount:    reviewCount,
 		WatchlistCount: watchlistCount,
+		AverageRating:  avgRating,
+		HasRating:      ratingRow.ReviewCount > 0,
 		LikedAt:        likedAt,
-		WatchlistedAt:  watchlistedAt, // 💡 แตกข้อมูลส่งต่อไปให้เรียบร้อย
+		WatchlistedAt:  watchlistedAt,
 	}, nil
 }
 

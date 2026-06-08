@@ -15,8 +15,7 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// GetUserStats GET /users/:userId/stats
-// public — ใครก็ดูได้ เพราะเป็น profile stats
+// GetUserStats GET /users/:userId/stats — public, anyone can view profile stats.
 func (h *Handler) GetUserStats(c fiber.Ctx) error {
 	userID, err := strconv.Atoi(c.Params("userId"))
 	if err != nil || userID <= 0 {

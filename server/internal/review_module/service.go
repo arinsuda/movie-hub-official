@@ -5,28 +5,24 @@ import (
 	"time"
 
 	users "github.com/arinsuda/movie-hub/internal/user_module"
+	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	repo *repository
+	repo    *repository
+	expPort stats.ExpAdder // port — no direct import of the concrete Service
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{repo: newRepository(db)}
+func NewService(db *gorm.DB, exp stats.ExpAdder) *Service {
+	return &Service{repo: newRepository(db), expPort: exp}
 }
 
 // ── Review ────────────────────────────────────────────────────────
 
 func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
-	if req.Rating < 0.5 || req.Rating > 5 || math.Mod(float64(req.Rating)*2, 1) != 0 {
-		return nil, ErrInvalidRating
-	}
-	if req.MediaType != "movie" && req.MediaType != "tv" {
-		return nil, ErrInvalidMediaType
-	}
-	if req.MediaID <= 0 {
-		return nil, ErrInvalidMediaID
+	if err := validateReviewRequest(req); err != nil {
+		return nil, err
 	}
 
 	review := &Review{
@@ -45,22 +41,21 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		review.WatchedAt = &t
 	}
 
-	// 1. สั่งบันทึกรีวิวลง DB
 	if err := s.repo.CreateReview(review); err != nil {
 		return nil, err
 	}
 
-	// 2. ดึงข้อมูลตัวที่เพิ่งบันทึกขึ้นมาใหม่พร้อมโหลดโครงสร้างความสัมพันธ์ "User" ผ่าน Repo
-	insertedReview, err := s.repo.FindReviewByID(review.ID)
+	// Award EXP — best-effort, do not fail the request on error.
+	_ = s.expPort.AddExperience(userID, stats.ExpPerReview)
+
+	inserted, err := s.repo.FindReviewByID(review.ID)
 	if err != nil {
 		return nil, err
 	}
-
-	// 3. ส่งตัวที่โหลด User สมบูรณ์แล้วไปแปลงเป็น Response
-	return toReviewResponse(insertedReview, false), nil
+	return toReviewResponse(inserted, false), nil
 }
 
-func (s *Service) GetUserReviews(userID uint, requesterID uint) ([]ReviewResponse, error) {
+func (s *Service) GetUserReviews(userID, requesterID uint) ([]ReviewResponse, error) {
 	reviews, err := s.repo.FindReviewsByUser(userID)
 	if err != nil {
 		return nil, err
@@ -113,24 +108,7 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 		return nil, ErrForbidden
 	}
 
-	updates := map[string]any{}
-	if req.Rating != nil {
-		updates["rating"] = *req.Rating
-	}
-	if req.Body != nil {
-		updates["body"] = *req.Body
-	}
-	if req.IsPublic != nil {
-		updates["is_public"] = *req.IsPublic
-	}
-	if req.WatchedAt != nil {
-		t, err := time.Parse("2006-01-02", *req.WatchedAt)
-		if err != nil {
-			return nil, ErrInvalidWatchedAt
-		}
-		updates["watched_at"] = t
-	}
-
+	updates := buildUpdateMap(req)
 	if len(updates) == 0 {
 		liked, _ := s.repo.IsLiked(reviewID, requesterID)
 		return toReviewResponse(review, liked), nil
@@ -157,13 +135,16 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 		return ErrForbidden
 	}
 
-	// ไม่ต้อง IncrementReviewCount -1 แล้ว
-	// stats_module จะ COUNT จาก reviews table โดยตรง
+	if err := s.repo.DeleteReview(reviewID); err != nil {
+		return err
+	}
 
-	return s.repo.DeleteReview(reviewID)
+	// Revoke EXP — best-effort.
+	_ = s.expPort.AddExperience(requesterID, -stats.ExpPerReview)
+	return nil
 }
 
-// ── In-app Rating Aggregate ───────────────────────────────────────
+// ── In-app Rating ─────────────────────────────────────────────────
 
 func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse, error) {
 	if mediaType != "movie" && mediaType != "tv" {
@@ -203,14 +184,29 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 	if !review.IsPublic && review.UserID != requesterID {
 		return ErrForbidden
 	}
-	return s.repo.CreateLike(reviewID, requesterID)
+
+	if err := s.repo.CreateLike(reviewID, requesterID); err != nil {
+		return err
+	}
+
+	// Award EXP to the review author, not the liker.
+	_ = s.expPort.AddExperience(review.UserID, stats.ExpPerLike)
+	return nil
 }
 
 func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
-	if _, err := s.repo.FindReviewByID(reviewID); err != nil {
+	review, err := s.repo.FindReviewByID(reviewID)
+	if err != nil {
 		return err
 	}
-	return s.repo.DeleteLike(reviewID, requesterID)
+
+	if err := s.repo.DeleteLike(reviewID, requesterID); err != nil {
+		return err
+	}
+
+	// Revoke EXP from the review author.
+	_ = s.expPort.AddExperience(review.UserID, -stats.ExpPerLike)
+	return nil
 }
 
 // ── Comment ───────────────────────────────────────────────────────
@@ -224,11 +220,7 @@ func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentReq
 		return nil, ErrForbidden
 	}
 
-	comment := &ReviewComment{
-		ReviewID: reviewID,
-		UserID:   requesterID,
-		Body:     req.Body,
-	}
+	comment := &ReviewComment{ReviewID: reviewID, UserID: requesterID, Body: req.Body}
 	if err := s.repo.CreateComment(comment); err != nil {
 		return nil, err
 	}
@@ -264,7 +256,6 @@ func (s *Service) UpdateComment(commentID, requesterID uint, req UpdateCommentRe
 	if comment.UserID != requesterID {
 		return nil, ErrForbidden
 	}
-
 	if err := s.repo.UpdateComment(commentID, req.Body); err != nil {
 		return nil, err
 	}
@@ -285,14 +276,46 @@ func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+func validateReviewRequest(req CreateReviewRequest) error {
+	if req.Rating < 0.5 || req.Rating > 5 || math.Mod(float64(req.Rating)*2, 1) != 0 {
+		return ErrInvalidRating
+	}
+	if req.MediaType != "movie" && req.MediaType != "tv" {
+		return ErrInvalidMediaType
+	}
+	if req.MediaID <= 0 {
+		return ErrInvalidMediaID
+	}
+	return nil
+}
+
+func buildUpdateMap(req UpdateReviewRequest) map[string]any {
+	updates := map[string]any{}
+	if req.Rating != nil {
+		updates["rating"] = *req.Rating
+	}
+	if req.Body != nil {
+		updates["body"] = *req.Body
+	}
+	if req.IsPublic != nil {
+		updates["is_public"] = *req.IsPublic
+	}
+	if req.WatchedAt != nil {
+		t, err := time.Parse("2006-01-02", *req.WatchedAt)
+		if err == nil {
+			updates["watched_at"] = t
+		}
+	}
+	return updates
+}
+
 func toReviewResponse(r *Review, isLiked bool) *ReviewResponse {
 	if r == nil {
 		return nil
 	}
-
 	return &ReviewResponse{
 		ID:           r.ID,
-		User:         toUserSummaryResponse(&r.User), // ฟังก์ชันที่ปรับปรุงใหม่จะช่วยดักไว้ให้
+		User:         toUserSummaryResponse(&r.User),
 		MediaID:      r.MediaID,
 		MediaType:    r.MediaType,
 		Rating:       r.Rating,
@@ -320,25 +343,14 @@ func toCommentResponse(c *ReviewComment) *CommentResponse {
 
 func toUserSummaryResponse(u *users.User) users.UserSummaryResponse {
 	if u == nil || u.ID == 0 {
-		return users.UserSummaryResponse{
-			Username: "Unknown User",
-		}
+		return users.UserSummaryResponse{Username: "Unknown User"}
 	}
-
-	res := users.UserSummaryResponse{
-		ID:       u.ID,
-		Username: u.Username,
-	}
-
-	// เช็คประเภทข้อมูล: ถ้า u.DisplayName ในโมเดลหลักเป็น string ธรรมดา
-	// แต่ใน DTO ต้องการ *string เราต้องส่ง Pointer ของค่านั้นไปให้แทนครับ
+	res := users.UserSummaryResponse{ID: u.ID, Username: u.Username}
 	if u.DisplayName != nil && *u.DisplayName != "" {
 		res.DisplayName = u.DisplayName
 	}
-
 	if u.AvatarURL != nil && *u.AvatarURL != "" {
 		res.AvatarURL = u.AvatarURL
 	}
-
 	return res
 }

@@ -105,7 +105,7 @@
             </span>
             <span class="meta-badge rating-remov">
               <i class="pi pi-heart-fill"></i>
-              REMOV: {{ removStats.rating.toFixed(2) }}
+              REMOV: {{ removStats.average_rating.toFixed(2) }}
             </span>
           </div>
 
@@ -242,7 +242,6 @@
   const router = useRouter()
   const movieId = computed(() => Number(route.params.id))
 
-  // 💡 กำหนดค่า userId ชั่วคราวตามโครงสร้างล็อกอิน (สามารถผูกเข้ากับ Auth Store ของคุณได้เลย)
   const authStore = useAuthStore()
   const currentUserId = computed(() => authStore.user?.id ?? null)
   const showTrailerPopup = ref(false)
@@ -264,7 +263,6 @@
   const videoList = ref<any[]>([])
   const isLoading = ref(true)
 
-  // ─── Stats & Library States ──────────────────────────────────────────────────
   const removStats = ref({
     media_id: 0,
     media_type: "movie",
@@ -273,16 +271,15 @@
     review_count: 0,
     watchlist_count: 0,
     liked_at: null as string | null,
-    rating: 0.0,
+    average_rating: 0.0,
+    has_rating: false,
   })
 
   const isLiked = computed(() => removStats.value.liked_at !== null)
 
-  // สถานะการเปิด/ปิดปุ่มบนหน้า UI
   const isWatchlisted = ref(false)
   const isWatched = ref(false)
 
-  // 💡 อมไอดีแถว (item_id) แยกกันไว้ เพื่อส่งไปทำลายที่หลังบ้านเวลาผู้ใช้กดยกเลิกสเตตัส
   const watchlist_ItemId = ref<number | null>(null)
   const watched_ItemId = ref<number | null>(null)
 
@@ -294,7 +291,6 @@
     router.back()
   }
 
-  // Formatting Functions
   function formatYear(dateStr: string): string {
     if (!dateStr) return ""
     return dateStr.split("-")[0] || ""
@@ -322,9 +318,6 @@
     return statusMap[status] || status
   }
 
-  // ─── Interaction Handlers ──────────────────────────────────────────────────
-
-  // ⚡ ฟังก์ชันจัดการส่งคำขอสลับสถานะกด Like / Unlike หนัง
   async function toggleLike() {
     try {
       if (isLiked.value) {
@@ -354,12 +347,8 @@
     }
 
     try {
-      // 💡 1. เอาสถานะปุ่มบนหน้า UI เป็นหลักในการตัดสินใจว่าจะ ลบ หรือ เพิ่ม
       if (isWatchlisted.value) {
-        // 🚨 กรณีที่หน้าเว็บโชว์ว่ากดแล้ว แต่ตัวแปรไอดีสำหรับลบดันไม่มี (เป็น null)
         if (!watchlist_ItemId.value) {
-          // ทางเลือกที่ 1: ยิงหาตัวตนล่าสุดก่อนเพื่อความชัวร์ หรือดักแจ้งเตือน
-          // ทางเลือกที่ 2: ดึงใหม่แบบ Real-time ณ ตอนนั้นเลย
           const libRes = await libraryApi.getMediaStatus(
             currentUserId.value,
             movieId.value,
@@ -373,13 +362,11 @@
           if (watchlistInfo) {
             watchlist_ItemId.value = watchlistInfo.item_id
           } else {
-            // ถ้าหลังบ้านไม่มีอยู่จริง แสดงว่าหน้า UI เพี้ยน ให้รีเซ็ตกลับแล้วหยุดการทำงาน
             isWatchlisted.value = false
             return
           }
         }
 
-        //ทำการลบไอเทมออกจากคลังด้วยไอดีที่ได้มาแน่นอนแล้ว
         await libraryApi.removeItem(
           currentUserId.value,
           watchlist_ItemId.value!,
@@ -393,14 +380,12 @@
         watchlist_ItemId.value = null
         window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว")
       } else {
-        // 💡 2. ฝั่งนี้คือยังไม่ได้กด ก็ทำการเพิ่มตามปกติ
         const res = await libraryApi.addItem(currentUserId.value, {
           media_id: movieId.value,
           media_type: "movie",
           list_type: "watchlist",
         })
 
-        // หลังบ้านส่งข้อมูลไอเทมตัวใหม่ที่พึ่งแอดกลับมาให้ เอามาเซ็ตลง ref ทันที
         if (res.data?.item) {
           watchlist_ItemId.value = res.data.item.id
         }
@@ -415,9 +400,7 @@
     }
   }
 
-  // ⚡ 3. แก้ไขฟังก์ชันทำเครื่องหมายรับชมภาพยนตร์แล้ว (Watched)
   async function toggleWatched() {
-    // 👈 ครอบเช็คตัวตนของผู้ใช้ก่อนยิง API
     if (!currentUserId.value) {
       window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน")
       return
@@ -425,14 +408,12 @@
 
     try {
       if (isWatched.value && watched_ItemId.value) {
-        // 💡 เติม .value ที่คีย์ของตัวแปร ref ทั้งสองตัว
         await libraryApi.removeItem(currentUserId.value, watched_ItemId.value)
 
         isWatched.value = false
         watched_ItemId.value = null
         window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม")
       } else {
-        // 💡 เติม .value ที่ currentUserId
         const res = await libraryApi.addItem(currentUserId.value, {
           media_id: movieId.value,
           media_type: "movie",
@@ -491,19 +472,16 @@
     try {
       isLoading.value = true
 
-      // 2. ดึงข้อมูลรายละเอียดตัวหนังหลัก
       const res = await movieApi.getById(movieId.value)
       movie.value = res.data.movie
       castList.value = res.data.credits?.cast?.slice(0, 8) || []
       videoList.value = res.data.videos || []
 
-      // 3. ดึงค่าสถิติรวมจริงทั้งหมด (ที่แนบสเตตัสไลก์ส่วนตัวมาด้วย)
       const statsRes = await movieApi.getMediaStats("movie", movieId.value)
 
       if (statsRes.data && statsRes.data.stats) {
         const incomingStats = statsRes.data.stats
 
-        // อัปเดตข้อมูลสถิติทั้งหมดลงใน ref
         removStats.value = {
           media_id: incomingStats.media_id ?? 0,
           media_type: incomingStats.media_type ?? "movie",
@@ -511,19 +489,18 @@
           view_count: incomingStats.view_count ?? 0,
           review_count: incomingStats.review_count ?? 0,
           watchlist_count: incomingStats.watchlist_count ?? 0,
-          // 💡 เช็คว่าถ้ามีฟิลด์ liked_at ส่งมา ให้ใช้ค่าจาก API ถ้าไม่มี (กรณีลบไลก์หรือไม่ได้กด) ให้เป็น null
           liked_at:
             incomingStats.liked_at !== undefined
               ? incomingStats.liked_at
               : null,
-          rating: incomingStats.rating ?? 0.0,
+          average_rating: incomingStats.average_rating ?? 0.0,
+          has_rating: incomingStats.has_rating ?? false,
         }
         if (incomingStats.watchlisted_at) {
           isWatchlisted.value = true
         }
       }
 
-      // 4. 🔒 ยิงเรียกสถานะคลังหนัง (สำหรับ Watchlist / Watched ไอเทมไอดี เพื่อเอาไว้ใช้เวลาลบ)
       if (currentUserId.value) {
         try {
           const libRes = await libraryApi.getMediaStatus(
@@ -564,7 +541,6 @@
 </script>
 
 <style scoped>
-  /* ... โค้ดสไตล์ CSS ทั้งหมดของคุณคงเดิมไว้ได้เลยครับ ... */
   @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap");
 
   .movie-detail-page {
@@ -586,7 +562,6 @@
     overflow-x: hidden;
   }
 
-  /* 🎨 คลาสตกแต่งเพิ่มเติมสำหรับสถานะปุ่มกดสลับ Active สีสันสวยงาม */
   .btn-secondary-action.active-like {
     background: rgba(255, 42, 116, 0.2) !important;
     border-color: var(--neon-pink) !important;
@@ -605,7 +580,6 @@
     color: #2ed573 !important;
   }
 
-  /* ... สไตล์เดิมทั้งหมดด้านล่างที่เคยส่งมาดึงใช้งานต่อได้ตามปกติเลยครับ ... */
   .detail-backdrop {
     position: absolute;
     top: 0;
@@ -794,13 +768,13 @@
     color: var(--gold);
   }
   .rating-remov {
-    background: rgba(255, 42, 116, 0.15);
-    border-color: rgba(255, 42, 116, 0.3);
-    color: var(--neon-pink);
+    background: rgba(255, 42, 42, 0.15);
+    border-color: rgba(255, 0, 0, 0.3);
+    color: var(--red);
     font-weight: 600;
   }
   .rating-remov i {
-    color: var(--neon-pink);
+    color: var(--red);
   }
   .genres-list {
     display: flex;

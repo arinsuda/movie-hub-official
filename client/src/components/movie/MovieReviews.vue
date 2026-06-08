@@ -67,7 +67,7 @@
           </div>
           <div class="user-score">
             <i class="pi pi-star-fill"></i>
-            <span>{{ item.rating }}/10</span>
+            <span>{{ item.rating }}/5</span>
           </div>
         </div>
         <p class="review-comment">{{ item.body }}</p>

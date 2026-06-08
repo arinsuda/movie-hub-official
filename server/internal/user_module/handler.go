@@ -2,7 +2,9 @@ package user_module
 
 import (
 	"errors"
+	"mime/multipart"
 	"strconv"
+	"time"
 
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
@@ -23,9 +25,8 @@ func (h *Handler) GetProfile(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	requesterID := claims.UserID
 
-	profile, err := h.svc.GetProfile(targetID, requesterID)
+	profile, err := h.svc.GetProfile(targetID, claims.UserID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -40,14 +41,32 @@ func (h *Handler) UpdateProfile(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	requesterID := claims.UserID
 
-	var req UpdateProfileRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	req, err := parseUpdateProfileForm(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	profile, err := h.svc.UpdateProfile(targetID, requesterID, req)
+	var avatarFile *multipartFile
+	fh, formErr := c.FormFile("avatar")
+	if formErr == nil && fh != nil {
+		if err := validateImageFile(fh); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		}
+		f, err := fh.Open()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "cannot read avatar file"})
+		}
+		defer f.Close()
+		avatarFile = &multipartFile{file: f, header: fh}
+	}
+
+	var profile *UserProfileResponse
+	if avatarFile != nil {
+		profile, err = h.svc.UpdateProfile(targetID, claims.UserID, req, avatarFile.file, avatarFile.header)
+	} else {
+		profile, err = h.svc.UpdateProfile(targetID, claims.UserID, req, nil, nil)
+	}
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -89,6 +108,61 @@ func (h *Handler) UpdateFavoriteGenres(c fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"user": profile})
+}
+
+type multipartFile struct {
+	file   multipart.File
+	header *multipart.FileHeader
+}
+
+func parseUpdateProfileForm(c fiber.Ctx) (UpdateProfileRequest, error) {
+	var req UpdateProfileRequest
+
+	if v := c.FormValue("display_name"); v != "" {
+		req.DisplayName = &v
+	}
+	if v := c.FormValue("bio"); v != "" {
+		req.Bio = &v
+	}
+	if v := c.FormValue("gender"); v != "" {
+		req.Gender = GenderType(v)
+	}
+	if v := c.FormValue("gender_other"); v != "" {
+		req.GenderOther = &v
+	}
+	if v := c.FormValue("favorite_genres"); v != "" {
+		req.FavoriteGenres = &v
+	}
+	if v := c.FormValue("date_of_birth"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err != nil {
+			return req, errors.New("date_of_birth must be YYYY-MM-DD")
+		}
+		req.DateOfBirth = &t
+	}
+	if v := c.FormValue("is_private"); v != "" {
+		b := v == "true"
+		req.IsPrivate = &b
+	}
+
+	return req, nil
+}
+
+func validateImageFile(fh *multipart.FileHeader) error {
+	allowed := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+		"image/gif":  true,
+	}
+	if !allowed[fh.Header.Get("Content-Type")] {
+		return errors.New("avatar must be jpeg, png, webp, or gif")
+	}
+	const maxSize = 5 << 20 // 5 MB
+	if fh.Size > maxSize {
+		return errors.New("avatar must be smaller than 5 MB")
+	}
+	return nil
 }
 
 func parseUserID(c fiber.Ctx) (uint, error) {

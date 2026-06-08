@@ -147,6 +147,21 @@ func (r *repository) CountReviews(mediaID int, mediaType movie_module.MediaType)
 	return int(count), err
 }
 
+type ratingRow struct {
+	AvgRating   float32
+	ReviewCount int
+}
+
+func (r *repository) GetAverageRating(mediaID int, mediaType movie_module.MediaType) (ratingRow, error) {
+	var row ratingRow
+	err := r.db.Table("reviews").
+		Select("COALESCE(AVG(rating), 0) AS avg_rating, COUNT(*) AS review_count").
+		Where("media_id = ? AND media_type = ? AND is_public = true AND deleted_at IS NULL",
+			mediaID, string(mediaType)).
+		Scan(&row).Error
+	return row, err
+}
+
 // ── Watchlist Count ───────────────────────────────────────────────
 // นับเฉพาะ list_type = 'watchlist' เท่านั้น
 // favorite และ watched ไม่นับรวม

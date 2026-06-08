@@ -18,6 +18,7 @@ export interface UserProfile {
   following_count: number
   is_private: boolean
   role: string
+  created_at: string
 }
 
 export interface AuthUser {

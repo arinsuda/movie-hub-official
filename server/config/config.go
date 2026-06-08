@@ -15,6 +15,7 @@ type Config struct {
 	JWT        JWTConfig
 	SMTP       SMTPConfig
 	Cookie     CookieConfig
+	MinIO      MinIOConfig
 }
 
 type DBConfig struct {
@@ -33,8 +34,8 @@ type TMDBConfig struct {
 type JWTConfig struct {
 	AccessSecret  string
 	RefreshSecret string
-	AccessTTL     time.Duration // 15m
-	RefreshTTL    time.Duration // 7d
+	AccessTTL     time.Duration
+	RefreshTTL    time.Duration
 }
 
 type SMTPConfig struct {
@@ -49,6 +50,14 @@ type CookieConfig struct {
 	Domain   string
 	Secure   bool
 	SameSite string
+}
+
+type MinIOConfig struct {
+	Endpoint   string
+	AccessKey  string
+	SecretKey  string
+	BucketName string
+	UseSSL     bool
 }
 
 func Load() (*Config, error) {
@@ -85,6 +94,13 @@ func Load() (*Config, error) {
 			Domain:   getEnv("COOKIE_DOMAIN", "localhost"),
 			Secure:   getEnv("COOKIE_SECURE", "false") == "true",
 			SameSite: getEnv("COOKIE_SAMESITE", "Strict"),
+		},
+		MinIO: MinIOConfig{
+			Endpoint:   requireEnv("MINIO_ENDPOINT"),
+			AccessKey:  requireEnv("MINIO_ROOT_USER"),
+			SecretKey:  requireEnv("MINIO_ROOT_PASSWORD"),
+			BucketName: getEnv("MINIO_BUCKET_NAME", "remov-private"),
+			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		},
 	}, nil
 }

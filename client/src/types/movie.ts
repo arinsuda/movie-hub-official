@@ -109,7 +109,8 @@ export interface MediaStats {
   view_count: number
   review_count: number
   watchlist_count: number
-  rating: number
+  average_rating: number
+  has_rating: boolean
   liked_at: string | null
   watchlisted_at: string | null
 }

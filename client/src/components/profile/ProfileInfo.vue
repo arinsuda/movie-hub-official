@@ -1,141 +1,169 @@
 <template>
-  <div
-    class="bg-gray-950/40 backdrop-blur-md rounded-2xl p-6 border border-gray-800/60 shadow-2xl relative overflow-hidden"
-  >
-    <div
-      class="absolute -top-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"
-    ></div>
-    <div
-      class="absolute -bottom-24 -right-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"
-    ></div>
+  <div class="profile-info">
+    <div class="section-head">
+      <span class="section-label">Personal Information</span>
+      <div class="section-rule" />
+    </div>
 
-    <div
-      class="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10"
-    >
-      <div class="flex flex-col items-center space-y-4 flex-shrink-0">
-        <div
-          class="relative w-32 h-32 rounded-full overflow-hidden border-2 border-gray-700/50 bg-gray-900 flex items-center justify-center text-gray-400 group shadow-inner"
-        >
-          <img
-            v-if="user.avatar_url"
-            :src="user.avatar_url"
-            alt="User Avatar"
-            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-          />
-          <span
-            v-else
-            class="text-4xl font-bold tracking-wider bg-gradient-to-tr from-blue-400 to-purple-400 bg-clip-text text-transparent"
-          >
-            {{ user.username?.charAt(0).toUpperCase() }}
-          </span>
-          <div
-            class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-          >
-            <svg
-              class="w-6 h-6 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </div>
-        </div>
-        <button
-          class="text-xs font-medium text-gray-400 hover:text-white transition-colors tracking-wide bg-gray-900/80 px-3 py-1.5 rounded-full border border-gray-800"
-        >
-          เปลี่ยนรูปโปรไฟล์
-        </button>
+    <div class="info-grid">
+      <div class="info-row">
+        <span class="info-icon"><User :size="14" aria-hidden="true" /></span>
+        <span class="info-key">Display Name</span>
+        <span class="info-val">{{ user.display_name || "—" }}</span>
       </div>
 
-      <div class="flex-1 w-full space-y-6">
-        <h2
-          class="text-lg font-bold uppercase tracking-wider text-white border-b border-gray-800/80 pb-3"
-        >
-          ACCOUNT DETAILS
-        </h2>
+      <div class="info-row">
+        <span class="info-icon"><AtSign :size="14" aria-hidden="true" /></span>
+        <span class="info-key">Username</span>
+        <span class="info-val">@{{ user.username }}</span>
+      </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label
-              class="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2"
-              >Username</label
-            >
-            <div class="relative">
-              <input
-                type="text"
-                v-model="formData.username"
-                disabled
-                class="w-full px-4 py-2.5 bg-gray-900/60 border border-gray-800/80 rounded-xl text-gray-500 cursor-not-allowed font-medium select-none text-sm"
-              />
-              <span class="absolute right-3 top-3 text-gray-600"> 🔒 </span>
-            </div>
-          </div>
+      <div class="info-row">
+        <span class="info-icon"><Shield :size="14" aria-hidden="true" /></span>
+        <span class="info-key">Account Role</span>
+        <span class="info-val status-premium">Standard Member</span>
+      </div>
 
-          <div>
-            <label
-              class="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2"
-              >Display Name</label
-            >
-            <input
-              type="text"
-              v-model="formData.displayName"
-              class="w-full px-4 py-2.5 bg-gray-900/40 border border-gray-800 rounded-xl text-white font-medium focus:border-blue-500/80 focus:bg-gray-900/90 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all text-sm placeholder-gray-600"
-              placeholder="Enter your public display name..."
-            />
-          </div>
-        </div>
-
-        <div class="pt-4 flex justify-end">
-          <button
-            @click="handleUpdateProfile"
-            :disabled="isSaving"
-            class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-semibold rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 transition-all disabled:opacity-40 disabled:pointer-events-none"
-          >
-            {{ isSaving ? "Saving changes..." : "Save Changes" }}
-          </button>
-        </div>
+      <div class="info-row">
+        <span class="info-icon"
+          ><CalendarDays :size="14" aria-hidden="true"
+        /></span>
+        <span class="info-key">Joined Date</span>
+        <span class="info-val">{{ joinDate }}</span>
       </div>
     </div>
+
+    <template v-if="user.bio">
+      <div class="section-head mt">
+        <span class="section-label">Biography</span>
+        <div class="section-rule" />
+      </div>
+      <p class="bio-block">{{ user.bio }}</p>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref } from "vue"
+  import { computed } from "vue"
+  import { User, AtSign, Shield, CalendarDays } from "lucide-vue-next"
   import type { UserProfile } from "@/types"
 
-  const props = defineProps<{
-    user: UserProfile
-  }>()
+  const props = defineProps<{ user: UserProfile }>()
 
-  const isSaving = ref(false)
-
-  const formData = ref({
-    username: props.user.username || "",
-    displayName: props.user.display_name || "",
+  const joinDate = computed(() => {
+    if (!props.user.created_at) return "—"
+    return new Date(props.user.created_at).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
   })
+</script>
 
-  const handleUpdateProfile = async () => {
-    try {
-      isSaving.value = true
-      await new Promise(resolve => setTimeout(resolve, 800))
-      alert("บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว!")
-    } catch (err) {
-      console.error("Update profile failed:", err)
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล")
-    } finally {
-      isSaving.value = false
+<style scoped>
+  .profile-info {
+    /* ใช้ CSS Tokens และดีไซน์แบบเดียวกับหน้าหลัก เพื่อความกลมกลืน */
+    --surface: #121212;
+    --border: rgba(255, 255, 255, 0.05);
+    --text: #f5f5f7;
+    --sub: #8e8e93;
+    --muted: #48484a;
+    --ui:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+      system-ui, sans-serif;
+
+    color: var(--text);
+    font-family: var(--ui);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .section-head.mt {
+    margin-top: 2.5rem;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .section-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .info-grid {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 1.25rem;
+  }
+
+  .info-row {
+    display: grid;
+    grid-template-columns: 20px 140px 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 0;
+  }
+
+  .info-row:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-icon {
+    color: var(--sub);
+    display: flex;
+    align-items: center;
+  }
+
+  .info-key {
+    font-size: 0.8rem;
+    color: var(--sub);
+    font-weight: 500;
+  }
+
+  .info-val {
+    font-size: 0.85rem;
+    color: #ffffff;
+    font-weight: 400;
+  }
+
+  .status-premium {
+    color: #ffffff;
+    font-weight: 500;
+  }
+
+  .bio-block {
+    font-size: 0.9rem;
+    color: var(--sub);
+    line-height: 1.6;
+    max-width: 600px;
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* Responsive handling */
+  @media (max-width: 600px) {
+    .info-row {
+      grid-template-columns: 20px 1fr;
+      row-gap: 0.25rem;
+      padding: 1rem 0;
+    }
+    .info-val {
+      grid-column: 2;
     }
   }
-</script>
+</style>

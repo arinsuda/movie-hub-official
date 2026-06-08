@@ -15,7 +15,9 @@ type UserProfileResponse struct {
 	FollowerCount  int        `json:"follower_count"`
 	FollowingCount int        `json:"following_count"`
 	IsPrivate      bool       `json:"is_private"`
+	Level          int        `json:"level"`
 	Role           string     `json:"role"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type UpdateProfileRequest struct {

@@ -1,87 +1,63 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex justify-between items-center border-b pb-2 mb-4">
-      <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
-        รายการเฝ้าดูของฉัน ({{ watchlist.length }})
-      </h2>
+  <div class="watchlist-wrap">
+    <!-- ── หัวข้อรายการเฝ้าดู ── -->
+    <div class="section-head">
+      <span class="section-label">Watchlist</span>
+      <span class="count-badge">{{ watchlist.length }}</span>
+      <div class="section-rule" />
     </div>
 
-    <div v-if="loading" class="text-center py-8 text-gray-500">
-      กำลังโหลดรายการเฝ้าดู...
+    <!-- ── Loading State ── -->
+    <div v-if="loading" class="state-loading">
+      <div class="loading-bar"><div class="loading-fill" /></div>
     </div>
 
-    <div
-      v-else-if="watchlist.length === 0"
-      class="bg-white dark:bg-gray-800 rounded-xl p-8 text-center border border-gray-100 dark:border-gray-700"
-    >
-      <p class="text-gray-500 dark:text-gray-400">
-        ยังไม่มีรายการในวอทช์ลิสต์ของคุณ
-      </p>
+    <!-- ── Empty State ── -->
+    <div v-else-if="watchlist.length === 0" class="state-empty">
+      <Bookmark :size="32" :stroke-width="1.2" aria-hidden="true" />
+      <p>Your watchlist is empty</p>
     </div>
 
-    <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-      <div
-        v-for="item in watchlist"
-        :key="item.id"
-        class="group bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-between transition-all hover:shadow-md"
-      >
-        <div
-          class="relative aspect-[3/4] bg-gray-100 dark:bg-gray-700 overflow-hidden"
-        >
+    <!-- ── โปสเตอร์กริด (Poster Grid) ── -->
+    <div v-else class="poster-grid">
+      <div v-for="item in watchlist" :key="item.id" class="poster-card">
+        <div class="poster-wrap" :aria-label="item.title">
+          <!-- รูปภาพหน้าปก -->
           <img
             v-if="item.coverUrl"
             :src="item.coverUrl"
             :alt="item.title"
-            class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            class="poster-img"
           />
-          <div
-            v-else
-            class="w-full h-full flex items-center justify-center text-gray-400 text-xs text-center p-2"
-          >
-            No Image
+          <div v-else class="poster-fallback">
+            <Film :size="20" :stroke-width="1.5" aria-hidden="true" />
           </div>
 
-          <span
-            class="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded font-medium"
+          <!-- แท็กหมวดหมู่มุมซ้ายบน -->
+          <span class="category-tag">{{ item.category }}</span>
+
+          <!-- ปุ่มลบออกจากรายการ (Hover แล้วขึ้น) -->
+          <button
+            class="remove-btn"
+            :aria-label="`Remove ${item.title} from watchlist`"
+            @click="handleRemove(item.id)"
           >
-            {{ item.category }}
-          </span>
+            <X :size="12" aria-hidden="true" />
+          </button>
+
+          <!-- ตัวเคลือบเงาการ์ดขณะโฮเวอร์ -->
+          <div class="poster-overlay" aria-hidden="true">
+            <p class="overlay-title">{{ item.title }}</p>
+          </div>
         </div>
 
-        <div class="p-3 flex-1 flex flex-col justify-between">
-          <h3
-            class="font-medium text-sm text-gray-900 dark:text-white line-clamp-2 mb-2 group-hover:text-blue-600 cursor-pointer"
-          >
-            {{ item.title }}
-          </h3>
-
-          <div
-            class="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-gray-700"
-          >
-            <span class="text-xs text-gray-400"
-              >เพิ่มเมื่อ {{ item.addedAt }}</span
-            >
-
-            <button
-              @click="handleRemove(item.id)"
-              class="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-              title="ลบออกจากรายการ"
-            >
-              <svg
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          </div>
+        <!-- รายละเอียดด้านล่างโปสเตอร์ -->
+        <div class="poster-meta">
+          <h4 class="poster-title">{{ item.title }}</h4>
+          <span class="poster-date">
+            <Clock :size="10" aria-hidden="true" />
+            {{ item.addedAt }}
+          </span>
         </div>
       </div>
     </div>
@@ -90,10 +66,9 @@
 
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
+  import { Bookmark, Film, X, Clock } from "lucide-vue-next"
 
-  const props = defineProps<{
-    userId: number
-  }>()
+  const props = defineProps<{ userId: number }>()
 
   const loading = ref(false)
 
@@ -110,34 +85,31 @@
   onMounted(async () => {
     try {
       loading.value = true
-      // TODO: เรียกใช้ API จริง เช่น const res = await watchlistApi.getWatchlist(props.userId)
-      await new Promise(resolve => setTimeout(resolve, 500))
-
-      // ข้อมูลจำลองสำหรับจัด UI Layout
+      await new Promise(resolve => setTimeout(resolve, 400))
       watchlist.value = [
         {
           id: 101,
-          title: "Introduction to Nuxt 3 Framework",
-          category: "Course",
+          title: "Interstellar",
+          category: "SCI-FI",
           coverUrl:
-            "https://images.unsplash.com/photo-1516116211223-5c359a36298a?w=400&auto=format&fit=crop&q=60",
-          addedAt: "2026-06-01",
+            "https://image.tmdb.org/t/p/w300/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+          addedAt: "1 Jun 2026",
         },
         {
           id: 102,
-          title: "Tailwind CSS Component Architecture",
-          category: "Article",
+          title: "Oppenheimer",
+          category: "DRAMA",
           coverUrl:
-            "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=400&auto=format&fit=crop&q=60",
-          addedAt: "2026-05-28",
+            "https://image.tmdb.org/t/p/w300/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
+          addedAt: "28 May 2026",
         },
         {
           id: 103,
-          title: "Building Microservices with Go (Fiber)",
-          category: "Video",
+          title: "Dune: Part Two",
+          category: "SCI-FI",
           coverUrl:
-            "https://images.unsplash.com/photo-1618401471353-b98aedd07871?w=400&auto=format&fit=crop&q=60",
-          addedAt: "2026-05-20",
+            "https://image.tmdb.org/t/p/w300/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+          addedAt: "20 May 2026",
         },
       ]
     } catch (err) {
@@ -147,10 +119,278 @@
     }
   })
 
-  const handleRemove = (id: number) => {
-    // กรองตัวที่ถูกลบออกจาก State ทันที
-    watchlist.value = watchlist.value.filter(item => item.id !== id)
-    console.log("Removed from watchlist, ID:", id)
-    // TODO: เรียก API ลบออก เช่น watchlistApi.remove(id)
+  function handleRemove(id: number) {
+    watchlist.value = watchlist.value.filter(i => i.id !== id)
   }
 </script>
+
+<style scoped>
+  .watchlist-wrap {
+    /* ชุดตัวแปรสี Premium Crimson Red & Deep Dark */
+    --bg-dark: #0a0a0a;
+    --surface-card: #141414;
+    --brand-red: #e50914;
+    --brand-red-hover: #b20710;
+    --border: rgba(255, 255, 255, 0.06);
+    --border-hover: rgba(235, 9, 20, 0.2);
+    --text: #f5f5f7;
+    --sub: #8e8e93;
+    --muted: #48484a;
+    --ui:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+      system-ui, sans-serif;
+
+    color: var(--text);
+    font-family: var(--ui);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .count-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--brand-red);
+    padding: 2px 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.3);
+  }
+
+  .section-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Loader States ── */
+  .state-loading {
+    padding: 4rem 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .loading-bar {
+    width: 120px;
+    height: 2px;
+    background: var(--border);
+    overflow: hidden;
+    position: relative;
+    border-radius: 2px;
+  }
+
+  .loading-fill {
+    height: 100%;
+    width: 40%;
+    background: var(--brand-red);
+    position: absolute;
+    box-shadow: 0 0 8px var(--brand-red);
+    animation: sweep 1.5s infinite ease-in-out;
+  }
+
+  @keyframes sweep {
+    0% {
+      left: -40%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  .state-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 5rem 0;
+    color: var(--muted);
+  }
+
+  .state-empty p {
+    font-size: 0.85rem;
+    margin: 0;
+    color: var(--sub);
+  }
+
+  /* ── Poster Grid Layout ── */
+  .poster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 1.25rem 1rem;
+  }
+
+  .poster-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .poster-wrap {
+    position: relative;
+    aspect-ratio: 2/3;
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .poster-wrap:hover {
+    transform: translateY(-4px);
+    border-color: var(--border-hover);
+    box-shadow: 0 8px 20px rgba(229, 9, 20, 0.15);
+  }
+
+  .poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+
+  .poster-wrap:hover .poster-img {
+    transform: scale(1.05);
+  }
+
+  .poster-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+  }
+
+  /* Tags บนรูปภาพ */
+  .category-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: rgba(0, 0, 0, 0.75);
+    color: #ffffff;
+    padding: 3px 6px;
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 2;
+  }
+
+  /* ปุ่มลบ (X) ดีไซน์สไตล์วงกลมกระจกแบบโมเดิร์น */
+  .remove-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 3;
+  }
+
+  .poster-wrap:hover .remove-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .remove-btn:hover {
+    background: var(--brand-red);
+    border-color: var(--brand-red);
+    box-shadow: 0 0 8px rgba(229, 9, 20, 0.6);
+  }
+
+  /* ไล่เฉดสีมืดด้านล่างการ์ด */
+  .poster-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(0, 0, 0, 0.4) 40%,
+      transparent 80%
+    );
+    opacity: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 10px;
+    transition: opacity 0.2s ease;
+    z-index: 1;
+  }
+
+  .poster-wrap:hover .poster-overlay {
+    opacity: 1;
+  }
+
+  .overlay-title {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #ffffff;
+    line-height: 1.3;
+    margin: 0;
+  }
+
+  /* Metadata ส่วนข้อมูลภายนอกการ์ด */
+  .poster-meta {
+    padding: 0 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .poster-title {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+
+  .poster-title:hover {
+    color: var(--brand-red);
+  }
+
+  .poster-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.68rem;
+    color: var(--sub);
+  }
+</style>

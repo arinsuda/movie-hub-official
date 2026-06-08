@@ -1,12 +1,13 @@
 package library_module
 
 import (
+	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB) {
-	svc := NewService(db)
+func RegisterRoutes(router fiber.Router, db *gorm.DB, exp stats.ExpAdder) {
+	svc := NewService(db, exp)
 	h := NewHandler(svc)
 
 	users := router.Group("/users/:userId")
