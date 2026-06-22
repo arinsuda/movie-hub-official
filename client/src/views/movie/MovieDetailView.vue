@@ -237,6 +237,7 @@
   import MovieReviews from "@/components/movie/MovieReviews.vue"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
+import { mediaApi } from "@/api/endpoints/media"
 
   const route = useRoute()
   const router = useRouter()
@@ -321,7 +322,7 @@
   async function toggleLike() {
     try {
       if (isLiked.value) {
-        await movieApi.unlikeMedia("movie", movieId.value)
+        await mediaApi.unlikeMedia("movie", movieId.value)
         removStats.value.liked_at = null
         removStats.value.like_count = Math.max(
           0,
@@ -329,7 +330,7 @@
         )
         window.$toast?.info("ลบภาพยนตร์ออกจากรายการที่ชอบแล้ว")
       } else {
-        await movieApi.likeMedia("movie", movieId.value)
+        await mediaApi.likeMedia("movie", movieId.value)
         removStats.value.liked_at = new Date().toISOString()
         removStats.value.like_count += 1
         window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️")
@@ -477,7 +478,7 @@
       castList.value = res.data.credits?.cast?.slice(0, 8) || []
       videoList.value = res.data.videos || []
 
-      const statsRes = await movieApi.getMediaStats("movie", movieId.value)
+      const statsRes = await mediaApi.getMediaStats("movie", movieId.value)
 
       if (statsRes.data && statsRes.data.stats) {
         const incomingStats = statsRes.data.stats

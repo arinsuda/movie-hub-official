@@ -14,6 +14,4 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB) {
 
 	stats.Get("/", h.GetStats)           // GET    /stats/movie/123
 	stats.Post("/view", h.RecordView)    // POST   /stats/movie/123/view
-	stats.Post("/like", h.LikeMedia)     // POST   /stats/movie/123/like
-	stats.Delete("/like", h.UnlikeMedia) // DELETE /stats/movie/123/like
 }

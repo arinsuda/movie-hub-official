@@ -10,6 +10,5 @@ const (
 
 const (
 	ListWatchlist ListType = "watchlist"
-	ListFavorite  ListType = "favorite"
 	ListWatched   ListType = "watched"
 )

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	shared "github.com/arinsuda/movie-hub/internal/shared"
 )
 
 type AddItemRequest struct {
@@ -22,14 +23,13 @@ type UpdateItemRequest struct {
 }
 
 type LibraryItemResponse struct {
-	ID        uint                   `json:"id"`
-	MediaID   int                    `json:"media_id"`
-	MediaType movie_module.MediaType `json:"media_type"`
-	ListType  movie_module.ListType  `json:"list_type"`
-	WatchedAt *time.Time             `json:"watched_at"`
-	Tags      []string               `json:"tags"`
-	Note      *string                `json:"note"`
-	CreatedAt time.Time              `json:"created_at"`
+	ID        uint                  `json:"id"`
+	Media     shared.MediaSummary   `json:"media"`
+	ListType  movie_module.ListType `json:"list_type"`
+	WatchedAt *time.Time            `json:"watched_at"`
+	Tags      []string              `json:"tags"`
+	Note      *string               `json:"note"`
+	CreatedAt time.Time             `json:"created_at"`
 }
 
 // สำหรับ query สถานะ media นึงว่าอยู่ใน list ไหนบ้าง

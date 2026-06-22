@@ -152,6 +152,7 @@
   import ProfileInfo from "@/components/profile/ProfileInfo.vue"
   import UserReviews from "@/components/profile/UserReviews.vue"
   import UserWatchlist from "@/components/profile/UserWatchlist.vue"
+  import UserWatched from "@/components/profile/๊UserWatched.vue"
   import UserLikes from "@/components/profile/UserLikes.vue"
   import UserAchievements from "@/components/profile/UserAchievements.vue"
   import EditProfile from "@/components/profile/EditProfile.vue"
@@ -163,7 +164,13 @@
   const notMe = ref(false)
   const showEdit = ref(false)
 
-  type TabKey = "profile" | "reviews" | "watchlist" | "likes" | "achievements"
+  type TabKey =
+    | "profile"
+    | "reviews"
+    | "watchlist"
+    | "likes"
+    | "watched"
+    | "achievements"
   const activeTab = ref<TabKey>("reviews")
 
   const tabs = computed(() => [
@@ -202,6 +209,7 @@
     reviews: UserReviews,
     watchlist: UserWatchlist,
     likes: UserLikes,
+    watched: UserWatched,
     achievements: UserAchievements,
   }
 

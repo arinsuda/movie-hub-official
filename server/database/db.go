@@ -12,6 +12,7 @@ import (
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+	noti "github.com/arinsuda/movie-hub/internal/notification_module"
 
 	// "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
@@ -78,6 +79,7 @@ func autoMigrate(db *gorm.DB) error {
 		&like_module.MediaLike{}, // like ต่อ media — source of truth ของ like_count
 		&media_stats_module.MediaStat{},
 		// &user_stats_module.UserStat{}, // เก็บแค่ view_count
+		&noti.Notification{},
 	)
 	if err != nil {
 		return err

@@ -8,9 +8,11 @@ import (
 	"github.com/arinsuda/movie-hub/internal/auth_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
+	"github.com/arinsuda/movie-hub/internal/like_module"
 	"github.com/arinsuda/movie-hub/internal/mailer"
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	"github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/arinsuda/movie-hub/internal/user_module"
@@ -39,7 +41,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 
 	api := app.Group("/api")
 
-	auth_module.RegisterRoutes(api, db, cfg, m)
+	auth_module.RegisterRoutes(api, db, cfg, m, mc)
 
 	mw := auth_module.NewMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
@@ -51,7 +53,9 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	follow_module.RegisterRoutes(api, db)
 	review_module.RegisterRoutes(protected, db, mc, statsSvc)
 	media_stats_module.RegisterRoutes(protected, db)
+	like_module.RegisterRoutes(protected, db)
 	user_stats_module.RegisterRoutes(protected, db)
+	notification_module.RegisterRoutes(protected, db, user_module.NewNotificationUserAdapter(db))
 }
 
 func welcomeHandler(c fiber.Ctx) error {

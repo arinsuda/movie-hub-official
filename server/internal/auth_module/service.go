@@ -1,12 +1,15 @@
 package auth_module
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/mailer"
+	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -16,14 +19,16 @@ type Service struct {
 	repo   *repository
 	jwt    *jwtManager
 	mailer *mailer.Mailer
+	minio  *storage.MinIOClient
 	cfg    *config.Config
 }
 
-func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer) *Service {
+func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer, mc *storage.MinIOClient) *Service {
 	return &Service{
 		repo:   newRepository(db),
 		jwt:    newJWTManager(cfg.JWT),
 		mailer: m,
+		minio:  mc,
 		cfg:    cfg,
 	}
 }
@@ -89,6 +94,12 @@ func (s *Service) Login(req LoginRequest, userAgent, ip string) (*TokenPair, *us
 
 	if user.VerifiedEmailAt == nil {
 		return nil, nil, ErrEmailUnverified
+	}
+
+	if user.AvatarURL != nil && strings.HasPrefix(*user.AvatarURL, "avatars/") {
+		if url, err := s.minio.PresignURL(context.Background(), *user.AvatarURL); err == nil {
+			user.AvatarURL = &url
+		}
 	}
 
 	pair, err := s.issueAndStoreTokens(user, userAgent, ip)

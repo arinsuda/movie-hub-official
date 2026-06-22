@@ -1,8 +1,8 @@
 <template>
-  <div class="likes-root">
+  <div class="root">
     <div class="section-head">
-      <span class="eyebrow">Liked Items</span>
-      <span class="count-chip">{{ likedItems.length }}</span>
+      <span class="eyebrow">Favorites</span>
+      <span class="count-chip">{{ items.length }}</span>
       <div class="rule" />
     </div>
 
@@ -10,34 +10,59 @@
       <div class="loader-bar"><div class="loader-fill" /></div>
     </div>
 
-    <div v-else-if="likedItems.length === 0" class="state-empty">
+    <div v-else-if="items.length === 0" class="state-empty">
       <Heart :size="28" :stroke-width="1.2" />
-      <p>No liked items yet</p>
+      <p>No favorites yet</p>
     </div>
 
-    <div v-else class="likes-list">
+    <div v-else class="poster-grid">
       <div
-        v-for="(item, i) in likedItems"
+        v-for="(item, i) in items"
         :key="item.id"
-        class="like-row"
+        class="poster-card"
         :style="{ '--i': i }"
       >
-        <div class="heart-dot" aria-hidden="true">
-          <Heart :size="13" class="heart-icon" />
+        <div class="poster-frame" tabindex="0">
+          <img
+            v-if="item.coverUrl"
+            :src="item.coverUrl"
+            :alt="item.title"
+            class="poster-img"
+            loading="lazy"
+          />
+          <div v-else class="poster-fallback">
+            <Film :size="18" :stroke-width="1.4" />
+          </div>
+
+          <span class="cat-badge">{{ item.category }}</span>
+
+          <button
+            class="rm-btn"
+            :aria-label="`Remove ${item.title}`"
+            @click.stop="handleRemove(item.id)"
+          >
+            <X :size="11" />
+          </button>
+
+          <div class="poster-overlay">
+            <p class="overlay-name">{{ item.title }}</p>
+            <span class="overlay-genre">{{
+              item.genres.slice(0, 2).join(" · ")
+            }}</span>
+            <div class="overlay-bottom">
+              <span class="overlay-rating"
+                >⭐ {{ item.rating.toFixed(1) }}</span
+              >
+              <span class="overlay-date"
+                ><Clock :size="9" /> {{ item.addedAt }}</span
+              >
+            </div>
+          </div>
         </div>
 
-        <div class="like-body">
-          <h4 class="like-title">{{ item.title }}</h4>
-          <p class="like-meta">by {{ item.author }} · {{ item.likedAt }}</p>
+        <div class="poster-meta">
+          <h4 class="poster-name">{{ item.title }}</h4>
         </div>
-
-        <button
-          class="unlike-btn"
-          title="Unlike"
-          @click="handleUnlike(item.id)"
-        >
-          Unlike
-        </button>
       </div>
     </div>
   </div>
@@ -45,64 +70,63 @@
 
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
-  import { Heart } from "lucide-vue-next"
+  import { Heart, Film, X, Clock } from "lucide-vue-next"
+  import { libraryApi } from "@/api/api"
+  import { mediaApi } from "@/api/endpoints/media"
+  import type { LikeItem, MediaSummary } from "@/types"
+
+  const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
   const props = defineProps<{ userId: number }>()
 
   const loading = ref(false)
 
-  interface LikedItem {
+  interface MappedMedia {
     id: number
     title: string
-    author: string
-    likedAt: string
+    category: string
+    coverUrl: string
+    genres: string[]
+    rating: number
+    addedAt: string
   }
 
-  const likedItems = ref<LikedItem[]>([])
+  const items = ref<MappedMedia[]>([])
 
   onMounted(async () => {
     try {
       loading.value = true
-      await new Promise(r => setTimeout(r, 400))
-      likedItems.value = [
-        {
-          id: 201,
-          title: "How to Optimize SQL Queries in MySQL for Production",
-          author: "Tech Blogger",
-          likedAt: "3 Jun 2026",
-        },
-        {
-          id: 202,
-          title: "State Management in Flutter: Comprehensive Guide to Riverpod",
-          author: "Dev Community",
-          likedAt: "29 May 2026",
-        },
-        {
-          id: 203,
-          title: "Designing Scalable ERP System Database Models",
-          author: "Database Architect",
-          likedAt: "12 May 2026",
-        },
-      ]
+      const response = await mediaApi.getLikeByUserId(props.userId)
+
+      items.value = response.data.likes.map((item: LikeItem) => ({
+        id: item.id,
+        title: item.media.title,
+        category: item.media.media_type,
+        coverUrl: item.media.poster_url
+          ? `${TMDB_IMG}${item.media.poster_url}`
+          : "",
+        genres: item.media.genres?.map(g => g.name) ?? [],
+        rating: item.media.vote_average ?? 0,
+        addedAt: new Date(item.created_at).toLocaleDateString(),
+      }))
     } catch (err) {
-      console.error("Fetch liked items failed:", err)
+      console.error("Fetch favorites failed:", err)
     } finally {
       loading.value = false
     }
   })
 
-  function handleUnlike(id: number) {
-    likedItems.value = likedItems.value.filter(i => i.id !== id)
+  function handleRemove(id: number) {
+    items.value = items.value.filter(i => i.id !== id)
   }
 </script>
 
 <style scoped>
-  .likes-root {
+  .root {
     --c-card: #161616;
     --c-border: rgba(255, 255, 255, 0.06);
-    --c-border-h: rgba(255, 255, 255, 0.12);
+    --c-border-h: rgba(255, 255, 255, 0.13);
     --c-red: #e1251b;
-    --c-red-dim: rgba(225, 37, 27, 0.1);
     --c-text: #f0f0f0;
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
@@ -114,6 +138,7 @@
     color: var(--c-text);
   }
 
+  /* ── Header ── */
   .section-head {
     display: flex;
     align-items: center;
@@ -142,7 +167,7 @@
     background: var(--c-border);
   }
 
-  /* States */
+  /* ── States ── */
   .state-loading {
     padding: 48px 0;
     display: flex;
@@ -186,117 +211,183 @@
     color: var(--c-sub);
   }
 
-  /* List */
-  .likes-list {
+  /* ── Grid ── */
+  .poster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 16px 12px;
+  }
+
+  .poster-card {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    animation: fadeUp 0.4s var(--ease) calc(var(--i) * 60ms) both;
   }
 
-  .like-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    background: #101010;
-    border: 1px solid var(--c-border);
-    border-radius: 10px;
-    transition: all 0.22s var(--ease);
-    animation: rowIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
-  }
-  .like-row:hover {
-    background: var(--c-card);
-    border-color: var(--c-border-h);
-    transform: translateX(3px);
-  }
-
-  @keyframes rowIn {
+  @keyframes fadeUp {
     from {
       opacity: 0;
-      transform: translateX(-8px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateY(0);
     }
   }
 
-  /* Heart dot */
-  .heart-dot {
-    width: 34px;
-    height: 34px;
-    background: var(--c-red-dim);
+  /* ── Poster frame ── */
+  .poster-frame {
+    position: relative;
+    aspect-ratio: 2/3;
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
     border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    outline: none;
+    transition:
+      transform 0.3s var(--ease),
+      border-color 0.3s,
+      box-shadow 0.3s;
+  }
+  .poster-frame:hover,
+  .poster-frame:focus-visible {
+    transform: translateY(-4px);
+    border-color: var(--c-border-h);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  .poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s var(--ease);
+  }
+  .poster-frame:hover .poster-img {
+    transform: scale(1.06);
+  }
+
+  .poster-fallback {
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.2s;
-  }
-  .like-row:hover .heart-dot {
-    background: rgba(225, 37, 27, 0.18);
-  }
-  .heart-icon {
-    color: var(--c-red);
-    fill: var(--c-red);
+    color: var(--c-muted);
   }
 
-  /* Body */
-  .like-body {
+  .cat-badge {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: rgba(0, 0, 0, 0.75);
+    color: #fff;
+    padding: 3px 6px;
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+    z-index: 2;
+  }
+
+  .rm-btn {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 22px;
+    height: 22px;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.85);
+    transition: all 0.2s var(--ease);
+    z-index: 3;
+  }
+  .poster-frame:hover .rm-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .rm-btn:hover {
+    background: var(--c-red);
+    border-color: var(--c-red);
+  }
+
+  /* ── Overlay ── */
+  .poster-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.9) 0%,
+      rgba(0, 0, 0, 0.4) 45%,
+      transparent 80%
+    );
+    opacity: 0;
     display: flex;
     flex-direction: column;
+    justify-content: flex-end;
+    padding: 10px;
     gap: 3px;
-    flex: 1;
-    min-width: 0;
+    transition: opacity 0.2s;
+    z-index: 1;
   }
-  .like-title {
-    font-size: 0.84rem;
-    font-weight: 500;
+  .poster-frame:hover .poster-overlay {
+    opacity: 1;
+  }
+
+  .overlay-name {
+    font-size: 0.62rem;
+    font-weight: 600;
     color: #fff;
+    margin: 0;
+    line-height: 1.3;
+  }
+  .overlay-genre {
+    font-size: 0.55rem;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .overlay-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .overlay-rating {
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .overlay-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  /* ── Meta ── */
+  .poster-meta {
+    padding: 0 2px;
+  }
+  .poster-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--c-text);
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: color 0.15s;
+    transition: color 0.2s;
   }
-  .like-row:hover .like-title {
-    color: rgba(255, 255, 255, 0.85);
-  }
-  .like-meta {
-    font-size: 0.7rem;
-    color: var(--c-sub);
-    margin: 0;
-  }
-
-  /* Unlike btn */
-  .unlike-btn {
-    font-family: var(--font);
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--c-sub);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--c-border);
-    padding: 5px 12px;
-    border-radius: 6px;
+  .poster-name:hover {
+    color: var(--c-red);
     cursor: pointer;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: all 0.2s var(--ease);
-  }
-  .unlike-btn:hover {
-    color: #fff;
-    background: var(--c-red);
-    border-color: var(--c-red);
-    box-shadow: 0 3px 12px rgba(225, 37, 27, 0.35);
-  }
-
-  @media (max-width: 440px) {
-    .like-row {
-      flex-wrap: wrap;
-    }
-    .unlike-btn {
-      width: 100%;
-      text-align: center;
-    }
   }
 </style>

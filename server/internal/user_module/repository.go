@@ -19,6 +19,10 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
+func NewPublicRepository(db *gorm.DB) *repository {
+	return newRepository(db)
+}
+
 // userWithStats เป็น struct รับผลจากการ JOIN users + user_stats view
 // ใช้ภายใน repository เท่านั้น ไม่ expose ออก
 type userWithStats struct {

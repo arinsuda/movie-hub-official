@@ -5,7 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type MediaLike struct {
+type  MediaLike struct {
 	gorm.Model
 	UserID    uint                     `gorm:"not null;index;uniqueIndex:idx_user_media_like"`
 	MediaID   int                      `gorm:"not null;index;uniqueIndex:idx_user_media_like"`

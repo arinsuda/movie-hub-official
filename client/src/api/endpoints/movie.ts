@@ -12,19 +12,6 @@ import type {
 } from "@/types"
 
 export const movieApi = {
-  // Shared Media Stats
-  getMediaStats: (mediaType: "movie" | "tv", mediaId: number) =>
-    api.get<MediaStatsResponse>(`/stats/${mediaType}/${mediaId}`),
-
-  recordMediaView: (mediaType: "movie" | "tv", mediaId: number) =>
-    api.post(`/stats/${mediaType}/${mediaId}/view`),
-
-  likeMedia: (mediaType: "movie" | "tv", mediaId: number) =>
-    api.post(`/stats/${mediaType}/${mediaId}/like`),
-
-  unlikeMedia: (mediaType: "movie" | "tv", mediaId: number) =>
-    api.delete(`/stats/${mediaType}/${mediaId}/like`),
-
   // Movies
   getPopular: (page = 1) =>
     api.get<PaginatedResult<Movie>>("/movies/popular", { params: { page } }),

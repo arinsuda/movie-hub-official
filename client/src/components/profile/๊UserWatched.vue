@@ -97,7 +97,7 @@
     try {
       loading.value = true
       const response = await libraryApi.getLibrary(props.userId, {
-        list_type: "watchlist",
+        list_type: "watched",
       })
 
       // ตรงนี้ใช้งานได้เลยถ้า Backend ส่งข้อมูลมาครบแล้ว

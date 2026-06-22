@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	shared "github.com/arinsuda/movie-hub/internal/shared"
+	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/gorm"
 )
@@ -153,7 +155,6 @@ func validateAddItemRequest(req AddItemRequest) error {
 		return ErrInvalidMediaType
 	}
 	if req.ListType != movie_module.ListWatchlist &&
-		req.ListType != movie_module.ListFavorite &&
 		req.ListType != movie_module.ListWatched {
 		return ErrInvalidListType
 	}
@@ -164,12 +165,42 @@ func validateAddItemRequest(req AddItemRequest) error {
 }
 
 func toResponse(item *LibraryItem) *LibraryItemResponse {
+	// ── 1. Parse tags จาก JSON string ที่เก็บใน DB ────────────────
+	tags := []string{}
+	if item.Tags != "" {
+		_ = json.Unmarshal([]byte(item.Tags), &tags)
+	}
+
+	// ── 2. เริ่มต้น MediaSummary ด้วย fallback ────────────────────
+	media := shared.MediaSummary{
+		ID:        item.MediaID,
+		MediaType: item.MediaType,
+	}
+
+	// ── 3. Fetch รายละเอียดจาก TMDB แยกตาม MediaType ─────────────
+	switch item.MediaType {
+	case movie_module.MediaMovie:
+		if details, err := tmdbmodule.GetMovieByID(item.MediaID); err == nil && details != nil {
+			media.Title = details.Title
+			media.PosterURL = details.PosterPath
+			media.Genres = details.Genres
+			media.VoteAverage = float32(details.VoteAverage)
+		}
+
+	case movie_module.MediaSeries:
+		if details, err := tmdbmodule.GetSeriesByID(item.MediaID); err == nil && details != nil {
+			media.Title = details.Name // TV ใช้ Name ไม่ใช่ Title
+			media.PosterURL = details.PosterPath
+			media.Genres = details.Genres
+			media.VoteAverage = float32(details.VoteAverage)
+		}
+	}
+
 	return &LibraryItemResponse{
 		ID:        item.ID,
-		MediaID:   item.MediaID,
-		MediaType: item.MediaType,
+		Media:     media, // ✅ populated แล้ว
 		ListType:  item.ListType,
-		Tags:      []string{},
+		Tags:      tags, // ✅ unmarshal จาก DB แล้ว
 		WatchedAt: item.WatchedAt,
 		Note:      item.Note,
 		CreatedAt: item.CreatedAt,

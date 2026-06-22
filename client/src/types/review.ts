@@ -45,3 +45,20 @@ export interface CommentResponse {
 export interface CreateCommentRequest {
   body: string
 }
+
+export interface LikeItem {
+  id: number
+  created_at: string
+  media: {
+    id: number
+    title: string
+    media_type: "movie" | "tv"
+    poster_url: string
+    vote_average: number
+    genres: { id: number; name: string }[]
+  }
+}
+
+export interface LikesResponse {
+  likes: LikeItem[] 
+}

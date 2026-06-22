@@ -90,6 +90,9 @@ export interface MediaSummary {
   title: string
   poster_url: string
   media_type: MediaType
+  genres: Genre[] 
+  vote_average: number
+  created_at: string
 }
 
 export interface MediaStats {
