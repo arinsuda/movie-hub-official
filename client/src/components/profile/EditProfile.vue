@@ -1,9 +1,12 @@
 <template>
   <div class="edit-root">
     <header class="edit-header">
-      <h2 class="edit-title">Edit Profile</h2>
+      <div class="edit-title-group">
+        <span class="edit-eyebrow">Profile</span>
+        <h2 class="edit-title">Edit Profile</h2>
+      </div>
       <button class="close-btn" aria-label="Close" @click="$emit('close')">
-        <X :size="16" />
+        <X :size="14" />
       </button>
     </header>
 
@@ -184,20 +187,18 @@
     gender: props.user?.gender ?? "",
     is_private: props.user?.is_private ?? false,
   }
-
   const form = reactive({ ...initialForm })
 
-  const isDirty = computed(() => {
-    return (
+  const isDirty = computed(
+    () =>
       avatarFile.value !== null ||
       form.display_name !== initialForm.display_name ||
       form.username !== initialForm.username ||
       form.bio !== initialForm.bio ||
       form.date_of_birth !== initialForm.date_of_birth ||
       form.gender !== initialForm.gender ||
-      form.is_private !== initialForm.is_private
-    )
-  })
+      form.is_private !== initialForm.is_private,
+  )
 
   function handleFileChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0]
@@ -219,14 +220,9 @@
       payload.append("date_of_birth", form.date_of_birth)
       payload.append("gender", form.gender)
       payload.append("is_private", String(form.is_private))
-      if (avatarFile.value) {
-        payload.append("avatar", avatarFile.value)
-      }
+      if (avatarFile.value) payload.append("avatar", avatarFile.value)
       await userApi.updateProfile(props.user!.id, payload)
-
-      // ✅ sync store ให้ตรงกับ DB
       await authStore.fetchMe()
-
       emit("close")
     } catch (err) {
       console.error("Save profile failed:", err)
@@ -241,14 +237,15 @@
     --c-surface: #111111;
     --c-card: #161616;
     --c-border: rgba(255, 255, 255, 0.07);
+    --c-border-h: rgba(255, 255, 255, 0.14);
     --c-red: #e1251b;
     --c-text: #f0f0f0;
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
     --font:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-      system-ui, sans-serif;
-
+      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "Helvetica Neue", system-ui, sans-serif;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
     padding: 24px;
     font-family: var(--font);
     color: var(--c-text);
@@ -259,20 +256,33 @@
   /* Header */
   .edit-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     margin-bottom: 24px;
   }
+  .edit-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .edit-eyebrow {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--c-muted);
+  }
   .edit-title {
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 600;
     margin: 0;
     letter-spacing: -0.01em;
+    color: #fff;
   }
   .close-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
     border: 1px solid var(--c-border);
     background: var(--c-card);
     color: var(--c-sub);
@@ -281,10 +291,11 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s;
+    flex-shrink: 0;
   }
   .close-btn:hover {
     color: var(--c-text);
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--c-border-h);
   }
 
   /* Avatar */
@@ -332,7 +343,7 @@
     transition: all 0.2s;
   }
   .upload-btn:hover {
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--c-border-h);
   }
   .sr-only {
     position: absolute;
@@ -348,7 +359,6 @@
     margin-bottom: 20px;
   }
 
-  /* Form */
   .edit-form {
     display: flex;
     flex-direction: column;
@@ -360,12 +370,13 @@
     gap: 6px;
   }
   .field-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.07em;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--c-muted);
   }
+
   .field-input,
   .field-textarea {
     background: var(--c-card);
@@ -388,6 +399,7 @@
     resize: none;
     line-height: 1.55;
   }
+
   .input-prefix-wrap {
     position: relative;
   }
@@ -403,8 +415,6 @@
   .field-input--prefixed {
     padding-left: 26px;
   }
-
-  /* Date input */
   .field-input--date {
     color-scheme: dark;
   }
@@ -416,7 +426,7 @@
     margin-top: -4px;
   }
 
-  /* Gender radio */
+  /* Gender */
   .radio-group {
     display: flex;
     gap: 8px;
@@ -437,7 +447,7 @@
   }
   .radio-option:hover {
     color: var(--c-text);
-    border-color: rgba(255, 255, 255, 0.14);
+    border-color: var(--c-border-h);
   }
   .radio-option--active {
     border-color: var(--c-red);
@@ -453,7 +463,7 @@
     background: var(--c-card);
     border: 1px solid var(--c-border);
     border-radius: 10px;
-    padding: 12px 14px;
+    padding: 13px 14px;
   }
   .toggle-info {
     display: flex;
@@ -525,6 +535,7 @@
   }
   .footer-btn--cancel:hover {
     color: var(--c-text);
+    border-color: var(--c-border-h);
   }
   .footer-btn--save {
     background: var(--c-red);

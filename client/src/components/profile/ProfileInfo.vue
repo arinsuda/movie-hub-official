@@ -69,17 +69,17 @@
 
 <style scoped>
   .pinfo-root {
-    --c-surface: #111111;
     --c-card: #161616;
     --c-border: rgba(255, 255, 255, 0.06);
+    --c-border-h: rgba(255, 255, 255, 0.12);
     --c-red: #e1251b;
     --c-text: #f0f0f0;
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
     --font:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
-      system-ui, sans-serif;
-
+      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+      sans-serif;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
     font-family: var(--font);
     color: var(--c-text);
   }
@@ -102,7 +102,6 @@
     color: var(--c-muted);
     white-space: nowrap;
   }
-
   .rule {
     flex: 1;
     height: 1px;
@@ -112,7 +111,7 @@
   .info-card {
     background: var(--c-card);
     border: 1px solid var(--c-border);
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
   }
 
@@ -121,16 +120,16 @@
     grid-template-columns: 18px 150px 1fr;
     align-items: center;
     gap: 12px;
-    padding: 14px 18px;
+    padding: 15px 18px;
     border-bottom: 1px solid var(--c-border);
-    animation: rowIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0ms) both;
+    animation: rowIn 0.4s var(--ease) var(--delay, 0ms) both;
     transition: background 0.15s;
   }
   .info-row:last-child {
     border-bottom: none;
   }
   .info-row:hover {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.025);
   }
 
   @keyframes rowIn {
@@ -149,13 +148,11 @@
     display: flex;
     align-items: center;
   }
-
   .row-key {
     font-size: 0.78rem;
     color: var(--c-sub);
     font-weight: 500;
   }
-
   .row-val {
     font-size: 0.85rem;
     color: #fff;
@@ -177,7 +174,7 @@
   .bio-text {
     font-size: 0.875rem;
     color: var(--c-sub);
-    line-height: 1.65;
+    line-height: 1.7;
     max-width: 600px;
     margin: 0;
     padding: 0 2px;

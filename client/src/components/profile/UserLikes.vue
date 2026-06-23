@@ -44,6 +44,14 @@
             <X :size="11" />
           </button>
 
+          <RemoveConfirmModal
+            v-model="showModal"
+            :list-type="listType"
+            :item-name="selectedItem?.title"
+            @confirm="doRemove"
+            @cancel="showModal = false"
+          />
+
           <div class="poster-overlay">
             <p class="overlay-name">{{ item.title }}</p>
             <span class="overlay-genre">{{
@@ -71,15 +79,23 @@
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
   import { Heart, Film, X, Clock } from "lucide-vue-next"
-  import { libraryApi } from "@/api/api"
   import { mediaApi } from "@/api/endpoints/media"
-  import type { LikeItem, MediaSummary } from "@/types"
+  import type { LikeItem, ListType } from "@/types"
+  import RemoveConfirmModal from "@/components/profile/components/RemoveConfirmModal.vue"
 
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
-  const props = defineProps<{ userId: number }>()
+  const props = defineProps<{
+    userId: number
+    listType: ListType
+  }>()
 
   const loading = ref(false)
+
+  const showModal = ref(false)
+  const pendingId = ref<number | null>(null)
+  const pendingType = ref<"movie" | "tv" | null>(null)
+  const selectedItem = ref<MappedMedia | null>(null)
 
   interface MappedMedia {
     id: number
@@ -99,7 +115,7 @@
       const response = await mediaApi.getLikeByUserId(props.userId)
 
       items.value = response.data.likes.map((item: LikeItem) => ({
-        id: item.id,
+        id: item.media.id,
         title: item.media.title,
         category: item.media.media_type,
         coverUrl: item.media.poster_url
@@ -117,7 +133,26 @@
   })
 
   function handleRemove(id: number) {
-    items.value = items.value.filter(i => i.id !== id)
+    const item = items.value.find(i => i.id === id)
+    if (!item) return
+
+    pendingId.value = id
+    pendingType.value = item.category as "movie" | "tv"
+    selectedItem.value = item
+    showModal.value = true
+  }
+
+  async function doRemove() {
+    if (pendingId.value == null || !pendingType.value) return
+
+    try {
+      await mediaApi.unlikeMedia(pendingType.value, pendingId.value)
+
+      items.value = items.value.filter(i => i.id !== pendingId.value)
+      showModal.value = false
+    } catch (err) {
+      console.error("Remove failed:", err)
+    }
   }
 </script>
 

@@ -44,19 +44,19 @@
             <X :size="11" />
           </button>
 
+          <RemoveConfirmModal
+            v-model="showModal"
+            :list-type="listType"
+            :item-name="selectedItem?.title"
+            @confirm="doRemove"
+            @cancel="showModal = false"
+          />
+
           <div class="poster-overlay">
             <p class="overlay-name">{{ item.title }}</p>
-            <span class="overlay-genre">{{
-              item.genres.slice(0, 2).join(" · ")
-            }}</span>
-            <div class="overlay-bottom">
-              <span class="overlay-rating"
-                >⭐ {{ item.rating.toFixed(1) }}</span
-              >
-              <span class="overlay-date"
-                ><Clock :size="9" /> {{ item.addedAt }}</span
-              >
-            </div>
+            <span class="overlay-date">
+              <Clock :size="9" /> {{ item.addedAt }}
+            </span>
           </div>
         </div>
 
@@ -71,14 +71,23 @@
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
   import { Bookmark, Film, X, Clock } from "lucide-vue-next"
-  import { libraryApi, movieApi } from "@/api/api"
-  import type { LibraryItemResponse } from "@/types"
+  import { libraryApi } from "@/api/api"
+  import type { ListType } from "@/types"
+  import RemoveConfirmModal from "@/components/profile/components/RemoveConfirmModal.vue"
 
-  const props = defineProps<{ userId: number }>()
+  const props = defineProps<{
+    userId: number
+    listType: ListType
+  }>()
 
   const loading = ref(false)
 
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
+
+  const showModal = ref(false)
+  const pendingId = ref<number | null>(null)
+  const pendingType = ref<"movie" | "tv" | null>(null)
+  const selectedItem = ref<WatchlistItem | null>(null)
 
   interface WatchlistItem {
     id: number
@@ -86,11 +95,10 @@
     category: string
     coverUrl: string
     addedAt: string
-    genres: string[] // ✅ เพิ่ม
-    rating: number // ✅ เพิ่ม
+    genres: string[]
+    rating: number
   }
 
-  // 2. ประกาศ ref โดยใช้ WatchlistItem[]
   const watchlist = ref<WatchlistItem[]>([])
 
   onMounted(async () => {
@@ -100,7 +108,6 @@
         list_type: "watchlist",
       })
 
-      // ตรงนี้ใช้งานได้เลยถ้า Backend ส่งข้อมูลมาครบแล้ว
       watchlist.value = response.data.items.map(item => ({
         id: item.id,
         title: item.media.title,
@@ -120,7 +127,26 @@
   })
 
   function handleRemove(id: number) {
-    watchlist.value = watchlist.value.filter(i => i.id !== id)
+    const item = watchlist.value.find(i => i.id === id)
+    if (!item) return
+
+    pendingId.value = id
+    pendingType.value = item.category as "movie" | "tv"
+    selectedItem.value = item
+    showModal.value = true
+  }
+
+  async function doRemove() {
+    if (pendingId.value == null || !pendingType.value) return
+
+    try {
+      await libraryApi.removeItem(props.userId, pendingId.value)
+
+      watchlist.value = watchlist.value.filter(i => i.id !== pendingId.value)
+      showModal.value = false
+    } catch (err) {
+      console.error("Remove failed:", err)
+    }
   }
 </script>
 
@@ -134,9 +160,9 @@
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
     --font:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+      sans-serif;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
-
     font-family: var(--font);
     color: var(--c-text);
   }
@@ -169,7 +195,6 @@
     background: var(--c-border);
   }
 
-  /* States */
   .state-loading {
     padding: 48px 0;
     display: flex;
@@ -216,7 +241,7 @@
   /* Grid */
   .poster-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     gap: 16px 12px;
   }
 
@@ -224,10 +249,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) calc(var(--i) * 60ms)
-      both;
+    animation: fadeUp 0.4s var(--ease) calc(var(--i) * 60ms) both;
   }
-
   @keyframes fadeUp {
     from {
       opacity: 0;
@@ -239,13 +262,12 @@
     }
   }
 
-  /* Frame */
   .poster-frame {
     position: relative;
     aspect-ratio: 2/3;
     background: var(--c-card);
     border: 1px solid var(--c-border);
-    border-radius: 8px;
+    border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
     outline: none;
@@ -256,9 +278,9 @@
   }
   .poster-frame:hover,
   .poster-frame:focus-visible {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
     border-color: var(--c-border-h);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
   }
 
   .poster-img {
@@ -268,7 +290,7 @@
     transition: transform 0.4s var(--ease);
   }
   .poster-frame:hover .poster-img {
-    transform: scale(1.06);
+    transform: scale(1.05);
   }
 
   .poster-fallback {
@@ -345,7 +367,6 @@
   .poster-frame:hover .poster-overlay {
     opacity: 1;
   }
-
   .overlay-name {
     font-size: 0.62rem;
     font-weight: 600;
@@ -361,7 +382,6 @@
     color: rgba(255, 255, 255, 0.6);
   }
 
-  /* Meta */
   .poster-meta {
     padding: 0 2px;
   }
@@ -374,23 +394,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     transition: color 0.2s;
+    cursor: pointer;
   }
   .poster-name:hover {
     color: var(--c-red);
-    cursor: pointer;
-  }
-  .overlay-genre {
-    font-size: 0.55rem;
-    color: rgba(255, 255, 255, 0.5);
-    margin: 0;
-  }
-  .overlay-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .overlay-rating {
-    font-size: 0.58rem;
-    color: rgba(255, 255, 255, 0.75);
   }
 </style>

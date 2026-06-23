@@ -1,6 +1,5 @@
 <template>
   <div class="profile-root">
-    <!-- Ambient background grain -->
     <div class="grain" aria-hidden="true" />
 
     <div v-if="loading" class="profile-loading">
@@ -17,55 +16,72 @@
     <div v-else class="profile-layout">
       <!-- ── Hero Section ── -->
       <header class="profile-hero">
+        <div class="hero-backdrop" aria-hidden="true" />
         <div class="hero-inner">
           <!-- Avatar -->
           <div class="avatar-shell">
-            <div class="avatar-ring" />
-            <Avatar
-              v-if="user?.avatar_url"
-              :image="user.avatar_url"
-              shape="circle"
-              class="avatar-img"
-            />
-            <div v-else class="avatar-fallback">
-              <UserIcon :size="28" />
+            <div class="avatar-ring">
+              <div class="avatar-inner">
+                <Avatar
+                  v-if="user?.avatar_url"
+                  :image="user.avatar_url"
+                  shape="circle"
+                  class="avatar-img"
+                />
+                <div v-else class="avatar-fallback">
+                  <UserIcon :size="32" />
+                </div>
+              </div>
             </div>
-            <span class="level-chip">Lv.{{ user?.level }}</span>
+            <span class="level-chip">Lv.{{ user?.level ?? 1 }}</span>
           </div>
 
           <!-- Identity -->
           <div class="hero-identity">
-            <div class="identity-top">
-              <div class="name-block">
-                <h1 class="display-name">
-                  {{ user?.display_name || user?.username }}
-                </h1>
-                <p class="username">@{{ user?.username }}</p>
-              </div>
-              <div class="hero-actions">
-                <button v-if="notMe" class="btn btn-primary">
-                  <UserPlus :size="14" />
-                  <span>Follow</span>
-                </button>
-                <button v-else class="btn btn-ghost" @click="showEdit = true">
-                  <Settings :size="14" />
-                  <span>Edit Profile</span>
-                </button>
-              </div>
-            </div>
+            <h1 class="display-name">
+              {{ user?.display_name || user?.username }}
+            </h1>
+            <p class="username">@{{ user?.username }}</p>
             <p v-if="user?.bio" class="bio">{{ user.bio }}</p>
             <p v-else class="bio bio--empty">No bio yet.</p>
+
+            <!-- Inline stats row (Instagram-style) -->
+            <div class="hero-stats">
+              <div class="hstat">
+                <span class="hstat-val">{{ user?.review_count ?? 0 }}</span>
+                <span class="hstat-lbl">Reviews</span>
+              </div>
+              <div class="hstat-sep" />
+              <div class="hstat">
+                <span class="hstat-val">{{ user?.follower_count ?? 0 }}</span>
+                <span class="hstat-lbl">Followers</span>
+              </div>
+              <div class="hstat-sep" />
+              <div class="hstat">
+                <span class="hstat-val">{{ user?.following_count ?? 0 }}</span>
+                <span class="hstat-lbl">Following</span>
+              </div>
+              <div class="hstat-sep" />
+              <div class="hstat">
+                <span class="hstat-val">{{ joinYear }}</span>
+                <span class="hstat-lbl">Joined</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="hero-actions">
+            <button v-if="notMe" class="btn btn-primary">
+              <UserPlus :size="14" />
+              <span>Follow</span>
+            </button>
+            <button v-else class="btn btn-ghost" @click="showEdit = true">
+              <Settings :size="14" />
+              <span>Edit Profile</span>
+            </button>
           </div>
         </div>
       </header>
-
-      <!-- ── Stats Row ── -->
-      <div class="stats-row">
-        <div v-for="(s, i) in statItems" :key="i" class="stat-cell">
-          <span class="stat-value">{{ s.value }}</span>
-          <span class="stat-label">{{ s.label }}</span>
-        </div>
-      </div>
 
       <div class="divider" />
 
@@ -152,10 +168,11 @@
   import ProfileInfo from "@/components/profile/ProfileInfo.vue"
   import UserReviews from "@/components/profile/UserReviews.vue"
   import UserWatchlist from "@/components/profile/UserWatchlist.vue"
-  import UserWatched from "@/components/profile/๊UserWatched.vue"
+  import UserWatched from "@/components/profile/UserWatched.vue"
   import UserLikes from "@/components/profile/UserLikes.vue"
   import UserAchievements from "@/components/profile/UserAchievements.vue"
   import EditProfile from "@/components/profile/EditProfile.vue"
+import type { ListType } from "@/types"
 
   const auth = useAuthStore()
   const userId = auth.user?.id ?? 0
@@ -174,34 +191,11 @@
   const activeTab = ref<TabKey>("reviews")
 
   const tabs = computed(() => [
-    {
-      key: "reviews" as TabKey,
-      label: "Reviews",
-      icon: Star,
-    },
-    {
-      key: "watchlist" as TabKey,
-      label: "Watchlist",
-      icon: Bookmark,
-    },
+    { key: "reviews" as TabKey, label: "Reviews", icon: Star },
+    { key: "watchlist" as TabKey, label: "Watchlist", icon: Bookmark },
     { key: "likes" as TabKey, label: "Likes", icon: Heart, count: undefined },
-    {
-      key: "watched" as TabKey,
-      label: "Watched",
-      icon: TvMinimalPlay,
-    },
-    {
-      key: "achievements" as TabKey,
-      label: "Achievements",
-      icon: Trophy,
-    },
-  ])
-
-  const statItems = computed(() => [
-    { label: "Reviews", value: user.value?.review_count ?? 0 },
-    { label: "Followers", value: user.value?.follower_count ?? 0 },
-    { label: "Following", value: user.value?.following_count ?? 0 },
-    { label: "Joined", value: joinYear.value },
+    { key: "watched" as TabKey, label: "Watched", icon: TvMinimalPlay },
+    { key: "achievements" as TabKey, label: "Achievements", icon: Trophy },
   ])
 
   const componentMap: Record<string, unknown> = {
@@ -214,20 +208,25 @@
   }
 
   const activeComponent = computed(() => componentMap[activeTab.value])
-  const activeProps = computed(() =>
-    activeTab.value === "profile" ? { user: user.value } : { userId },
-  )
+  const activeProps = computed(() => {
+    const base = { userId }
+
+    const typeMap: Record<string, ListType | undefined> = {
+      watchlist: "watchlist",
+      likes: "likes",
+      watched: "watched",
+    }
+
+    return {
+      ...base,
+      listType: typeMap[activeTab.value],
+    }
+  })
 
   const joinYear = computed(() =>
     user.value?.created_at
       ? new Date(user.value.created_at).getFullYear()
       : "—",
-  )
-  const userLevel = computed(() => 18)
-  const xpCurrent = computed(() => 3_400)
-  const xpNext = computed(() => 5_000)
-  const xpPercent = computed(() =>
-    Math.round((xpCurrent.value / xpNext.value) * 100),
   )
 
   async function handleEditClose() {
@@ -253,8 +252,8 @@
 
 <style scoped>
   /* ─────────────────────────────────────────
-   Design Tokens (Updated for Minimal & Clean Visual)
-───────────────────────────────────────── */
+   Design Tokens
+  ───────────────────────────────────────── */
   .profile-root {
     --c-bg: #080808;
     --c-surface: #111111;
@@ -262,19 +261,16 @@
     --c-border: rgba(255, 255, 255, 0.06);
     --c-border-h: rgba(255, 255, 255, 0.12);
     --c-red: #e1251b;
-    --c-red-dim: rgba(225, 37, 27, 0.12);
+    --c-red-dim: rgba(225, 37, 27, 0.08);
     --c-text: #f0f0f0;
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
-
-    /* ── ชุดฟอนต์ระดับพรีเมียมสไตล์ SaaS ยุคใหม่ (Inter / Geist / SF Pro) ── */
     --font-display:
       "Geist", "Inter", "Noto Sans Thai", -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
     --font-ui:
       "Inter", "Noto Sans Thai", -apple-system, BlinkMacSystemFont,
       "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
-
     --radius: 10px;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -307,7 +303,6 @@
     gap: 16px;
     min-height: 60vh;
   }
-
   .loading-ring {
     width: 32px;
     height: 32px;
@@ -316,18 +311,15 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
-
   @keyframes spin {
     to {
       transform: rotate(360deg);
     }
   }
-
   .loading-text {
     font-size: 0.8rem;
     color: var(--c-sub);
     letter-spacing: 0.04em;
-    font-weight: 400;
   }
 
   /* ─────────── Empty ─────────── */
@@ -339,7 +331,6 @@
     gap: 8px;
     min-height: 60vh;
   }
-
   .empty-icon {
     width: 28px;
     height: 28px;
@@ -348,26 +339,23 @@
   .empty-title {
     font-size: 0.95rem;
     font-weight: 500;
-    letter-spacing: -0.01em;
     margin: 0;
   }
   .empty-sub {
     font-size: 0.8rem;
     color: var(--c-sub);
     margin: 0;
-    font-weight: 400;
   }
 
   /* ─────────── Layout ─────────── */
   .profile-layout {
     position: relative;
     z-index: 1;
-    max-width: 1080px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 48px 24px 80px;
+    padding: 0 24px 80px;
     animation: fadeIn 0.5s var(--ease) both;
   }
-
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -381,47 +369,80 @@
 
   /* ─────────── Hero ─────────── */
   .profile-hero {
-    margin-bottom: 32px;
+    position: relative;
+    padding: 56px 0 40px;
+    margin-bottom: 0;
+  }
+
+  /* Subtle red-tinted backdrop at top */
+  .hero-backdrop {
+    position: absolute;
+    top: 0;
+    left: -24px;
+    right: -24px;
+    height: 220px;
+    background: linear-gradient(
+      180deg,
+      rgba(225, 37, 27, 0.06) 0%,
+      transparent 100%
+    );
+    pointer-events: none;
   }
 
   .hero-inner {
+    position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: 28px;
-    margin-bottom: 20px;
+    align-items: flex-end;
+    gap: 32px;
   }
 
-  /* Avatar */
+  /* ── Avatar ── */
   .avatar-shell {
     position: relative;
     flex-shrink: 0;
   }
 
+  /* Outer padding ring — creates the "halo" gap */
   .avatar-ring {
-    position: absolute;
-    inset: -3px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
-    border: 1.5px solid var(--c-border-h);
-    pointer-events: none;
+    padding: 3px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.04)
+    );
+  }
+
+  /* Inner circle — clips the image perfectly */
+  .avatar-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--c-card);
+    border: 2px solid var(--c-bg); /* gap between image and outer ring */
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .avatar-img {
-    width: 88px !important;
-    height: 88px !important;
+    width: 100% !important;
+    height: 100% !important;
   }
   .avatar-img :deep(img) {
-    width: 88px;
-    height: 88px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     border-radius: 50%;
+    display: block;
   }
 
   .avatar-fallback {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    background: var(--c-card);
-    border: 1px solid var(--c-border);
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -430,65 +451,51 @@
 
   .level-chip {
     position: absolute;
-    bottom: -4px;
+    bottom: -2px;
     left: 50%;
     transform: translateX(-50%);
     background: var(--c-surface);
     border: 1px solid var(--c-border-h);
     color: #fff;
-    font-size: 0.58rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 2px 7px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
     border-radius: 20px;
     white-space: nowrap;
+    text-transform: uppercase;
   }
 
-  /* Identity */
+  /* ── Identity ── */
   .hero-identity {
     flex: 1;
     min-width: 0;
-    padding-top: 4px;
-  }
-
-  .identity-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
-
-  .name-block {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    padding-bottom: 6px;
   }
 
   .display-name {
     font-family: var(--font-display);
-    font-size: 1.65rem; /* บีบขนาดลงเล็กน้อยให้ดูสุขุมขึ้น */
-    font-weight: 600; /* เปลี่ยนจาก 700 เพื่ออารมณ์ที่ Clean และไม่หนักเกินไป */
+    font-size: 2rem;
+    font-weight: 700;
     color: #fff;
-    margin: 0;
-    line-height: 1.2;
-    letter-spacing: -0.025em; /* บีบตัวอักษรชิดกันขึ้นสไตล์เว็บชั้นนำ */
+    margin: 0 0 4px;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
   }
 
   .username {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--c-sub);
-    margin: 0;
+    margin: 0 0 10px;
     letter-spacing: -0.01em;
   }
 
   .bio {
-    font-size: 0.85rem;
-    color: rgba(240, 240, 240, 0.75);
-    line-height: 1.6;
-    margin: 0;
-    max-width: 560px;
+    font-size: 0.88rem;
+    color: rgba(240, 240, 240, 0.72);
+    line-height: 1.65;
+    margin: 0 0 18px;
+    max-width: 520px;
     font-weight: 400;
   }
   .bio--empty {
@@ -496,7 +503,49 @@
     font-style: italic;
   }
 
-  /* Buttons */
+  /* ── Inline hero stats (Instagram-style) ── */
+  .hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .hstat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hstat-val {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.025em;
+    line-height: 1;
+  }
+  .hstat-lbl {
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-sub);
+  }
+  .hstat-sep {
+    width: 1px;
+    height: 30px;
+    background: var(--c-border);
+    flex-shrink: 0;
+  }
+
+  /* ── Buttons ── */
+  .hero-actions {
+    display: flex;
+    gap: 8px;
+    align-self: flex-end;
+    padding-bottom: 6px;
+    flex-shrink: 0;
+  }
+
   .btn {
     display: inline-flex;
     align-items: center;
@@ -504,86 +553,43 @@
     font-family: var(--font-ui);
     font-size: 0.78rem;
     font-weight: 500;
-    padding: 8px 14px;
-    border-radius: 6px; /* บีบความโค้งลงมาที่ 6px ตามสไตล์โมเดิร์น */
+    padding: 9px 18px;
+    border-radius: 8px;
     border: none;
     cursor: pointer;
     transition: all 0.2s var(--ease);
     white-space: nowrap;
   }
-
   .btn-primary {
     background: var(--c-red);
     color: #fff;
   }
   .btn-primary:hover {
     background: #ff3b30;
-    transform: translateY(-0.5px);
-    box-shadow: 0 4px 12px rgba(225, 37, 27, 0.25);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(225, 37, 27, 0.3);
   }
-
   .btn-ghost {
-    background: var(--c-card);
+    background: transparent;
     color: var(--c-text);
-    border: 1px solid var(--c-border);
+    border: 1px solid var(--c-border-h);
   }
   .btn-ghost:hover {
-    background: #1e1e1e;
-    border-color: var(--c-border-h);
-  }
-
-  /* ─────────── Stats ─────────── */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    background: var(--c-border);
-    border: 1px solid var(--c-border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    margin-bottom: 28px;
-  }
-
-  .stat-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 16px 20px;
-    background: var(--c-surface);
-    transition: background 0.2s;
-  }
-  .stat-cell:hover {
-    background: var(--c-card);
-  }
-
-  .stat-value {
-    font-family: var(--font-display);
-    font-size: 1.35rem;
-    font-weight: 600; /* เปลี่ยนเป็น 600 เพื่อความสบายตา */
-    color: #fff;
-    line-height: 1;
-    letter-spacing: -0.02em;
-  }
-
-  .stat-label {
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.05em; /* จัดโครงสร้างให้อ่านง่าย */
-    text-transform: uppercase;
-    color: var(--c-sub);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
   /* ─────────── Divider ─────────── */
   .divider {
     height: 1px;
     background: var(--c-border);
-    margin-bottom: 24px;
+    margin-bottom: 28px;
   }
 
   /* ─────────── Content Grid ─────────── */
   .content-grid {
     display: grid;
-    grid-template-columns: 180px 1fr 180px;
+    grid-template-columns: 188px 1fr 188px;
     gap: 0;
     min-height: 480px;
   }
@@ -596,9 +602,9 @@
   }
 
   .nav-eyebrow {
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--c-muted);
     margin: 0 0 12px 8px;
@@ -609,8 +615,8 @@
     align-items: center;
     gap: 9px;
     width: 100%;
-    padding: 8px 10px;
-    border-radius: 6px;
+    padding: 9px 10px;
+    border-radius: 7px;
     border: none;
     background: none;
     font-family: var(--font-ui);
@@ -621,22 +627,19 @@
     margin-bottom: 2px;
     text-align: left;
   }
-
   .nav-item:hover {
     color: var(--c-text);
     background: rgba(255, 255, 255, 0.03);
   }
-
   .nav-item--active {
     color: #fff;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
     font-weight: 500;
   }
-
   .nav-count {
     margin-left: auto;
-    font-size: 0.6rem;
-    font-weight: 600;
+    font-size: 0.58rem;
+    font-weight: 700;
     background: var(--c-red);
     color: #fff;
     padding: 1px 5px;
@@ -654,7 +657,6 @@
     padding-left: 20px;
     padding-top: 4px;
   }
-
   .badges-empty {
     font-size: 0.78rem;
     color: var(--c-muted);
@@ -679,7 +681,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.72);
     backdrop-filter: blur(6px);
     z-index: 999;
     display: flex;
@@ -687,18 +689,16 @@
     justify-content: center;
     padding: 24px;
   }
-
   .modal-panel {
     background: var(--c-surface);
     border: 1px solid var(--c-border-h);
-    border-radius: 12px;
+    border-radius: 14px;
     width: 100%;
     max-width: 480px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   }
-
   .modal-enter-active,
   .modal-leave-active {
     transition: all 0.3s var(--ease);
@@ -710,7 +710,7 @@
   }
 
   /* ─────────── Responsive ─────────── */
-  @media (max-width: 900px) {
+  @media (max-width: 960px) {
     .content-grid {
       grid-template-columns: 1fr;
     }
@@ -719,7 +719,7 @@
       border-bottom: 1px solid var(--c-border);
       padding-right: 0;
       padding-bottom: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
     nav {
       display: flex;
@@ -739,29 +739,51 @@
     .content-main {
       padding: 0;
     }
-    .stats-row {
-      grid-template-columns: repeat(3, 1fr);
-    }
   }
 
-  @media (max-width: 600px) {
-    .profile-layout {
-      padding: 28px 16px 60px;
+  @media (max-width: 720px) {
+    .profile-hero {
+      padding: 40px 0 32px;
     }
     .hero-inner {
       flex-direction: column;
-      align-items: center;
-      text-align: center;
+      align-items: flex-start;
+      gap: 20px;
     }
-    .identity-top {
-      flex-direction: column;
-      align-items: center;
+    .hero-actions {
+      width: 100%;
+      align-self: auto;
+      padding-bottom: 0;
     }
-    .bio {
-      text-align: center;
+    .hero-actions .btn {
+      flex: 1;
+      justify-content: center;
     }
-    .stats-row {
-      grid-template-columns: repeat(2, 1fr);
+    .display-name {
+      font-size: 1.65rem;
+    }
+    .avatar-ring {
+      width: 96px;
+      height: 96px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .profile-layout {
+      padding: 0 16px 60px;
+    }
+    .display-name {
+      font-size: 1.4rem;
+    }
+    .avatar-ring {
+      width: 84px;
+      height: 84px;
+    }
+    .hero-stats {
+      gap: 14px;
+    }
+    .hstat-val {
+      font-size: 0.95rem;
     }
   }
 </style>

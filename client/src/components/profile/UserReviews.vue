@@ -54,25 +54,23 @@
 
         <!-- Body -->
         <div class="review-body">
-          <div class="review-top">
-            <div class="title-rating-row">
-              <h4 class="review-title">{{ review.targetName }}</h4>
-              <div class="inline-rating">
-                <span class="inline-rating-num">{{
-                  review.rating.toFixed(1)
-                }}</span>
-                <div class="stars">
-                  <Star
-                    v-for="n in 5"
-                    :key="n"
-                    :size="9"
-                    :class="n <= review.rating ? 'star-on' : 'star-off'"
-                  />
-                </div>
+          <div class="title-rating-row">
+            <h4 class="review-title">{{ review.targetName }}</h4>
+            <div class="inline-rating">
+              <span class="inline-rating-num">{{
+                review.rating.toFixed(1)
+              }}</span>
+              <div class="stars">
+                <Star
+                  v-for="n in 5"
+                  :key="n"
+                  :size="9"
+                  :class="n <= review.rating ? 'star-on' : 'star-off'"
+                />
               </div>
             </div>
-            <time class="review-date">{{ review.createdAt }}</time>
           </div>
+          <time class="review-date">{{ review.createdAt }}</time>
           <p class="review-content">{{ review.content }}</p>
           <div v-if="review.tags?.length" class="tag-row">
             <span v-for="tag in review.tags" :key="tag" class="tag">{{
@@ -81,7 +79,7 @@
           </div>
         </div>
 
-        <!-- Actions Menu (top-right) -->
+        <!-- Actions Menu -->
         <div class="menu-wrap" @click.stop>
           <button
             class="menu-trigger"
@@ -139,7 +137,6 @@
   const loading = ref(false)
   type FilterKey = "all" | "high" | "low"
   const activeFilter = ref<FilterKey>("all")
-
   const filters: { key: FilterKey; label: string }[] = [
     { key: "all", label: "All" },
     { key: "high", label: "High Rated" },
@@ -154,39 +151,29 @@
   function toggleMenu(id: number) {
     openMenuId.value = openMenuId.value === id ? null : id
   }
-
   function closeMenu() {
     openMenuId.value = null
   }
-
   function openEdit(review: ReviewResponse) {
     closeMenu()
     editTarget.value = review
   }
-
   function openDelete(review: ReviewResponse) {
     closeMenu()
     deleteTarget.value = review
   }
-
   function onReviewSaved(updated: ReviewResponse) {
     const idx = reviews.value.findIndex(r => r.id === updated.id)
     if (idx !== -1) reviews.value[idx] = updated
     editTarget.value = null
   }
-
   function onReviewDeleted(id: number) {
     reviews.value = reviews.value.filter(r => r.id !== id)
     deleteTarget.value = null
   }
 
-  onMounted(() => {
-    document.addEventListener("click", closeMenu)
-  })
-
-  onUnmounted(() => {
-    document.removeEventListener("click", closeMenu)
-  })
+  onMounted(() => document.addEventListener("click", closeMenu))
+  onUnmounted(() => document.removeEventListener("click", closeMenu))
 
   const filteredReviews = computed(() => {
     if (activeFilter.value === "high")
@@ -226,7 +213,6 @@
 
 <style scoped>
   .reviews-root {
-    --c-surface: #111111;
     --c-card: #161616;
     --c-border: rgba(255, 255, 255, 0.06);
     --c-border-h: rgba(255, 255, 255, 0.12);
@@ -236,7 +222,8 @@
     --c-muted: #3a3a3c;
     --c-star: #fbbf24;
     --font:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+      sans-serif;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
     font-family: var(--font);
     color: var(--c-text);
@@ -270,6 +257,7 @@
     background: var(--c-border);
   }
 
+  /* Filters */
   .filter-rail {
     display: flex;
     gap: 6px;
@@ -300,6 +288,7 @@
     color: #000;
   }
 
+  /* States */
   .state-loading {
     padding: 48px 0;
     display: flex;
@@ -343,6 +332,7 @@
     color: var(--c-sub);
   }
 
+  /* List */
   .reviews-list {
     display: flex;
     flex-direction: column;
@@ -350,17 +340,24 @@
 
   .review-card {
     display: grid;
-    grid-template-columns: 52px 1fr auto;
-    grid-template-areas: "poster body menu";
+    grid-template-columns: 56px 1fr auto;
     gap: 0 16px;
     padding: 20px 0;
     border-bottom: 1px solid var(--c-border);
     align-items: start;
     position: relative;
     animation: cardIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
+    transition: background 0.15s;
   }
   .review-card:last-child {
     border-bottom: none;
+  }
+  .review-card:hover {
+    background: rgba(255, 255, 255, 0.015);
+    padding-left: 8px;
+    padding-right: 8px;
+    margin: 0 -8px;
+    border-radius: 10px;
   }
 
   @keyframes cardIn {
@@ -375,12 +372,11 @@
   }
 
   .poster {
-    grid-area: poster;
-    width: 52px;
-    height: 76px;
+    width: 56px;
+    height: 80px;
     background: var(--c-card);
     border: 1px solid var(--c-border);
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -397,18 +393,11 @@
   }
 
   .review-body {
-    grid-area: body;
     display: flex;
     flex-direction: column;
     gap: 5px;
   }
-  .review-top {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
 
-  /* Title + inline rating row */
   .title-rating-row {
     display: flex;
     align-items: center;
@@ -422,6 +411,7 @@
     margin: 0;
     line-height: 1.3;
   }
+
   .inline-rating {
     display: flex;
     align-items: center;
@@ -453,8 +443,8 @@
   }
   .review-content {
     font-size: 0.8rem;
-    color: rgba(240, 240, 240, 0.75);
-    line-height: 1.55;
+    color: rgba(240, 240, 240, 0.72);
+    line-height: 1.58;
     margin: 2px 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -477,8 +467,8 @@
     border-radius: 4px;
   }
 
+  /* Menu */
   .menu-wrap {
-    grid-area: menu;
     position: relative;
     align-self: start;
   }
@@ -486,15 +476,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 6px;
     background: transparent;
     border: 1px solid transparent;
     color: var(--c-sub);
     cursor: pointer;
     transition: all 0.15s var(--ease);
-    font-family: var(--font);
   }
   .menu-trigger:hover,
   .menu-trigger--open {
@@ -560,8 +549,7 @@
 
   @media (max-width: 520px) {
     .review-card {
-      grid-template-columns: 52px 1fr auto;
-      grid-template-areas: "poster body menu";
+      grid-template-columns: 56px 1fr auto;
     }
     .title-rating-row {
       flex-direction: column;

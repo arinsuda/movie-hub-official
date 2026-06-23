@@ -59,7 +59,6 @@
   } from "lucide-vue-next"
 
   const props = defineProps<{ userId: number }>()
-
   const loading = ref(false)
 
   interface Achievement {
@@ -72,7 +71,6 @@
   }
 
   const achievements = ref<Achievement[]>([])
-
   const unlockedCount = computed(
     () => achievements.value.filter(a => a.isUnlocked).length,
   )
@@ -139,9 +137,9 @@
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
     --font:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+      sans-serif;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
-
     font-family: var(--font);
     color: var(--c-text);
   }
@@ -174,7 +172,6 @@
     background: var(--c-border);
   }
 
-  /* States */
   .state-loading {
     padding: 48px 0;
     display: flex;
@@ -204,7 +201,6 @@
     }
   }
 
-  /* List */
   .ach-list {
     display: flex;
     flex-direction: column;
@@ -225,7 +221,6 @@
     transition: all 0.22s var(--ease);
     animation: cardIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
   }
-
   @keyframes cardIn {
     from {
       opacity: 0;
@@ -236,13 +231,11 @@
       transform: translateY(0);
     }
   }
-
   .ach-card:hover {
     background: var(--c-card);
     border-color: var(--c-border-h);
   }
 
-  /* Unlocked accent line */
   .ach-card--unlocked::before {
     content: "";
     position: absolute;
@@ -253,7 +246,6 @@
     background: #fff;
     border-radius: 0 2px 2px 0;
   }
-
   .ach-card--locked {
     opacity: 0.4;
     filter: grayscale(1);
@@ -262,7 +254,6 @@
     opacity: 0.55;
   }
 
-  /* Icon */
   .ach-icon-box {
     width: 40px;
     height: 40px;
@@ -284,7 +275,6 @@
     background: rgba(255, 255, 255, 0.04);
   }
 
-  /* Info */
   .ach-info {
     display: flex;
     flex-direction: column;
@@ -311,11 +301,6 @@
     color: var(--c-sub);
     margin: 3px 0 0;
     opacity: 0.75;
-  }
-
-  /* Badges */
-  .ach-badge {
-    flex-shrink: 0;
   }
 
   .badge {

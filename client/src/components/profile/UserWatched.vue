@@ -44,6 +44,14 @@
             <X :size="11" />
           </button>
 
+          <RemoveConfirmModal
+            v-model="showModal"
+            :list-type="listType"
+            :item-name="selectedItem?.title"
+            @confirm="doRemove"
+            @cancel="showModal = false"
+          />
+
           <div class="poster-overlay">
             <p class="overlay-name">{{ item.title }}</p>
             <span class="overlay-genre">{{
@@ -71,14 +79,23 @@
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
   import { Bookmark, Film, X, Clock } from "lucide-vue-next"
-  import { libraryApi, movieApi } from "@/api/api"
-  import type { LibraryItemResponse } from "@/types"
+  import { libraryApi } from "@/api/api"
+  import RemoveConfirmModal from "@/components/profile/components/RemoveConfirmModal.vue"
+  import type { ListType } from "@/types"
 
-  const props = defineProps<{ userId: number }>()
+  const props = defineProps<{
+    userId: number
+    listType: ListType
+  }>()
 
   const loading = ref(false)
 
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
+
+  const showModal = ref(false)
+  const pendingId = ref<number | null>(null)
+  const pendingType = ref<"movie" | "tv" | null>(null)
+  const selectedItem = ref<WatchlistItem | null>(null)
 
   interface WatchlistItem {
     id: number
@@ -86,11 +103,10 @@
     category: string
     coverUrl: string
     addedAt: string
-    genres: string[] // ✅ เพิ่ม
-    rating: number // ✅ เพิ่ม
+    genres: string[]
+    rating: number
   }
 
-  // 2. ประกาศ ref โดยใช้ WatchlistItem[]
   const watchlist = ref<WatchlistItem[]>([])
 
   onMounted(async () => {
@@ -100,7 +116,6 @@
         list_type: "watched",
       })
 
-      // ตรงนี้ใช้งานได้เลยถ้า Backend ส่งข้อมูลมาครบแล้ว
       watchlist.value = response.data.items.map(item => ({
         id: item.id,
         title: item.media.title,
@@ -120,7 +135,26 @@
   })
 
   function handleRemove(id: number) {
-    watchlist.value = watchlist.value.filter(i => i.id !== id)
+    const item = watchlist.value.find(i => i.id === id)
+    if (!item) return
+
+    pendingId.value = id
+    pendingType.value = item.category as "movie" | "tv"
+    selectedItem.value = item
+    showModal.value = true
+  }
+
+  async function doRemove() {
+    if (pendingId.value == null || !pendingType.value) return
+
+    try {
+      await libraryApi.removeItem(props.userId, pendingId.value)
+
+      watchlist.value = watchlist.value.filter(i => i.id !== pendingId.value)
+      showModal.value = false
+    } catch (err) {
+      console.error("Remove failed:", err)
+    }
   }
 </script>
 
