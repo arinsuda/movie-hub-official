@@ -2,25 +2,38 @@ package user_module
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"math/big"
 	"mime/multipart"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 type Service struct {
 	repo     *repository
 	minio    *storage.MinIOClient
-	statsSvc *stats.Service // used only to read Level; no circular EXP dependency
+	statsSvc *stats.Service
+	mailer   Mailer // เพิ่มตรงนี้
 }
 
-func NewService(db *gorm.DB, mc *storage.MinIOClient, statsSvc *stats.Service) *Service {
-	return &Service{repo: newRepository(db), minio: mc, statsSvc: statsSvc}
+// แก้ NewService
+func NewService(db *gorm.DB, mc *storage.MinIOClient, statsSvc *stats.Service, mailer Mailer) *Service {
+	return &Service{
+		repo:     newRepository(db),
+		minio:    mc,
+		statsSvc: statsSvc,
+		mailer:   mailer,
+	}
 }
 
 // ── GetProfile ────────────────────────────────────────────────────
@@ -141,6 +154,149 @@ func (s *Service) UpdateFavoriteGenres(targetUserID, requesterID uint, genres []
 	return s.GetProfile(targetUserID, requesterID)
 }
 
+// ── RequestEmailChange ────────────────────────────────────────────
+
+func (s *Service) RequestEmailChange(targetUserID, requesterID uint, newEmail string) error {
+	if targetUserID != requesterID {
+		return ErrForbidden
+	}
+
+	// ตรวจ email format เบื้องต้น
+	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+	if !isValidEmail(newEmail) {
+		return errors.New("invalid email format")
+	}
+
+	// โหลด user ปัจจุบันเพื่อดึง email จริง
+	user, _, _, _, err := s.repo.FindByID(targetUserID)
+	if err != nil {
+		return err
+	}
+
+	// ห้ามเปลี่ยนเป็น email เดิม
+	if strings.EqualFold(user.Email, newEmail) {
+		return errors.New("new email must be different from current email")
+	}
+
+	// ตรวจว่า email ใหม่ถูกใช้งานแล้วหรือยัง
+	taken, err := s.repo.IsEmailTaken(newEmail, targetUserID)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return ErrEmailAlreadyInUse
+	}
+
+	// สร้าง OTP 6 หลัก
+	otp, err := generateOTP()
+	if err != nil {
+		return err
+	}
+
+	// Hash OTP ก่อนเก็บ (ใช้ bcrypt)
+	otpHash, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Upsert pending request (แทนของเก่าถ้ามี)
+	changeReq := &EmailChangeRequest{
+		UserID:    targetUserID,
+		NewEmail:  newEmail,
+		OTPHash:   string(otpHash),
+		ExpiresAt: time.Now().Add(15 * time.Minute),
+	}
+	if err := s.repo.UpsertEmailChangeRequest(changeReq); err != nil {
+		return err
+	}
+
+	// ส่ง OTP ไปยัง email ปัจจุบัน (ไม่ใช่ email ใหม่!)
+	if err := s.mailer.SendOTP(user.Email, otp); err != nil {
+		// ถ้าส่งเมลไม่ได้ ลบ record ทิ้ง ไม่ให้ค้างไว้
+		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+		return errors.New("failed to send OTP email")
+	}
+
+	return nil
+}
+
+// ── VerifyEmailChange ─────────────────────────────────────────────
+
+const maxOTPAttempts = 5
+
+func (s *Service) VerifyEmailChange(targetUserID, requesterID uint, otp string) (*UserProfileResponse, error) {
+	if targetUserID != requesterID {
+		return nil, ErrForbidden
+	}
+
+	// ดึง pending request
+	req, err := s.repo.FindEmailChangeRequest(targetUserID)
+	if err != nil {
+		return nil, err // ErrOTPNotFound
+	}
+
+	// ตรวจหมดเวลา
+	if req.IsExpired() {
+		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+		return nil, ErrOTPExpired
+	}
+
+	// ตรวจจำนวนครั้งที่กรอกผิด
+	if req.AttemptCount >= maxOTPAttempts {
+		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+		return nil, ErrOTPMaxAttempts
+	}
+
+	// ตรวจ OTP
+	if err := bcrypt.CompareHashAndPassword([]byte(req.OTPHash), []byte(otp)); err != nil {
+		// นับความผิดพลาด
+		_ = s.repo.IncrementOTPAttempt(req.ID)
+		return nil, ErrOTPInvalid
+	}
+
+	// OTP ถูก → ตรวจ email ใหม่ว่าถูกแย่งไปแล้วหรือยัง (race condition guard)
+	taken, err := s.repo.IsEmailTaken(req.NewEmail, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+		return nil, ErrEmailAlreadyInUse
+	}
+
+	// อัปเดต email จริงในตาราง users
+	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
+		"email":             req.NewEmail,
+		"verified_email_at": time.Now(), // reset verification
+	}); err != nil {
+		return nil, err
+	}
+
+	// ลบ pending request
+	_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+
+	return s.GetProfile(targetUserID, requesterID)
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+func generateOTP() (string, error) {
+	max := big.NewInt(1000000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", err
+	}
+	// zero-pad เป็น 6 หลักเสมอ เช่น 000042
+	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+func isValidEmail(email string) bool {
+	// regex เบื้องต้น ครอบคลุม 99% ของ use case
+	const pattern = `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+	matched, _ := regexp.MatchString(pattern, email)
+	return matched
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 // fetchLevel reads the user's current level from user_stats_module.
@@ -171,6 +327,7 @@ func toProfileResponse(u *User, reviewCount, followerCount, followingCount, leve
 	return &UserProfileResponse{
 		ID:             u.ID,
 		Username:       u.Username,
+		Email:          u.Email,
 		DisplayName:    u.DisplayName,
 		Bio:            u.Bio,
 		AvatarURL:      u.AvatarURL,

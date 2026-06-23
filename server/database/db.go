@@ -9,10 +9,10 @@ import (
 	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/like_module"
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
+	noti "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
-	noti "github.com/arinsuda/movie-hub/internal/notification_module"
 
 	// "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
@@ -66,6 +66,7 @@ func autoMigrate(db *gorm.DB) error {
 		&user_module.User{},
 		&user_module.EmailVerification{},
 		&user_module.RefreshToken{},
+		&user_module.EmailChangeRequest{},
 		// Social
 		&follow_module.UserFollow{},
 		&user_stats_module.UserStatus{},
@@ -98,8 +99,8 @@ func runSQLMigrations(db *gorm.DB) error {
 		sql  string
 	}{
 		{
-            name: "user_stats view",
-            sql: `
+			name: "user_stats view",
+			sql: `
                 -- เคลียร์ของเก่าออกให้หมดก่อนเพื่อความสะอาด ไม่ว่ามันจะเป็น Table หรือ View
                 DROP VIEW IF EXISTS user_stats CASCADE;
                 DROP TABLE IF EXISTS user_stats CASCADE;
@@ -122,7 +123,7 @@ func runSQLMigrations(db *gorm.DB) error {
                 LEFT JOIN user_follows f_out ON f_out.follower_id = u.id AND f_out.status = 'accepted'
                 GROUP BY u.id
             `,
-        },
+		},
 	}
 
 	for _, m := range migrations {

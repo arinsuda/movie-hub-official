@@ -23,7 +23,6 @@ export const reviewApi = {
 
   getUserReviews: (userId: number, page = 1, limit = 20) =>
     api.get<{ reviews: ReviewResponse[] }>(`/users/${userId}/reviews`, {
-      // ✅ แก้ตรงนี้
       params: { page, limit },
     }),
 
@@ -32,7 +31,7 @@ export const reviewApi = {
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
   ) =>
-    api.get<{ reviews: ReviewResponse[] }>( // เปลี่ยนตรงนี้
+    api.get<{ reviews: ReviewResponse[] }>(
       `/${mediaType}/${mediaId}/reviews`,
       {
         params: { page: 1, limit: 20, ...params },

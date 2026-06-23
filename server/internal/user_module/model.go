@@ -73,6 +73,20 @@ func (r *RefreshToken) IsExpired() bool {
 	return time.Now().After(r.ExpiresAt)
 }
 
+type EmailChangeRequest struct {
+	ID           uint      `gorm:"primarykey;autoIncrement"`
+	UserID       uint      `gorm:"not null;uniqueIndex"` // 1 user มีได้แค่ 1 pending request
+	NewEmail     string    `gorm:"type:varchar(100);not null"`
+	OTPHash      string    `gorm:"type:varchar(255);not null"` // bcrypt hash ของ OTP
+	ExpiresAt    time.Time `gorm:"not null"`
+	AttemptCount int       `gorm:"default:0"` // นับการกรอก OTP ผิด
+	CreatedAt    time.Time
+}
+
+func (e *EmailChangeRequest) IsExpired() bool {
+	return time.Now().After(e.ExpiresAt)
+}
+
 func (u *User) GetAge() *int {
 	if u.DateOfBirth == nil {
 		return nil

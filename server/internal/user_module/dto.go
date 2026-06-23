@@ -5,6 +5,7 @@ import "time"
 type UserProfileResponse struct {
 	ID             uint       `json:"id"`
 	Username       string     `json:"username"`
+	Email          string     `json:"email"`
 	DisplayName    *string    `json:"display_name"`
 	Bio            *string    `json:"bio"`
 	AvatarURL      *string    `json:"avatar_url"`
@@ -40,4 +41,12 @@ type UserSummaryResponse struct {
 	Username    string  `json:"username"`
 	DisplayName *string `json:"display_name"`
 	AvatarURL   *string `json:"avatar_url"`
+}
+
+type RequestEmailChangeRequest struct {
+	NewEmail string `json:"new_email"`
+}
+
+type VerifyEmailChangeRequest struct {
+	OTP string `json:"otp"`
 }

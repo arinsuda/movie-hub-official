@@ -110,6 +110,80 @@ func (h *Handler) UpdateFavoriteGenres(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"user": profile})
 }
 
+// เพิ่มใน handler.go
+
+func (h *Handler) RequestEmailChange(c fiber.Ctx) error {
+	targetID, err := parseUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
+	}
+
+	claims := mw.GetClaims(c)
+
+	var req RequestEmailChangeRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.NewEmail == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_email is required"})
+	}
+
+	if err := h.svc.RequestEmailChange(targetID, claims.UserID, req.NewEmail); err != nil {
+		return handleEmailChangeError(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "OTP has been sent to your current email address",
+	})
+}
+
+func (h *Handler) VerifyEmailChange(c fiber.Ctx) error {
+	targetID, err := parseUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
+	}
+
+	claims := mw.GetClaims(c)
+
+	var req VerifyEmailChangeRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if req.OTP == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "otp is required"})
+	}
+
+	profile, err := h.svc.VerifyEmailChange(targetID, claims.UserID, req.OTP)
+	if err != nil {
+		return handleEmailChangeError(c, err)
+	}
+
+	return c.JSON(fiber.Map{"user": profile})
+}
+
+func handleEmailChangeError(c fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, ErrUserNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+	case errors.Is(err, ErrForbidden):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+	case errors.Is(err, ErrOTPNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "no pending email change request"})
+	case errors.Is(err, ErrOTPExpired):
+		return c.Status(fiber.StatusGone).JSON(fiber.Map{"error": "otp has expired, please request a new one"})
+	case errors.Is(err, ErrOTPInvalid):
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "invalid otp"})
+	case errors.Is(err, ErrOTPMaxAttempts):
+		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too many failed attempts, please request a new otp"})
+	case errors.Is(err, ErrEmailAlreadyInUse):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "email already in use"})
+	default:
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+}
+
 type multipartFile struct {
 	file   multipart.File
 	header *multipart.FileHeader

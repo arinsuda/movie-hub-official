@@ -8,7 +8,8 @@ import (
 )
 
 func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, statsSvc *stats.Service) {
-	svc := NewService(db, mc, statsSvc)
+	mailer := NewSMTPMailer()                   
+	svc := NewService(db, mc, statsSvc, mailer) 
 	h := NewHandler(svc)
 
 	users := router.Group("/users")
@@ -16,4 +17,8 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, s
 	users.Patch("/:userId", h.UpdateProfile)
 	users.Delete("/:userId", h.DeleteUser)
 	users.Patch("/:userId/genres", h.UpdateFavoriteGenres)
+
+	// Email change flow (2 steps)
+	users.Post("/:userId/email/request-change", h.RequestEmailChange)
+	users.Post("/:userId/email/verify-change", h.VerifyEmailChange)
 }
