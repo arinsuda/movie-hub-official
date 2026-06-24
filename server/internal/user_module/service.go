@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"mime/multipart"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -19,20 +20,29 @@ import (
 )
 
 type Service struct {
-	repo          *repository
-	minio         *storage.MinIOClient
-	statsSvc      StatsProvider
-	mailer        Mailer
-	emailVerifier EmailVerificationSender
+	repo                *repository
+	minio               *storage.MinIOClient
+	statsSvc            StatsProvider
+	mailer              Mailer
+	emailVerifier       EmailVerificationSender
+	passwordResetMailer PasswordResetMailer
 }
 
-func NewService(db *gorm.DB, mc *storage.MinIOClient, statsSvc StatsProvider, mailer Mailer, emailVerifier EmailVerificationSender) *Service {
+func NewService(
+	db *gorm.DB,
+	mc *storage.MinIOClient,
+	statsSvc StatsProvider,
+	mailer Mailer,
+	emailVerifier EmailVerificationSender,
+	passwordResetMailer PasswordResetMailer,
+) *Service {
 	return &Service{
-		repo:          newRepository(db),
-		minio:         mc,
-		statsSvc:      statsSvc,
-		mailer:        mailer,
-		emailVerifier: emailVerifier,
+		repo:                newRepository(db),
+		minio:               mc,
+		statsSvc:            statsSvc,
+		mailer:              mailer,
+		emailVerifier:       emailVerifier,
+		passwordResetMailer: passwordResetMailer,
 	}
 }
 
@@ -215,7 +225,6 @@ func (s *Service) RequestEmailChange(targetUserID, requesterID uint) error {
 	}
 
 	if err := s.mailer.SendOTP(user.Email, otp); err != nil {
-
 		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
 		return errors.New("failed to send OTP email")
 	}
@@ -258,21 +267,168 @@ func (s *Service) VerifyEmailChange(
 	return s.GetProfile(targetUserID, requesterID)
 }
 
+// ── Password ──────────────────────────────────────────────────────────
+
+// ChangePassword: Case 1 — จำรหัสผ่านเดิมได้
+// ตรวจ old_password → validate → hash → update
+func (s *Service) ChangePassword(targetUserID, requesterID uint, req ChangePasswordRequest) error {
+	if targetUserID != requesterID {
+		return ErrForbidden
+	}
+
+	if err := validateNewPassword(req.NewPassword, req.ConfirmPassword); err != nil {
+		return err
+	}
+
+	user, _, _, _, err := s.repo.FindByID(targetUserID)
+	if err != nil {
+		return err
+	}
+
+	// ตรวจ old_password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
+		return ErrInvalidCredentials
+	}
+
+	// ไม่อนุญาตให้ตั้งรหัสผ่านเดิมซ้ำ
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.NewPassword)); err == nil {
+		return errors.New("new password must be different from current password")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.UpdatePassword(targetUserID, string(hashed))
+}
+
+// ForgotPassword: Case 2A — ลืมรหัสผ่าน ส่ง reset link ทาง email
+// ถ้า email ไม่มีในระบบ → return nil เฉยๆ (ป้องกัน user enumeration attack)
+func (s *Service) ForgotPassword(email string) error {
+	email = strings.TrimSpace(strings.ToLower(email))
+
+	user, err := s.repo.FindByEmail(email)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return nil // ไม่เปิดเผยว่า email มีอยู่ในระบบหรือไม่
+		}
+		return err
+	}
+
+	rawToken, err := generateSecureToken()
+	if err != nil {
+		return err
+	}
+
+	hashedToken, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	record := &PasswordResetToken{
+		UserID:      user.ID,
+		HashedToken: string(hashedToken),
+		ExpiresAt:   time.Now().Add(1 * time.Hour),
+	}
+	if err := s.repo.UpsertPasswordResetToken(record); err != nil {
+		return err
+	}
+
+	// FE อ่าน ?token=...&uid=... แล้วเรียก POST /auth/reset-password
+	resetURL := fmt.Sprintf("%s/reset-password?token=%s&uid=%d",
+		getEnv("FRONTEND_BASE_URL", "http://localhost:3000"),
+		rawToken,
+		user.ID,
+	)
+
+	if err := s.passwordResetMailer.SendResetLink(user.Email, resetURL); err != nil {
+		_ = s.repo.DeletePasswordResetToken(user.ID)
+		return errors.New("failed to send reset email")
+	}
+
+	return nil
+}
+
+// ResetPassword: Case 2B — ใช้ token จาก email ตั้งรหัสผ่านใหม่
+func (s *Service) ResetPassword(userID uint, rawToken string, req ResetPasswordRequest) error {
+	if err := validateNewPassword(req.NewPassword, req.ConfirmPassword); err != nil {
+		return err
+	}
+
+	record, err := s.repo.FindPasswordResetTokenByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	if record.IsExpired() {
+		_ = s.repo.DeletePasswordResetToken(userID)
+		return ErrPasswordResetTokenExpired
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(record.HashedToken), []byte(rawToken)); err != nil {
+		return ErrPasswordResetTokenInvalid
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.UpdatePassword(userID, string(hashed)); err != nil {
+		return err
+	}
+
+	// token ใช้ได้ครั้งเดียว → ลบทันทีหลัง reset สำเร็จ
+	_ = s.repo.DeletePasswordResetToken(userID)
+
+	return nil
+}
+
+// ── helpers ──────────────────────────────────────────────────────────
+
+func validateNewPassword(newPassword, confirmPassword string) error {
+	if newPassword == "" {
+		return errors.New("new_password is required")
+	}
+	if len(newPassword) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	if newPassword != confirmPassword {
+		return errors.New("passwords do not match")
+	}
+	return nil
+}
+
+// generateSecureToken สร้าง hex string 64 ตัวอักษร (32 random bytes)
+func generateSecureToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
 func generateOTP() (string, error) {
 	max := big.NewInt(1000000)
 	n, err := rand.Int(rand.Reader, max)
 	if err != nil {
 		return "", err
 	}
-
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
 func isValidEmail(email string) bool {
-
 	const pattern = `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
 	matched, _ := regexp.MatchString(pattern, email)
 	return matched
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func (s *Service) fetchLevel(userID uint) int {

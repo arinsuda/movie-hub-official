@@ -53,3 +53,20 @@ type VerifyEmailChangeRequest struct {
 type UpdateEmailRequest struct {
 	NewEmail string `json:"new_email"`
 }
+
+type ChangePasswordRequest struct {
+	OldPassword     string `json:"old_password"`
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordRequest struct {
+	Token           string `json:"token"`
+	UserID          uint   `json:"user_id"`
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
+}

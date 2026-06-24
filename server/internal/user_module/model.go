@@ -90,15 +90,26 @@ func (e *EmailChangeRequest) IsExpired() bool {
 	return time.Now().After(e.ExpiresAt)
 }
 
+type PasswordResetToken struct {
+	ID          uint      `gorm:"primarykey;autoIncrement"`
+	UserID      uint      `gorm:"not null;uniqueIndex"`
+	User        User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	HashedToken string    `gorm:"type:varchar(255);not null"`
+	ExpiresAt   time.Time `gorm:"not null"`
+	CreatedAt   time.Time
+}
+
+func (p *PasswordResetToken) IsExpired() bool {
+	return time.Now().After(p.ExpiresAt)
+}
+
 func (u *User) GetAge() *int {
 	if u.DateOfBirth == nil {
 		return nil
 	}
 
 	now := time.Now()
-
 	age := now.Year() - u.DateOfBirth.Year()
-
 	if now.YearDay() < u.DateOfBirth.YearDay() {
 		age--
 	}

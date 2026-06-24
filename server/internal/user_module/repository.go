@@ -7,13 +7,17 @@ import (
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrForbidden         = errors.New("forbidden")
-	ErrOTPNotFound       = errors.New("otp not found")
-	ErrOTPExpired        = errors.New("otp expired")
-	ErrOTPInvalid        = errors.New("otp invalid")
-	ErrOTPMaxAttempts    = errors.New("otp max attempts exceeded")
-	ErrEmailAlreadyInUse = errors.New("email already in use")
+	ErrUserNotFound               = errors.New("user not found")
+	ErrForbidden                  = errors.New("forbidden")
+	ErrInvalidCredentials         = errors.New("invalid credentials")
+	ErrOTPNotFound                = errors.New("otp not found")
+	ErrOTPExpired                 = errors.New("otp expired")
+	ErrOTPInvalid                 = errors.New("otp invalid")
+	ErrOTPMaxAttempts             = errors.New("otp max attempts exceeded")
+	ErrEmailAlreadyInUse          = errors.New("email already in use")
+	ErrPasswordResetTokenNotFound = errors.New("password reset token not found")
+	ErrPasswordResetTokenExpired  = errors.New("password reset token expired")
+	ErrPasswordResetTokenInvalid  = errors.New("password reset token invalid")
 )
 
 type repository struct {
@@ -28,8 +32,6 @@ func NewPublicRepository(db *gorm.DB) *repository {
 	return newRepository(db)
 }
 
-// userWithStats เป็น struct รับผลจากการ JOIN users + user_stats view
-// ใช้ภายใน repository เท่านั้น ไม่ expose ออก
 type userWithStats struct {
 	User
 	ReviewCount    int `gorm:"column:review_count"`
@@ -37,8 +39,6 @@ type userWithStats struct {
 	FollowingCount int `gorm:"column:following_count"`
 }
 
-// FindByID ดึง user พร้อม stats จาก view user_stats
-// ข้อมูลจะตรงเสมอ ไม่มี drift จาก denormalized counter
 func (r *repository) FindByID(id uint) (*User, int, int, int, error) {
 	var row userWithStats
 
@@ -62,7 +62,6 @@ func (r *repository) FindByID(id uint) (*User, int, int, int, error) {
 		return nil, 0, 0, 0, err
 	}
 
-	// โหลด Role แยก (Preload ไม่ทำงานกับ Table() โดยตรง)
 	if err := r.db.First(&row.User.Role, row.User.RoleID).Error; err != nil {
 		return nil, 0, 0, 0, err
 	}
@@ -70,8 +69,38 @@ func (r *repository) FindByID(id uint) (*User, int, int, int, error) {
 	return &row.User, row.ReviewCount, row.FollowerCount, row.FollowingCount, nil
 }
 
+func (r *repository) FindByEmail(email string) (*User, error) {
+	var user User
+	err := r.db.
+		Where("email = ? AND is_active = true", email).
+		First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := r.db.First(&user.Role, user.RoleID).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *repository) UpdateProfile(id uint, updates map[string]any) error {
 	result := r.db.Model(&User{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}
+
+func (r *repository) UpdatePassword(userID uint, hashedPassword string) error {
+	result := r.db.Model(&User{}).
+		Where("id = ?", userID).
+		Update("password", hashedPassword)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -89,10 +118,6 @@ func (r *repository) DeleteUser(id uint) error {
 	return result.Error
 }
 
-// ── Email Change OTP ──────────────────────────────────────────────
-
-// UpsertEmailChangeRequest สร้างหรือแทนที่ pending request ของ user
-// ใช้ upsert เพื่อให้ request ใหม่ยกเลิกของเก่าอัตโนมัติ
 func (r *repository) UpsertEmailChangeRequest(req *EmailChangeRequest) error {
 	return r.db.
 		Where(EmailChangeRequest{UserID: req.UserID}).
@@ -123,11 +148,29 @@ func (r *repository) DeleteEmailChangeRequest(userID uint) error {
 	return r.db.Where("user_id = ?", userID).Delete(&EmailChangeRequest{}).Error
 }
 
-// IsEmailTaken ตรวจว่า email ถูกใช้งานแล้วหรือยัง (ยกเว้น excludeUserID)
 func (r *repository) IsEmailTaken(email string, excludeUserID uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&User{}).
 		Where("email = ? AND id != ? AND is_active = true", email, excludeUserID).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *repository) UpsertPasswordResetToken(record *PasswordResetToken) error {
+
+	r.db.Where("user_id = ?", record.UserID).Delete(&PasswordResetToken{})
+	return r.db.Create(record).Error
+}
+
+func (r *repository) FindPasswordResetTokenByUserID(userID uint) (*PasswordResetToken, error) {
+	var record PasswordResetToken
+	err := r.db.Where("user_id = ?", userID).First(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPasswordResetTokenNotFound
+	}
+	return &record, err
+}
+
+func (r *repository) DeletePasswordResetToken(userID uint) error {
+	return r.db.Where("user_id = ?", userID).Delete(&PasswordResetToken{}).Error
 }

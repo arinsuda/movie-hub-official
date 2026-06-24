@@ -5,7 +5,7 @@
         <span class="edit-eyebrow">Profile</span>
         <h2 class="edit-title">Edit Profile</h2>
       </div>
-      <button class="close-btn" aria-label="Close" @click="$emit('close')">
+      <button class="close-btn" aria-label="Close" @click="handleClose">
         <X :size="14" />
       </button>
     </header>
@@ -68,7 +68,7 @@
         </div>
       </div>
 
-      <!-- Email -->
+      <!-- ─── Email ─────────────────────────────────────────── -->
       <div class="field-group">
         <label class="field-label" for="ep-email">Email</label>
         <div class="email-row">
@@ -77,36 +77,53 @@
             v-model="form.email"
             type="email"
             class="field-input email-input"
-            :class="{ 'field-input--unlocked': emailUnlocked }"
-            :disabled="!emailUnlocked"
+            :class="{ 'field-input--unlocked': emailStep === 'input' }"
+            :disabled="emailStep !== 'input'"
             placeholder="your@email.com"
           />
-          <!-- ยังไม่ verified → ปุ่ม Verify Email -->
+
+          <!-- ยังไม่ verified → Verify Email -->
           <button
-            v-if="!isEmailVerified"
+            v-if="!isEmailVerified && emailStep === 'idle'"
             type="button"
             class="email-action-btn email-action-btn--verify"
             @click="handleResendVerification"
-            :disabled="otpStep !== 'idle'"
           >
-            <Mail :size="12" />
-            Verify Email
+            <Mail :size="12" /> Verify Email
           </button>
-          <!-- verified แล้ว และยังไม่ได้ unlock → ปุ่ม Change Email -->
+
+          <!-- idle + verified → Change Email -->
           <button
-            v-else-if="!emailUnlocked"
+            v-else-if="emailStep === 'idle'"
             type="button"
             class="email-action-btn"
             @click="handleRequestOTP"
-            :disabled="otpStep === 'requesting'"
           >
-            <span v-if="otpStep === 'requesting'" class="btn-spinner" />
-            <Pencil v-else :size="12" />
-            {{ otpStep === "requesting" ? "Sending…" : "Change Email" }}
+            <Pencil :size="12" /> Change Email
           </button>
-          <!-- unlock แล้ว → ปุ่ม Cancel -->
 
-          <template v-else>
+          <!-- requesting OTP -->
+          <button
+            v-else-if="emailStep === 'requesting'"
+            type="button"
+            class="email-action-btn"
+            disabled
+          >
+            <span class="btn-spinner" /> Sending…
+          </button>
+
+          <!-- verify OTP → แสดงใน otp-box ด้านล่าง, ปุ่ม Cancel -->
+          <button
+            v-else-if="emailStep === 'otp'"
+            type="button"
+            class="email-action-btn email-action-btn--cancel"
+            @click="cancelEmailChange"
+          >
+            <X :size="12" /> Cancel
+          </button>
+
+          <!-- input email ใหม่ -->
+          <template v-else-if="emailStep === 'input'">
             <button
               type="button"
               class="email-action-btn email-action-btn--confirm"
@@ -118,7 +135,6 @@
               <span v-if="emailSaving" class="btn-spinner" />
               <template v-else><Mail :size="12" /> Save Email</template>
             </button>
-
             <button
               type="button"
               class="email-action-btn email-action-btn--cancel"
@@ -128,21 +144,30 @@
             </button>
           </template>
 
-          <ConfirmModal
-            v-model="showEmailConfirmModal"
-            list-type="email_change"
-            :item-name="props.user?.email ?? ''"
-            @confirm="confirmRequestOTP"
-            @cancel="showEmailConfirmModal = false"
-          />
+          <!-- waiting for link click → spinner -->
+          <button
+            v-else-if="emailStep === 'waiting'"
+            type="button"
+            class="email-action-btn email-action-btn--waiting"
+            disabled
+          >
+            <span class="btn-spinner" /> Waiting…
+          </button>
+
+          <!-- done ✓ -->
+          <button
+            v-else-if="emailStep === 'done'"
+            type="button"
+            class="email-action-btn email-action-btn--done"
+            disabled
+          >
+            <CheckCircle :size="13" /> Verified!
+          </button>
         </div>
 
-        <!-- OTP Step -->
+        <!-- OTP box -->
         <transition name="otp-slide">
-          <div
-            v-if="otpStep === 'verify' || otpStep === 'confirming'"
-            class="otp-box"
-          >
+          <div v-if="emailStep === 'otp'" class="otp-box">
             <p class="otp-hint">
               Enter the 6-digit code sent to
               <strong>{{ props.user?.email }}</strong>
@@ -160,10 +185,10 @@
               <button
                 type="button"
                 class="email-action-btn email-action-btn--confirm"
-                :disabled="otpValue.length !== 6 || otpStep === 'confirming'"
+                :disabled="otpValue.length !== 6 || otpConfirming"
                 @click="handleVerifyOTP"
               >
-                <span v-if="otpStep === 'confirming'" class="btn-spinner" />
+                <span v-if="otpConfirming" class="btn-spinner" />
                 <span v-else>Confirm</span>
               </button>
             </div>
@@ -171,12 +196,34 @@
           </div>
         </transition>
 
-        <!-- hint หลัง unlock -->
-        <p v-if="emailUnlocked" class="email-hint">
-          <Info :size="11" /> Type your new email then save changes. A
-          verification link will be sent to the new address.
+        <!-- waiting hint -->
+        <transition name="otp-slide">
+          <div v-if="emailStep === 'waiting'" class="otp-box otp-box--waiting">
+            <div class="waiting-row">
+              <span class="waiting-spinner" />
+              <p class="otp-hint" style="margin: 0">
+                Verification link sent to <strong>{{ form.email }}</strong
+                >.<br />
+                Click the link in your email to confirm.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="resend-btn"
+              @click="handleResendEmailVerification"
+            >
+              Resend link
+            </button>
+          </div>
+        </transition>
+
+        <!-- email hint while inputting -->
+        <p v-if="emailStep === 'input'" class="email-hint">
+          <Info :size="11" /> Type your new email then save. A verification link
+          will be sent.
         </p>
       </div>
+      <!-- ─────────────────────────────────────────────────────── -->
 
       <!-- Bio -->
       <div class="field-group">
@@ -245,11 +292,12 @@
         </div>
       </div>
     </form>
+
     <div class="edit-footer">
       <button
         type="button"
         class="footer-btn footer-btn--cancel"
-        @click="$emit('close')"
+        @click="handleClose"
       >
         Cancel
       </button>
@@ -257,16 +305,25 @@
         type="submit"
         class="footer-btn footer-btn--save"
         :disabled="saving || !isDirty"
+        @click="handleSave"
       >
         <span v-if="saving" class="save-spinner" />
         <span v-else>Save Changes</span>
       </button>
     </div>
+
+    <ConfirmModal
+      v-model="showEmailConfirmModal"
+      list-type="email_change"
+      :item-name="props.user?.email ?? ''"
+      @confirm="confirmRequestOTP"
+      @cancel="showEmailConfirmModal = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-  import { reactive, ref, computed } from "vue"
+  import { reactive, ref, computed, onUnmounted } from "vue"
   import {
     X,
     Upload,
@@ -274,20 +331,35 @@
     Pencil,
     Mail,
     Info,
+    CheckCircle,
   } from "lucide-vue-next"
   import type { UserProfile } from "@/types/user"
   import { authApi, userApi } from "@/api/api"
   import { useAuthStore } from "@/stores/auth"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
+
   const props = defineProps<{ user: UserProfile | null }>()
   const emit = defineEmits<{ close: [] }>()
 
   const authStore = useAuthStore()
 
+  // ─── email step machine ───────────────────────────────────────────────────────
+  // idle → requesting → otp → input → waiting → done → idle
+  type EmailStep = "idle" | "requesting" | "otp" | "input" | "waiting" | "done"
+  const emailStep = ref<EmailStep>("idle")
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const saving = ref(false)
   const avatarFile = ref<File | null>(null)
   const emailSaving = ref(false)
   const showEmailConfirmModal = ref(false)
+  const otpValue = ref("")
+  const otpError = ref("")
+  const otpConfirming = ref(false)
+
+  // polling
+  let pollTimer: ReturnType<typeof setInterval> | null = null
+  const POLL_INTERVAL = 3000 // ms
 
   const genderOptions = [
     { value: "male", label: "Male" },
@@ -309,12 +381,6 @@
   }
   const form = reactive({ ...initialForm })
 
-  type OTPStep = "idle" | "requesting" | "verify" | "confirming"
-  const otpStep = ref<OTPStep>("idle")
-  const otpValue = ref("")
-  const otpError = ref("")
-  const emailUnlocked = ref(false)
-
   const isEmailVerified = computed(() => !!props.user?.verified_email_at)
 
   const isDirty = computed(
@@ -328,6 +394,45 @@
       form.is_private !== initialForm.is_private,
   )
 
+  // ─── helpers ─────────────────────────────────────────────────────────────────
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  function resetEmailFlow() {
+    stopPolling()
+    emailStep.value = "idle"
+    otpValue.value = ""
+    otpError.value = ""
+    form.email = initialForm.email
+  }
+
+  /** เริ่ม poll ตรวจว่า backend เปลี่ยน email + verified แล้วหรือยัง */
+  function startPolling(newEmail: string) {
+    stopPolling()
+    pollTimer = setInterval(async () => {
+      try {
+        if (!props.user?.id) return
+        const { data } = await userApi.getProfile(props.user.id)
+        const fresh = data.user
+        if (fresh.email === newEmail && fresh.verified_email_at) {
+          stopPolling()
+          await authStore.fetchMe()
+          emailStep.value = "done"
+          setTimeout(() => {
+            emailStep.value = "idle"
+          }, 2500)
+        }
+      } catch {
+        /* ignore */
+      }
+    }, POLL_INTERVAL)
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   function handleFileChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
@@ -339,7 +444,8 @@
     reader.readAsDataURL(file)
   }
 
-  async function handleRequestOTP() {
+  // step 1 – request OTP
+  function handleRequestOTP() {
     if (!props.user?.id) return
     showEmailConfirmModal.value = true
   }
@@ -347,44 +453,44 @@
   async function confirmRequestOTP() {
     showEmailConfirmModal.value = false
     if (!props.user?.id) return
-    otpStep.value = "requesting"
+    emailStep.value = "requesting"
     otpError.value = ""
     try {
       await userApi.requestEmailChange(props.user.id)
-      otpStep.value = "verify"
+      emailStep.value = "otp"
     } catch (err: any) {
-      otpError.value =
-        err?.response?.data?.error ?? "Failed to send OTP. Please try again."
-      otpStep.value = "idle"
+      otpError.value = err?.response?.data?.error ?? "Failed to send OTP."
+      emailStep.value = "idle"
     }
   }
 
+  // step 2 – verify OTP → unlock input
   async function handleVerifyOTP() {
     if (!props.user?.id || otpValue.value.length !== 6) return
-    otpStep.value = "confirming"
+    otpConfirming.value = true
     otpError.value = ""
     try {
       await userApi.verifyEmailChange(props.user.id, otpValue.value)
-
-      emailUnlocked.value = true
-      otpStep.value = "idle"
+      emailStep.value = "input"
       otpValue.value = ""
-      form.email = ""
+      form.email = "" // ให้ user พิมพ์ email ใหม่
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? "Invalid OTP."
-      otpError.value = msg
-      otpStep.value = "verify"
+      otpError.value = err?.response?.data?.error ?? "Invalid OTP."
+    } finally {
+      otpConfirming.value = false
     }
   }
 
+  // step 3 – save new email → backend ส่ง verification link → poll
   async function handleUpdateEmail() {
     if (!props.user?.id || !form.email) return
     emailSaving.value = true
     otpError.value = ""
     try {
       await userApi.updateEmail(props.user.id, form.email)
-      await authStore.fetchMe()
-      emit("close")
+      // ไม่ปิด modal, ไม่ reset — เข้า waiting
+      emailStep.value = "waiting"
+      startPolling(form.email)
     } catch (err: any) {
       otpError.value = err?.response?.data?.error ?? "Failed to update email."
     } finally {
@@ -392,21 +498,34 @@
     }
   }
 
-  function cancelEmailChange() {
-    emailUnlocked.value = false
-    otpStep.value = "idle"
-    otpValue.value = ""
-    otpError.value = ""
-    form.email = initialForm.email
+  // resend verification link ขณะ waiting
+  async function handleResendEmailVerification() {
+    if (!form.email) return
+    try {
+      await authApi.resendVerification(form.email)
+    } catch {
+      /* show toast ถ้ามี */
+    }
   }
 
+  function cancelEmailChange() {
+    resetEmailFlow()
+  }
+
+  // ถ้ายังอยู่กลางคัน flow → ยกเลิกทั้งหมด (email กลับเป็นเดิม)
+  function handleClose() {
+    if (emailStep.value !== "idle" && emailStep.value !== "done") {
+      resetEmailFlow()
+    }
+    emit("close")
+  }
+
+  // verify email (กรณียังไม่ verified ตั้งแต่แรก)
   async function handleResendVerification() {
     if (!props.user?.email) return
     try {
       await authApi.resendVerification(props.user.email)
-      alert(
-        `Verification email sent to ${props.user.email}. Please check your inbox.`,
-      )
+      alert(`Verification email sent to ${props.user.email}.`)
     } catch {
       alert("Failed to resend verification email.")
     }
@@ -426,16 +545,17 @@
       if (form.is_private !== initialForm.is_private)
         payload.append("is_private", String(form.is_private))
       if (avatarFile.value) payload.append("avatar", avatarFile.value)
-
       await userApi.updateProfile(props.user!.id, payload)
       await authStore.fetchMe()
-      emit("close")
+      // ไม่ emit close — ให้ user กดปิดเอง
     } catch (err) {
       console.error("Save profile failed:", err)
     } finally {
       saving.value = false
     }
   }
+
+  onUnmounted(() => stopPolling())
 </script>
 
 <style scoped>
@@ -912,5 +1032,54 @@
     to {
       transform: rotate(360deg);
     }
+  }
+
+  /* waiting state */
+  .email-action-btn--waiting {
+    color: var(--c-sub);
+    gap: 6px;
+  }
+
+  .email-action-btn--done {
+    border-color: rgba(48, 209, 88, 0.4);
+    color: var(--c-green);
+    background: rgba(48, 209, 88, 0.08);
+  }
+
+  .otp-box--waiting {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .waiting-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .waiting-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-top-color: var(--c-sub);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .resend-btn {
+    font-family: var(--font);
+    font-size: 0.7rem;
+    color: var(--c-sub);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    align-self: flex-start;
+  }
+  .resend-btn:hover {
+    color: var(--c-text);
   }
 </style>

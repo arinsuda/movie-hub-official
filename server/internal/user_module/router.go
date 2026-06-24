@@ -12,9 +12,10 @@ func RegisterRoutes(
 	mc *storage.MinIOClient,
 	statsSvc StatsProvider,
 	emailVerifier EmailVerificationSender,
+	passwordResetMailer PasswordResetMailer,
 ) {
 	mailer := NewSMTPMailer()
-	svc := NewService(db, mc, statsSvc, mailer, emailVerifier)
+	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer)
 	h := NewHandler(svc)
 
 	users := router.Group("/users")
