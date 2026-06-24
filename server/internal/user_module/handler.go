@@ -2,8 +2,10 @@ package user_module
 
 import (
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"strconv"
+	"strings"
 	"time"
 
 	mw "github.com/arinsuda/movie-hub/middleware"
@@ -190,6 +192,26 @@ type multipartFile struct {
 }
 
 func parseUpdateProfileForm(c fiber.Ctx) (UpdateProfileRequest, error) {
+	allowed := map[string]bool{
+		"display_name":    true,
+		"bio":             true,
+		"gender":          true,
+		"gender_other":    true,
+		"favorite_genres": true,
+		"date_of_birth":   true,
+		"is_private":      true,
+	}
+
+	var unknownFields []string
+	c.Request().PostArgs().VisitAll(func(key, _ []byte) {
+		if !allowed[string(key)] {
+			unknownFields = append(unknownFields, string(key))
+		}
+	})
+	if len(unknownFields) > 0 {
+		return UpdateProfileRequest{}, fmt.Errorf("unknown fields: %s", strings.Join(unknownFields, ", "))
+	}
+	
 	var req UpdateProfileRequest
 
 	if v := c.FormValue("display_name"); v != "" {

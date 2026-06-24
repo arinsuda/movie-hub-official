@@ -224,3 +224,10 @@ func (s *Service) sendVerificationEmail(user *user_module.User) error {
 func (s *Service) GetUserByID(id uint) (*user_module.User, error) {
 	return s.repo.FindByID(id)
 }
+
+func (s *Service) SendVerification(userID uint, email string) error {
+	user := &user_module.User{}
+	user.ID = userID
+	user.Email = email
+	return s.sendVerificationEmail(user)
+}

@@ -40,16 +40,14 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	app.Get("/health", healthHandler)
 
 	api := app.Group("/api")
-
-	auth_module.RegisterRoutes(api, db, cfg, m, mc)
+	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc)
 
 	mw := auth_module.NewMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
-
 	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)
 	library_module.RegisterRoutes(protected, db, statsSvc)
-	user_module.RegisterRoutes(protected, db, mc, statsSvc)
+	user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc)
 	follow_module.RegisterRoutes(api, db)
 	review_module.RegisterRoutes(protected, db, mc, statsSvc)
 	media_stats_module.RegisterRoutes(protected, db)

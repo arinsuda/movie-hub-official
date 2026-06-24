@@ -8,22 +8,19 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mailer.Mailer, s *storage.MinIOClient) {
+func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mailer.Mailer, s *storage.MinIOClient) *Service {
 	svc := NewService(db, cfg, m, s)
 	h := NewHandler(svc, cfg)
 	mw := NewMiddleware(cfg)
 
 	auth := router.Group("/auth")
-
-	// ── Public ────────────────────────────────────────────────────
 	auth.Post("/register", h.Register)
 	auth.Post("/login", h.Login)
 	auth.Post("/refresh", h.Refresh)
 	auth.Post("/logout", h.Logout)
 	auth.Get("/verify-email", h.VerifyEmail)
 	auth.Post("/resend-verification", h.ResendVerification)
-
-	// ── Protected ─────────────────────────────────────────────────
 	auth.Post("/logout-all", mw.RequireAuth, h.LogoutAll)
-	// /me ย้ายไปอยู่ที่ GET /api/users/:userId แล้ว
+
+	return svc
 }

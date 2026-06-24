@@ -50,6 +50,7 @@ type User struct {
 type EmailVerification struct {
 	ID        uint      `gorm:"primarykey;autoIncrement"`
 	UserID    uint      `gorm:"not null;index"`
+	User      User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	Token     string    `gorm:"type:varchar(64);uniqueIndex;not null"`
 	ExpiresAt time.Time `gorm:"not null"`
 	CreatedAt time.Time
@@ -62,6 +63,7 @@ func (e *EmailVerification) IsExpired() bool {
 type RefreshToken struct {
 	ID          uint      `gorm:"primarykey;autoIncrement"`
 	UserID      uint      `gorm:"not null;index"`
+	User        User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	HashedToken string    `gorm:"type:varchar(255);uniqueIndex;not null"`
 	ExpiresAt   time.Time `gorm:"not null"`
 	CreatedAt   time.Time
@@ -75,11 +77,12 @@ func (r *RefreshToken) IsExpired() bool {
 
 type EmailChangeRequest struct {
 	ID           uint      `gorm:"primarykey;autoIncrement"`
-	UserID       uint      `gorm:"not null;uniqueIndex"` // 1 user มีได้แค่ 1 pending request
+	UserID       uint      `gorm:"not null;uniqueIndex"`
+	User         User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	NewEmail     string    `gorm:"type:varchar(100);not null"`
-	OTPHash      string    `gorm:"type:varchar(255);not null"` // bcrypt hash ของ OTP
+	OTPHash      string    `gorm:"type:varchar(255);not null"`
 	ExpiresAt    time.Time `gorm:"not null"`
-	AttemptCount int       `gorm:"default:0"` // นับการกรอก OTP ผิด
+	AttemptCount int       `gorm:"default:0"`
 	CreatedAt    time.Time
 }
 

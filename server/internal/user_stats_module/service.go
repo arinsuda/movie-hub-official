@@ -2,7 +2,6 @@ package user_stats_module
 
 import "gorm.io/gorm"
 
-// Service implements ExpAdder. Other modules depend on the interface, not this struct.
 type Service struct {
 	repo *repository
 }
@@ -11,7 +10,6 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{repo: newRepository(db)}
 }
 
-// GetUserStats returns the combined stats + level/exp for a user.
 func (s *Service) GetUserStats(userID uint) (*UserStatsResponse, error) {
 	row, err := s.repo.GetByUserID(userID)
 	if err != nil {
@@ -20,10 +18,16 @@ func (s *Service) GetUserStats(userID uint) (*UserStatsResponse, error) {
 	return toResponse(row), nil
 }
 
-// AddExperience satisfies the ExpAdder port.
-// expDelta may be negative (e.g. review deleted).
 func (s *Service) AddExperience(userID uint, expDelta int) error {
 	return s.repo.UpsertStatus(userID, expDelta)
+}
+
+func (s *Service) GetLevel(userID uint) int {
+	level, err := s.repo.GetLevelByUserID(userID)
+	if err != nil {
+		return 1
+	}
+	return level
 }
 
 func toResponse(r *statRow) *UserStatsResponse {

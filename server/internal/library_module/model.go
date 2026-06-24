@@ -2,6 +2,7 @@ package library_module
 
 import (
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 	"time"
 )
@@ -9,6 +10,7 @@ import (
 type LibraryItem struct {
 	gorm.Model
 	UserID    uint                   `gorm:"not null;index"`
+	User      users.User             `gorm:"foreignKey:UserID;contraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	MediaID   int                    `gorm:"not null"`
 	MediaType movie_module.MediaType `gorm:"type:varchar(10);not null"`
 	ListType  movie_module.ListType  `gorm:"type:varchar(20);not null"`

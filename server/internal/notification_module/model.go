@@ -3,6 +3,7 @@ package notification_module
 import (
 	"time"
 
+	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
 
@@ -31,7 +32,8 @@ const (
 type Notification struct {
 	gorm.Model
 	UserID    uint             `gorm:"not null;index"` // เจ้าของ notification
-	ActorID   *uint            `gorm:"index"`          // ผู้กระทำ (nil = system)
+	User      users.User       `gorm:"foreignKey:UserID;contraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ActorID   *uint            `gorm:"index"` // ผู้กระทำ (nil = system)
 	Type      NotificationType `gorm:"type:varchar(50);not null;index"`
 	TargetID  *uint            // id ของ entity ที่เกี่ยวข้อง
 	TargetRef *string          `gorm:"type:varchar(50)"` // "movie" | "review" | "user"

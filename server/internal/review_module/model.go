@@ -24,17 +24,17 @@ type Review struct {
 }
 
 type ReviewLike struct {
-	ID        uint `gorm:"primarykey;autoIncrement"`
-	ReviewID  uint `gorm:"not null;index"`
-	UserID    uint `gorm:"not null;index"`
+	ID        uint       `gorm:"primarykey;autoIncrement"`
+	ReviewID  uint       `gorm:"not null;index"`
+	UserID    uint       `gorm:"not null;index"`
+	User      users.User `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	CreatedAt time.Time
 }
 
 type ReviewComment struct {
 	gorm.Model
-	ReviewID uint `gorm:"not null;index"`
-	UserID   uint `gorm:"not null;index"`
-	// ── แนะนำให้แก้คอมเมนต์ชี้ไปหาตารางจริงเช่นกัน ──
-	User users.User `gorm:"foreignKey:UserID"`
-	Body string     `gorm:"type:text;not null"`
+	ReviewID uint       `gorm:"not null;index"`
+	UserID   uint       `gorm:"not null;index"`
+	User     users.User `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Body     string     `gorm:"type:text;not null"`
 }

@@ -16,17 +16,14 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// statRow holds the joined result of user_stats + user_statuses.
 type statRow struct {
 	UserStat
 	Level      int
 	CurrentExp int
 }
 
-// GetByUserID fetches counts from the user_stats view and level/exp from user_statuses.
-// Returns zero values when either record does not exist yet (new user, no activity).
 func (r *repository) GetByUserID(userID uint) (*statRow, error) {
-	// เปลี่ยนจาก First() → Find() เพราะ user_stats เป็น VIEW
+
 	var stat UserStat
 	if err := r.db.Where("user_id = ?", userID).Limit(1).Find(&stat).Error; err != nil {
 		return nil, err
@@ -35,7 +32,6 @@ func (r *repository) GetByUserID(userID uint) (*statRow, error) {
 		stat = UserStat{UserID: userID}
 	}
 
-	// UserStatus เป็น table ปกติ ใช้ First() ได้เหมือนเดิม
 	var status UserStatus
 	if err := r.db.Where("user_id = ?", userID).First(&status).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -51,7 +47,6 @@ func (r *repository) GetByUserID(userID uint) (*statRow, error) {
 	}, nil
 }
 
-// UpsertStatus creates or updates the UserStatus row and applies level-up logic.
 func (r *repository) UpsertStatus(userID uint, expDelta int) error {
 	var status UserStatus
 	err := r.db.Where("user_id = ?", userID).
@@ -70,4 +65,17 @@ func (r *repository) UpsertStatus(userID uint, expDelta int) error {
 	}
 
 	return r.db.Save(&status).Error
+}
+
+func (r *repository) GetLevelByUserID(userID uint) (int, error) {
+	var status UserStatus
+	err := r.db.
+		Select("level").
+		Where("user_id = ?", userID).
+		First(&status).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 1, nil
+	}
+	return status.Level, err
 }

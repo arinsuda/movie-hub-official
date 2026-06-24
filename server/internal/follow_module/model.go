@@ -1,6 +1,9 @@
 package follow_module
 
-import "time"
+import (
+	users "github.com/arinsuda/movie-hub/internal/user_module"
+	"time"
+)
 
 type FollowStatus string
 
@@ -17,7 +20,9 @@ const (
 type UserFollow struct {
 	ID         uint         `gorm:"primarykey;autoIncrement"`
 	FollowerID uint         `gorm:"not null;uniqueIndex:idx_follow_pair"`
+	Follower   users.User   `gorm:"foreignKey:FollowerID;constraint:OnDelete:CASCADE;"`
 	FolloweeID uint         `gorm:"not null;uniqueIndex:idx_follow_pair"`
+	Followee   users.User   `gorm:"foreignKey:FolloweeID;constraint:OnDelete:CASCADE;"`
 	Status     FollowStatus `gorm:"type:varchar(20);not null;default:'pending'"`
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
