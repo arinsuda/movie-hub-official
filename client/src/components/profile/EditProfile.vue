@@ -244,25 +244,24 @@
           </button>
         </div>
       </div>
-
-      <div class="edit-footer">
-        <button
-          type="button"
-          class="footer-btn footer-btn--cancel"
-          @click="$emit('close')"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          class="footer-btn footer-btn--save"
-          :disabled="saving || !isDirty"
-        >
-          <span v-if="saving" class="save-spinner" />
-          <span v-else>Save Changes</span>
-        </button>
-      </div>
     </form>
+    <div class="edit-footer">
+      <button
+        type="button"
+        class="footer-btn footer-btn--cancel"
+        @click="$emit('close')"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="footer-btn footer-btn--save"
+        :disabled="saving || !isDirty"
+      >
+        <span v-if="saving" class="save-spinner" />
+        <span v-else>Save Changes</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -456,6 +455,10 @@
       "Helvetica Neue", system-ui, sans-serif;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
     padding: 24px;
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
     font-family: var(--font);
     color: var(--c-text);
     background: var(--c-surface);
@@ -572,6 +575,8 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow-y: auto;
+    padding-bottom: 8px;
   }
   .field-group {
     display: flex;
@@ -854,6 +859,9 @@
     gap: 10px;
     justify-content: flex-end;
     margin-top: 8px;
+    padding-top: 16px;
+    border-top: 1px solid var(--c-border);
+    flex-shrink: 0;
   }
   .footer-btn {
     font-family: var(--font);
