@@ -209,52 +209,6 @@ func (h *Handler) ChangePassword(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "password changed successfully"})
 }
 
-// ForgotPassword: Case 2A — ขอ reset link (public endpoint ไม่ต้อง auth)
-// POST /auth/forgot-password
-func (h *Handler) ForgotPassword(c fiber.Ctx) error {
-	var req ForgotPasswordRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
-	}
-	if req.Email == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email is required"})
-	}
-
-	// เรียก service แล้ว return 200 เสมอ (ป้องกัน user enumeration)
-	_ = h.svc.ForgotPassword(req.Email)
-
-	return c.JSON(fiber.Map{
-		"message": "if an account with that email exists, a password reset link has been sent",
-	})
-}
-
-// ResetPassword: Case 2B — ตั้งรหัสผ่านใหม่ด้วย token (public endpoint)
-// POST /auth/reset-password
-func (h *Handler) ResetPassword(c fiber.Ctx) error {
-	var req ResetPasswordRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
-	}
-	if req.Token == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token is required"})
-	}
-	if req.UserID == 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user_id is required"})
-	}
-	if req.NewPassword == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_password is required"})
-	}
-	if req.ConfirmPassword == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "confirm_password is required"})
-	}
-
-	if err := h.svc.ResetPassword(req.UserID, req.Token, req); err != nil {
-		return handlePasswordError(c, err)
-	}
-
-	return c.JSON(fiber.Map{"message": "password has been reset successfully"})
-}
-
 // ── error handlers ────────────────────────────────────────────────────
 
 func handlePasswordError(c fiber.Ctx, err error) error {
@@ -265,12 +219,6 @@ func handlePasswordError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	case errors.Is(err, ErrInvalidCredentials):
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "incorrect current password"})
-	case errors.Is(err, ErrPasswordResetTokenNotFound):
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "invalid or expired reset link"})
-	case errors.Is(err, ErrPasswordResetTokenExpired):
-		return c.Status(fiber.StatusGone).JSON(fiber.Map{"error": "reset link has expired, please request a new one"})
-	case errors.Is(err, ErrPasswordResetTokenInvalid):
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "invalid reset token"})
 	default:
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}

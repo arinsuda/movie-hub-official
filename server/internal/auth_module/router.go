@@ -21,6 +21,8 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mai
 	auth.Get("/verify-email", h.VerifyEmail)
 	auth.Post("/resend-verification", h.ResendVerification)
 	auth.Post("/logout-all", mw.RequireAuth, h.LogoutAll)
+	auth.Post("/forgot-password", h.ForgotPassword) 
+	auth.Post("/reset-password", h.ResetPassword)
 
 	return svc
 }

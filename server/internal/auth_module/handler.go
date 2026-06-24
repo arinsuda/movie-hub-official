@@ -113,6 +113,59 @@ func (h *Handler) ResendVerification(c fiber.Ctx) error {
 	return c.JSON(MessageResponse{Message: "if the email exists, a verification link has been sent"})
 }
 
+func (h *Handler) ForgotPassword(c fiber.Ctx) error {
+	var req user_module.ForgotPasswordRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.Email == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email is required"})
+	}
+
+	// return 200 เสมอ ป้องกัน user enumeration
+	_ = h.svc.ForgotPassword(req.Email)
+
+	return c.JSON(MessageResponse{Message: "if an account with that email exists, a password reset link has been sent"})
+}
+
+func (h *Handler) ResetPassword(c fiber.Ctx) error {
+	var req user_module.ResetPasswordRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token is required"})
+	}
+	if req.UserID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user_id is required"})
+	}
+	if req.NewPassword == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_password is required"})
+	}
+	if req.ConfirmPassword == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "confirm_password is required"})
+	}
+
+	if err := h.svc.ResetPassword(req.UserID, req.Token, req); err != nil {
+		return h.handlePasswordResetError(c, err)
+	}
+
+	return c.JSON(MessageResponse{Message: "password has been reset successfully"})
+}
+
+func (h *Handler) handlePasswordResetError(c fiber.Ctx, err error) error {
+	switch {
+	case errors.Is(err, user_module.ErrPasswordResetTokenNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "invalid or expired reset link"})
+	case errors.Is(err, user_module.ErrPasswordResetTokenExpired):
+		return c.Status(fiber.StatusGone).JSON(fiber.Map{"error": "reset link has expired, please request a new one"})
+	case errors.Is(err, user_module.ErrPasswordResetTokenInvalid):
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "invalid reset token"})
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+}
+
 func (h *Handler) setTokenCookies(c fiber.Ctx, pair *TokenPair) {
 	sameSite := h.cfg.Cookie.SameSite
 
@@ -182,6 +235,6 @@ func toUserResponse(u *user_module.User) UserResponse {
 		Role:           string(u.Role.RoleName),
 		FavoriteGenres: u.FavoriteGenres,
 		IsPrivate:      u.IsPrivate,
-		Level: 1,
+		Level:          1,
 	}
 }

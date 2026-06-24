@@ -26,4 +26,5 @@ func RegisterRoutes(
 	users.Post("/:userId/email", h.RequestEmailChange)
 	users.Put("/:userId/email", h.VerifyEmailChange)
 	users.Patch("/:userId/email", h.UpdateEmail)
+	users.Patch("/:userId/password", h.ChangePassword)
 }

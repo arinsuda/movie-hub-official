@@ -2,6 +2,7 @@ package auth_module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -16,11 +17,21 @@ import (
 )
 
 type Service struct {
-	repo   *repository
-	jwt    *jwtManager
-	mailer *mailer.Mailer
-	minio  *storage.MinIOClient
-	cfg    *config.Config
+	repo    *repository
+	jwt     *jwtManager
+	mailer  *mailer.Mailer
+	minio   *storage.MinIOClient
+	cfg     *config.Config
+	userSvc UserPasswordService
+}
+
+type UserPasswordService interface {
+	ForgotPassword(email string) error
+	ResetPassword(userID uint, rawToken string, req user_module.ResetPasswordRequest) error
+}
+
+func (s *Service) SetUserService(userSvc UserPasswordService) {
+	s.userSvc = userSvc
 }
 
 func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer, mc *storage.MinIOClient) *Service {
@@ -230,4 +241,18 @@ func (s *Service) SendVerification(userID uint, email string) error {
 	user.ID = userID
 	user.Email = email
 	return s.sendVerificationEmail(user)
+}
+
+func (s *Service) ForgotPassword(email string) error {
+	if s.userSvc == nil {
+		return errors.New("user service not configured")
+	}
+	return s.userSvc.ForgotPassword(email)
+}
+
+func (s *Service) ResetPassword(userID uint, rawToken string, req user_module.ResetPasswordRequest) error {
+	if s.userSvc == nil {
+		return errors.New("user service not configured")
+	}
+	return s.userSvc.ResetPassword(userID, rawToken, req)
 }
