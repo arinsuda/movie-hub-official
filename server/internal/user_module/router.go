@@ -24,4 +24,5 @@ func RegisterRoutes(
 	users.Patch("/:userId/genres", h.UpdateFavoriteGenres)
 	users.Post("/:userId/email", h.RequestEmailChange)
 	users.Put("/:userId/email", h.VerifyEmailChange)
+	users.Patch("/:userId/email", h.UpdateEmail)
 }

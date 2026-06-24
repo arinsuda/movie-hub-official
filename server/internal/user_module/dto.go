@@ -3,22 +3,23 @@ package user_module
 import "time"
 
 type UserProfileResponse struct {
-	ID             uint       `json:"id"`
-	Username       string     `json:"username"`
-	Email          string     `json:"email"`
-	DisplayName    *string    `json:"display_name"`
-	Bio            *string    `json:"bio"`
-	AvatarURL      *string    `json:"avatar_url"`
-	DateOfBirth    *time.Time `json:"date_of_birth"`
-	Gender         GenderType `json:"gender"`
-	FavoriteGenres *string    `json:"favorite_genres"`
-	ReviewCount    int        `json:"review_count"`
-	FollowerCount  int        `json:"follower_count"`
-	FollowingCount int        `json:"following_count"`
-	IsPrivate      bool       `json:"is_private"`
-	Level          int        `json:"level"`
-	Role           string     `json:"role"`
-	CreatedAt      time.Time  `json:"created_at"`
+	ID              uint       `json:"id"`
+	Username        string     `json:"username"`
+	Email           string     `json:"email"`
+	VerifiedEmailAt *time.Time `json:"verified_email_at"`
+	DisplayName     *string    `json:"display_name"`
+	Bio             *string    `json:"bio"`
+	AvatarURL       *string    `json:"avatar_url"`
+	DateOfBirth     *time.Time `json:"date_of_birth"`
+	Gender          GenderType `json:"gender"`
+	FavoriteGenres  *string    `json:"favorite_genres"`
+	ReviewCount     int        `json:"review_count"`
+	FollowerCount   int        `json:"follower_count"`
+	FollowingCount  int        `json:"following_count"`
+	IsPrivate       bool       `json:"is_private"`
+	Level           int        `json:"level"`
+	Role            string     `json:"role"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type UpdateProfileRequest struct {
@@ -43,10 +44,12 @@ type UserSummaryResponse struct {
 	AvatarURL   *string `json:"avatar_url"`
 }
 
-type RequestEmailChangeRequest struct {
-	NewEmail string `json:"new_email"`
-}
+type RequestEmailChangeRequest struct{}
 
 type VerifyEmailChangeRequest struct {
 	OTP string `json:"otp"`
+}
+
+type UpdateEmailRequest struct {
+	NewEmail string `json:"new_email"`
 }

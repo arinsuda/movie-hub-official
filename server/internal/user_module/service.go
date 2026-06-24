@@ -118,6 +118,45 @@ func (s *Service) UpdateProfile(
 	return s.GetProfile(targetUserID, requesterID)
 }
 
+func (s *Service) UpdateEmail(targetUserID, requesterID uint, newEmail string) (*UserProfileResponse, error) {
+	if targetUserID != requesterID {
+		return nil, ErrForbidden
+	}
+
+	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+	if !isValidEmail(newEmail) {
+		return nil, errors.New("invalid email format")
+	}
+
+	user, _, _, _, err := s.repo.FindByID(targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.EqualFold(user.Email, newEmail) {
+		return nil, errors.New("new email must be different from current email")
+	}
+	taken, err := s.repo.IsEmailTaken(newEmail, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if taken {
+		return nil, ErrEmailAlreadyInUse
+	}
+
+	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
+		"email":             newEmail,
+		"verified_email_at": nil,
+	}); err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = s.emailVerifier.SendVerification(targetUserID, newEmail)
+	}()
+
+	return s.GetProfile(targetUserID, requesterID)
+}
+
 func (s *Service) DeleteUser(targetUserID, requesterID uint, requesterRole string) error {
 	if targetUserID != requesterID && requesterRole != "admin" {
 		return ErrForbidden
@@ -146,31 +185,14 @@ func (s *Service) UpdateFavoriteGenres(targetUserID, requesterID uint, genres []
 	return s.GetProfile(targetUserID, requesterID)
 }
 
-func (s *Service) RequestEmailChange(targetUserID, requesterID uint, newEmail string) error {
+func (s *Service) RequestEmailChange(targetUserID, requesterID uint) error {
 	if targetUserID != requesterID {
 		return ErrForbidden
-	}
-
-	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
-	if !isValidEmail(newEmail) {
-		return errors.New("invalid email format")
 	}
 
 	user, _, _, _, err := s.repo.FindByID(targetUserID)
 	if err != nil {
 		return err
-	}
-
-	if strings.EqualFold(user.Email, newEmail) {
-		return errors.New("new email must be different from current email")
-	}
-
-	taken, err := s.repo.IsEmailTaken(newEmail, targetUserID)
-	if err != nil {
-		return err
-	}
-	if taken {
-		return ErrEmailAlreadyInUse
 	}
 
 	otp, err := generateOTP()
@@ -185,7 +207,6 @@ func (s *Service) RequestEmailChange(targetUserID, requesterID uint, newEmail st
 
 	changeReq := &EmailChangeRequest{
 		UserID:    targetUserID,
-		NewEmail:  newEmail,
 		OTPHash:   string(otpHash),
 		ExpiresAt: time.Now().Add(15 * time.Minute),
 	}
@@ -232,33 +253,7 @@ func (s *Service) VerifyEmailChange(
 		return nil, ErrOTPInvalid
 	}
 
-	taken, err := s.repo.IsEmailTaken(req.NewEmail, targetUserID)
-	if err != nil {
-		return nil, err
-	}
-	if taken {
-		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
-		return nil, ErrEmailAlreadyInUse
-	}
-
-	// อัปเดต email และ reset verified_email_at = NULL
-	// เพราะยังไม่ได้พิสูจน์ว่า email ใหม่เป็นของตัวเองจริง
-	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
-		"email":             req.NewEmail,
-		"verified_email_at": nil, // ← เปลี่ยนจาก time.Now()
-	}); err != nil {
-		return nil, err
-	}
-
 	_ = s.repo.DeleteEmailChangeRequest(targetUserID)
-
-	// ส่ง verification link ไปที่ email ใหม่
-	// ใช้ EmailVerificationSender port เพื่อไม่ให้ depend auth_module
-	if err := s.emailVerifier.SendVerification(targetUserID, req.NewEmail); err != nil {
-		// log แต่ไม่ return error — email เปลี่ยนแล้ว แต่ส่ง link ไม่ได้
-		// user ยังขอ resend ได้จาก POST /auth/resend-verification
-		log.Printf("WARN: failed to send verification to new email %s: %v", req.NewEmail, err)
-	}
 
 	return s.GetProfile(targetUserID, requesterID)
 }
@@ -300,21 +295,22 @@ func (s *Service) currentAvatarKey(userID uint) string {
 
 func toProfileResponse(u *User, reviewCount, followerCount, followingCount, level int) *UserProfileResponse {
 	return &UserProfileResponse{
-		ID:             u.ID,
-		Username:       u.Username,
-		Email:          u.Email,
-		DisplayName:    u.DisplayName,
-		Bio:            u.Bio,
-		AvatarURL:      u.AvatarURL,
-		Gender:         u.Gender,
-		FavoriteGenres: u.FavoriteGenres,
-		DateOfBirth:    u.DateOfBirth,
-		ReviewCount:    reviewCount,
-		FollowerCount:  followerCount,
-		FollowingCount: followingCount,
-		IsPrivate:      u.IsPrivate,
-		Level:          level,
-		Role:           string(u.Role.RoleName),
-		CreatedAt:      u.CreatedAt,
+		ID:              u.ID,
+		Username:        u.Username,
+		Email:           u.Email,
+		VerifiedEmailAt: u.VerifiedEmailAt,
+		DisplayName:     u.DisplayName,
+		Bio:             u.Bio,
+		AvatarURL:       u.AvatarURL,
+		Gender:          u.Gender,
+		FavoriteGenres:  u.FavoriteGenres,
+		DateOfBirth:     u.DateOfBirth,
+		ReviewCount:     reviewCount,
+		FollowerCount:   followerCount,
+		FollowingCount:  followingCount,
+		IsPrivate:       u.IsPrivate,
+		Level:           level,
+		Role:            string(u.Role.RoleName),
+		CreatedAt:       u.CreatedAt,
 	}
 }

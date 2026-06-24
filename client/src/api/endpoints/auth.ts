@@ -13,11 +13,9 @@ export const authApi = {
   register: (data: RegisterRequest) =>
     api.post<AuthResponse>("/auth/register", data),
 
-  logout: () => api.post("/auth/logout"),
-
   refreshToken: () => api.post<AuthResponse>("/auth/refresh"),
 
-  me: (userId: number) => api.get<{ user: UserProfile }>(`/users/${userId}`),
+  logout: () => api.post("/auth/logout"),
 
   verifyEmail: (token: string) => api.get(`/auth/verify-email?token=${token}`),
 
@@ -25,4 +23,6 @@ export const authApi = {
     api.post("/auth/resend-verification", {
       email,
     }),
+
+  logoutAll: () => api.post("auth/logout-all"),
 }

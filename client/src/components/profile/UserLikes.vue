@@ -44,7 +44,7 @@
             <X :size="11" />
           </button>
 
-          <RemoveConfirmModal
+          <ConfirmModal
             v-model="showModal"
             :list-type="listType"
             :item-name="selectedItem?.title"
@@ -81,7 +81,7 @@
   import { Heart, Film, X, Clock } from "lucide-vue-next"
   import { mediaApi } from "@/api/endpoints/media"
   import type { LikeItem, ListType } from "@/types"
-  import RemoveConfirmModal from "@/components/profile/components/RemoveConfirmModal.vue"
+  import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 

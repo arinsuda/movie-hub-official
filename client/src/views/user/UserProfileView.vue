@@ -146,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-  import { authApi } from "@/api/api"
+  import { authApi, userApi } from "@/api/api"
   import { useAuthStore } from "@/stores/auth"
   import type { UserProfile } from "@/types/user"
   import { computed, onMounted, ref } from "vue"
@@ -238,7 +238,7 @@ import type { ListType } from "@/types"
     if (!auth.user) return
     try {
       loading.value = true
-      const res = await authApi.me(userId)
+      const res = await userApi.me(userId)
       user.value = res.data.user
     } catch (err) {
       console.error("fetchUserProfile failed:", err)

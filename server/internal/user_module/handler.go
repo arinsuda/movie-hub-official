@@ -76,6 +76,28 @@ func (h *Handler) UpdateProfile(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"user": profile})
 }
 
+func (h *Handler) UpdateEmail(c fiber.Ctx) error {
+	targetID, err := parseUserID(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
+	}
+	claims := mw.GetClaims(c)
+
+	var req UpdateEmailRequest
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	if req.NewEmail == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_email is required"})
+	}
+
+	profile, err := h.svc.UpdateEmail(targetID, claims.UserID, req.NewEmail)
+	if err != nil {
+		return handleEmailChangeError(c, err)
+	}
+	return c.JSON(fiber.Map{"user": profile})
+}
+
 func (h *Handler) DeleteUser(c fiber.Ctx) error {
 	targetID, err := parseUserID(c)
 	if err != nil {
@@ -122,16 +144,7 @@ func (h *Handler) RequestEmailChange(c fiber.Ctx) error {
 
 	claims := mw.GetClaims(c)
 
-	var req RequestEmailChangeRequest
-	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
-	}
-
-	if req.NewEmail == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_email is required"})
-	}
-
-	if err := h.svc.RequestEmailChange(targetID, claims.UserID, req.NewEmail); err != nil {
+	if err := h.svc.RequestEmailChange(targetID, claims.UserID); err != nil {
 		return handleEmailChangeError(c, err)
 	}
 
@@ -202,18 +215,22 @@ func parseUpdateProfileForm(c fiber.Ctx) (UpdateProfileRequest, error) {
 		"is_private":      true,
 	}
 
+	form, err := c.MultipartForm()
+	if err != nil {
+		return UpdateProfileRequest{}, errors.New("invalid multipart form")
+	}
+
 	var unknownFields []string
-	c.Request().PostArgs().VisitAll(func(key, _ []byte) {
-		if !allowed[string(key)] {
-			unknownFields = append(unknownFields, string(key))
+	for key := range form.Value {
+		if !allowed[key] {
+			unknownFields = append(unknownFields, key)
 		}
-	})
+	}
 	if len(unknownFields) > 0 {
 		return UpdateProfileRequest{}, fmt.Errorf("unknown fields: %s", strings.Join(unknownFields, ", "))
 	}
-	
-	var req UpdateProfileRequest
 
+	var req UpdateProfileRequest
 	if v := c.FormValue("display_name"); v != "" {
 		req.DisplayName = &v
 	}

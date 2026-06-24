@@ -46,9 +46,8 @@
 
 <script setup lang="ts">
   import { computed } from "vue"
-  import { Heart, Bookmark, Eye } from "lucide-vue-next"
-import type { ListType } from "@/types";
-
+  import { Heart, Bookmark, Eye, Mail } from "lucide-vue-next"
+  import type { ListType } from "@/types"
 
   const props = defineProps<{
     modelValue: boolean
@@ -104,6 +103,16 @@ import type { ListType } from "@/types";
       descriptionSuffix: " as unwatched. Your watch history will be updated.",
       confirmLabel: "Mark Unwatched",
       confirmClass: "confirm-muted",
+    },
+    email_change: {
+      icon: Mail,
+      iconClass: "icon-mail",
+      ariaLabel: "Change email confirmation",
+      title: "Change Email?",
+      description: "We'll send a verification code to",
+      descriptionSuffix: ". Enter it to confirm your identity.",
+      confirmLabel: "Send OTP",
+      confirmClass: "confirm-blue",
     },
   }
 
@@ -275,5 +284,19 @@ import type { ListType } from "@/types";
   .modal-leave-to .modal-card {
     transform: scale(0.95) translateY(4px);
     opacity: 0;
+  }
+  .icon-mail {
+    background: rgba(10, 132, 255, 0.1);
+    color: #0a84ff;
+    border: 1px solid rgba(10, 132, 255, 0.2);
+  }
+  .confirm-blue {
+    background: #0a84ff;
+    color: #fff;
+  }
+  .confirm-blue:hover {
+    background: #0071e3;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(10, 132, 255, 0.35);
   }
 </style>

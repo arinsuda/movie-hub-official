@@ -79,7 +79,7 @@ type EmailChangeRequest struct {
 	ID           uint      `gorm:"primarykey;autoIncrement"`
 	UserID       uint      `gorm:"not null;uniqueIndex"`
 	User         User      `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	NewEmail     string    `gorm:"type:varchar(100);not null"`
+	NewEmail     string    `gorm:"type:varchar(100)"`
 	OTPHash      string    `gorm:"type:varchar(255);not null"`
 	ExpiresAt    time.Time `gorm:"not null"`
 	AttemptCount int       `gorm:"default:0"`

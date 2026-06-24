@@ -1,5 +1,5 @@
 export type MediaType = "movie" | "tv"
-export type ListType = "watchlist" | "likes" | "watched"
+export type ListType = "watchlist" | "likes" | "watched" | "email_change"
 
 export interface PaginatedResult<T> {
   page: number

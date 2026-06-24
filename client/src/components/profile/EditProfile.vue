@@ -68,6 +68,116 @@
         </div>
       </div>
 
+      <!-- Email -->
+      <div class="field-group">
+        <label class="field-label" for="ep-email">Email</label>
+        <div class="email-row">
+          <input
+            id="ep-email"
+            v-model="form.email"
+            type="email"
+            class="field-input email-input"
+            :class="{ 'field-input--unlocked': emailUnlocked }"
+            :disabled="!emailUnlocked"
+            placeholder="your@email.com"
+          />
+          <!-- ยังไม่ verified → ปุ่ม Verify Email -->
+          <button
+            v-if="!isEmailVerified"
+            type="button"
+            class="email-action-btn email-action-btn--verify"
+            @click="handleResendVerification"
+            :disabled="otpStep !== 'idle'"
+          >
+            <Mail :size="12" />
+            Verify Email
+          </button>
+          <!-- verified แล้ว และยังไม่ได้ unlock → ปุ่ม Change Email -->
+          <button
+            v-else-if="!emailUnlocked"
+            type="button"
+            class="email-action-btn"
+            @click="handleRequestOTP"
+            :disabled="otpStep === 'requesting'"
+          >
+            <span v-if="otpStep === 'requesting'" class="btn-spinner" />
+            <Pencil v-else :size="12" />
+            {{ otpStep === "requesting" ? "Sending…" : "Change Email" }}
+          </button>
+          <!-- unlock แล้ว → ปุ่ม Cancel -->
+
+          <template v-else>
+            <button
+              type="button"
+              class="email-action-btn email-action-btn--confirm"
+              :disabled="
+                !form.email || form.email === initialForm.email || emailSaving
+              "
+              @click="handleUpdateEmail"
+            >
+              <span v-if="emailSaving" class="btn-spinner" />
+              <template v-else><Mail :size="12" /> Save Email</template>
+            </button>
+
+            <button
+              type="button"
+              class="email-action-btn email-action-btn--cancel"
+              @click="cancelEmailChange"
+            >
+              <X :size="12" /> Cancel
+            </button>
+          </template>
+
+          <ConfirmModal
+            v-model="showEmailConfirmModal"
+            list-type="email_change"
+            :item-name="props.user?.email ?? ''"
+            @confirm="confirmRequestOTP"
+            @cancel="showEmailConfirmModal = false"
+          />
+        </div>
+
+        <!-- OTP Step -->
+        <transition name="otp-slide">
+          <div
+            v-if="otpStep === 'verify' || otpStep === 'confirming'"
+            class="otp-box"
+          >
+            <p class="otp-hint">
+              Enter the 6-digit code sent to
+              <strong>{{ props.user?.email }}</strong>
+            </p>
+            <div class="otp-row">
+              <input
+                v-model="otpValue"
+                type="text"
+                inputmode="numeric"
+                maxlength="6"
+                class="field-input otp-input"
+                placeholder="000000"
+                @input="otpValue = otpValue.replace(/\D/g, '')"
+              />
+              <button
+                type="button"
+                class="email-action-btn email-action-btn--confirm"
+                :disabled="otpValue.length !== 6 || otpStep === 'confirming'"
+                @click="handleVerifyOTP"
+              >
+                <span v-if="otpStep === 'confirming'" class="btn-spinner" />
+                <span v-else>Confirm</span>
+              </button>
+            </div>
+            <p v-if="otpError" class="otp-error">{{ otpError }}</p>
+          </div>
+        </transition>
+
+        <!-- hint หลัง unlock -->
+        <p v-if="emailUnlocked" class="email-hint">
+          <Info :size="11" /> Type your new email then save changes. A
+          verification link will be sent to the new address.
+        </p>
+      </div>
+
       <!-- Bio -->
       <div class="field-group">
         <label class="field-label" for="ep-bio">Bio</label>
@@ -158,17 +268,27 @@
 
 <script setup lang="ts">
   import { reactive, ref, computed } from "vue"
-  import { X, Upload, User as UserIcon } from "lucide-vue-next"
+  import {
+    X,
+    Upload,
+    User as UserIcon,
+    Pencil,
+    Mail,
+    Info,
+  } from "lucide-vue-next"
   import type { UserProfile } from "@/types/user"
-  import { userApi } from "@/api/api"
+  import { authApi, userApi } from "@/api/api"
   import { useAuthStore } from "@/stores/auth"
-
-  const authStore = useAuthStore()
+  import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
   const props = defineProps<{ user: UserProfile | null }>()
   const emit = defineEmits<{ close: [] }>()
 
+  const authStore = useAuthStore()
+
   const saving = ref(false)
   const avatarFile = ref<File | null>(null)
+  const emailSaving = ref(false)
+  const showEmailConfirmModal = ref(false)
 
   const genderOptions = [
     { value: "male", label: "Male" },
@@ -186,8 +306,17 @@
       : "",
     gender: props.user?.gender ?? "",
     is_private: props.user?.is_private ?? false,
+    email: props.user?.email ?? "",
   }
   const form = reactive({ ...initialForm })
+
+  type OTPStep = "idle" | "requesting" | "verify" | "confirming"
+  const otpStep = ref<OTPStep>("idle")
+  const otpValue = ref("")
+  const otpError = ref("")
+  const emailUnlocked = ref(false)
+
+  const isEmailVerified = computed(() => !!props.user?.verified_email_at)
 
   const isDirty = computed(
     () =>
@@ -211,16 +340,94 @@
     reader.readAsDataURL(file)
   }
 
+  async function handleRequestOTP() {
+    if (!props.user?.id) return
+    showEmailConfirmModal.value = true
+  }
+
+  async function confirmRequestOTP() {
+    showEmailConfirmModal.value = false
+    if (!props.user?.id) return
+    otpStep.value = "requesting"
+    otpError.value = ""
+    try {
+      await userApi.requestEmailChange(props.user.id)
+      otpStep.value = "verify"
+    } catch (err: any) {
+      otpError.value =
+        err?.response?.data?.error ?? "Failed to send OTP. Please try again."
+      otpStep.value = "idle"
+    }
+  }
+
+  async function handleVerifyOTP() {
+    if (!props.user?.id || otpValue.value.length !== 6) return
+    otpStep.value = "confirming"
+    otpError.value = ""
+    try {
+      await userApi.verifyEmailChange(props.user.id, otpValue.value)
+
+      emailUnlocked.value = true
+      otpStep.value = "idle"
+      otpValue.value = ""
+      form.email = ""
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? "Invalid OTP."
+      otpError.value = msg
+      otpStep.value = "verify"
+    }
+  }
+
+  async function handleUpdateEmail() {
+    if (!props.user?.id || !form.email) return
+    emailSaving.value = true
+    otpError.value = ""
+    try {
+      await userApi.updateEmail(props.user.id, form.email)
+      await authStore.fetchMe()
+      emit("close")
+    } catch (err: any) {
+      otpError.value = err?.response?.data?.error ?? "Failed to update email."
+    } finally {
+      emailSaving.value = false
+    }
+  }
+
+  function cancelEmailChange() {
+    emailUnlocked.value = false
+    otpStep.value = "idle"
+    otpValue.value = ""
+    otpError.value = ""
+    form.email = initialForm.email
+  }
+
+  async function handleResendVerification() {
+    if (!props.user?.email) return
+    try {
+      await authApi.resendVerification(props.user.email)
+      alert(
+        `Verification email sent to ${props.user.email}. Please check your inbox.`,
+      )
+    } catch {
+      alert("Failed to resend verification email.")
+    }
+  }
+
   async function handleSave() {
     saving.value = true
     try {
       const payload = new FormData()
-      payload.append("display_name", form.display_name)
-      payload.append("bio", form.bio)
-      payload.append("date_of_birth", form.date_of_birth)
-      payload.append("gender", form.gender)
-      payload.append("is_private", String(form.is_private))
+      if (form.display_name !== initialForm.display_name)
+        payload.append("display_name", form.display_name)
+      if (form.bio !== initialForm.bio) payload.append("bio", form.bio)
+      if (form.date_of_birth !== initialForm.date_of_birth)
+        payload.append("date_of_birth", form.date_of_birth)
+      if (form.gender !== initialForm.gender)
+        payload.append("gender", form.gender)
+      if (form.is_private !== initialForm.is_private)
+        payload.append("is_private", String(form.is_private))
       if (avatarFile.value) payload.append("avatar", avatarFile.value)
+
       await userApi.updateProfile(props.user!.id, payload)
       await authStore.fetchMe()
       emit("close")
@@ -239,6 +446,8 @@
     --c-border: rgba(255, 255, 255, 0.07);
     --c-border-h: rgba(255, 255, 255, 0.14);
     --c-red: #e1251b;
+    --c-green: #30d158;
+    --c-yellow: #ffd60a;
     --c-text: #f0f0f0;
     --c-sub: #8a8a8e;
     --c-muted: #3a3a3c;
@@ -352,13 +561,13 @@
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
   }
-
   .field-divider {
     height: 1px;
     background: var(--c-border);
     margin-bottom: 20px;
   }
 
+  /* Form */
   .edit-form {
     display: flex;
     flex-direction: column;
@@ -376,7 +585,6 @@
     text-transform: uppercase;
     color: var(--c-muted);
   }
-
   .field-input,
   .field-textarea {
     background: var(--c-card);
@@ -395,11 +603,18 @@
   .field-textarea:focus {
     border-color: rgba(255, 255, 255, 0.2);
   }
+  .field-input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .field-input--unlocked {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: #1a1a1a;
+  }
   .field-textarea {
     resize: none;
     line-height: 1.55;
   }
-
   .input-prefix-wrap {
     position: relative;
   }
@@ -418,12 +633,137 @@
   .field-input--date {
     color-scheme: dark;
   }
-
   .char-count {
     font-size: 0.65rem;
     color: var(--c-muted);
     text-align: right;
     margin-top: -4px;
+  }
+
+  /* Email row */
+  .email-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .email-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .email-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font);
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--c-border);
+    background: var(--c-card);
+    color: var(--c-text);
+    cursor: pointer;
+    transition: all 0.18s;
+    flex-shrink: 0;
+  }
+  .email-action-btn:hover:not(:disabled) {
+    border-color: var(--c-border-h);
+  }
+  .email-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .email-action-btn--verify {
+    border-color: rgba(255, 214, 10, 0.3);
+    color: var(--c-yellow);
+  }
+  .email-action-btn--verify:hover:not(:disabled) {
+    background: rgba(255, 214, 10, 0.08);
+    border-color: rgba(255, 214, 10, 0.5);
+  }
+
+  .email-action-btn--cancel {
+    color: var(--c-sub);
+  }
+  .email-action-btn--confirm {
+    background: var(--c-red);
+    border-color: var(--c-red);
+    color: #fff;
+    padding: 0 16px;
+  }
+  .email-action-btn--confirm:hover:not(:disabled) {
+    background: #ff3b30;
+  }
+
+  /* OTP box */
+  .otp-box {
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .otp-hint {
+    font-size: 0.78rem;
+    color: var(--c-sub);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .otp-hint strong {
+    color: var(--c-text);
+    font-weight: 500;
+  }
+  .otp-row {
+    display: flex;
+    gap: 8px;
+  }
+  .otp-input {
+    flex: 1;
+    letter-spacing: 0.25em;
+    font-size: 1rem;
+    text-align: center;
+  }
+  .otp-error {
+    font-size: 0.72rem;
+    color: #ff453a;
+    margin: 0;
+  }
+
+  /* Email hint */
+  .email-hint {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: var(--c-sub);
+    margin: 0;
+  }
+
+  /* OTP slide animation */
+  .otp-slide-enter-active,
+  .otp-slide-leave-active {
+    transition: all 0.22s var(--ease);
+  }
+  .otp-slide-enter-from,
+  .otp-slide-leave-to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  /* Spinner */
+  .btn-spinner {
+    width: 11px;
+    height: 11px;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
   }
 
   /* Gender */
@@ -559,6 +899,7 @@
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
+
   @keyframes spin {
     to {
       transform: rotate(360deg);

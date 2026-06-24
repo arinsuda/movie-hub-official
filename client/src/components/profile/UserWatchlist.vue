@@ -44,7 +44,7 @@
             <X :size="11" />
           </button>
 
-          <RemoveConfirmModal
+          <ConfirmModal
             v-model="showModal"
             :list-type="listType"
             :item-name="selectedItem?.title"
@@ -73,7 +73,7 @@
   import { Bookmark, Film, X, Clock } from "lucide-vue-next"
   import { libraryApi } from "@/api/api"
   import type { ListType } from "@/types"
-  import RemoveConfirmModal from "@/components/profile/components/RemoveConfirmModal.vue"
+  import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
   const props = defineProps<{
     userId: number

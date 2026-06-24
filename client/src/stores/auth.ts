@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 
-import { authApi } from "@/api/api"
+import { authApi, userApi } from "@/api/api"
 
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types"
 
@@ -69,7 +69,7 @@ export const useAuthStore = defineStore("auth", () => {
       const refreshRes = await authApi.refreshToken()
       const userId = refreshRes.data.user.id
 
-      const meRes = await authApi.me(userId)
+      const meRes = await userApi.me(userId)
       const profile = meRes.data.user
 
       setUser({

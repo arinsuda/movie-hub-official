@@ -97,7 +97,6 @@ func (r *repository) UpsertEmailChangeRequest(req *EmailChangeRequest) error {
 	return r.db.
 		Where(EmailChangeRequest{UserID: req.UserID}).
 		Assign(EmailChangeRequest{
-			NewEmail:     req.NewEmail,
 			OTPHash:      req.OTPHash,
 			ExpiresAt:    req.ExpiresAt,
 			AttemptCount: 0,

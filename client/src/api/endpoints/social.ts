@@ -137,20 +137,3 @@ export const followApi = {
       params: { page, limit },
     }),
 }
-
-// ── User ───────────────────────────────────────────────────────────
-export const userApi = {
-  getProfile: (userId: number) => api.get(`/users/${userId}`),
-
-  updateProfile: (userId: number, data: FormData | object) =>
-    api.patch(`/users/${userId}`, data, {
-      headers:
-        data instanceof FormData
-          ? { "Content-Type": "multipart/form-data" }
-          : { "Content-Type": "application/json" },
-    }),
-  deleteUser: (userId: number) => api.delete(`/users/${userId}`),
-
-  updateFavoriteGenres: (userId: number, genres: number[]) =>
-    api.patch(`/users/${userId}/genres`, { favorite_genres: genres }),
-}
