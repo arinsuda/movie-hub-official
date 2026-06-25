@@ -3,6 +3,7 @@ package like_module
 import (
 	"errors"
 
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
@@ -13,19 +14,32 @@ import (
 var ErrForbidden = errors.New("forbidden")
 
 type Service struct {
-	repo *repository
-	db   *gorm.DB
+	repo       *repository
+	db         *gorm.DB
+	achieveSvc achievementsmodule.Service
 }
 
-func NewService(db *gorm.DB) *Service {
+func NewService(db *gorm.DB, achieve achievementsmodule.Service) *Service {
 	return &Service{
-		repo: newRepository(db),
-		db:   db,
+		repo:       newRepository(db),
+		db:         db,
+		achieveSvc: achieve,
 	}
 }
 
 func (s *Service) Like(userID uint, mediaID int, mediaType movie_module.MediaType) error {
-	return s.repo.Create(userID, mediaID, mediaType)
+	if err := s.repo.Create(userID, mediaID, mediaType); err != nil {
+		return err
+	}
+
+	// ── Achievement: like_count ───────────────────────────────────
+	var count int64
+	s.db.Model(&MediaLike{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(&count)
+	_, _ = s.achieveSvc.Track(userID, "like_count", int(count))
+
+	return nil
 }
 
 func (s *Service) Unlike(userID uint, mediaID int, mediaType movie_module.MediaType) error {

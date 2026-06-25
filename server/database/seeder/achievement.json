@@ -1,0 +1,745 @@
+[
+  {
+    "name": "First Steps",
+    "description": "กดดูหนังหรือซีรีส์เรื่องแรกในชีวิต MovieHub",
+    "exp_reward": 10,
+    "action_type": "watched_count",
+    "target_count": 1
+  },
+  {
+    "name": "Movie Night",
+    "description": "ดูหนังหรือซีรีส์ครบ 10 เรื่อง",
+    "exp_reward": 25,
+    "action_type": "watched_count",
+    "target_count": 10
+  },
+  {
+    "name": "Weekend Binger",
+    "description": "ดูหนังหรือซีรีส์ครบ 25 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "watched_count",
+    "target_count": 25
+  },
+  {
+    "name": "Dedicated Viewer",
+    "description": "ดูหนังหรือซีรีส์ครบ 50 เรื่อง",
+    "exp_reward": 75,
+    "action_type": "watched_count",
+    "target_count": 50
+  },
+  {
+    "name": "Century Club",
+    "description": "ดูหนังหรือซีรีส์ครบ 100 เรื่อง ยินดีต้อนรับสู่คลับ",
+    "exp_reward": 150,
+    "action_type": "watched_count",
+    "target_count": 100
+  },
+  {
+    "name": "Film Enthusiast",
+    "description": "ดูหนังหรือซีรีส์ครบ 250 เรื่อง",
+    "exp_reward": 250,
+    "action_type": "watched_count",
+    "target_count": 250
+  },
+  {
+    "name": "Cinephile",
+    "description": "ดูหนังหรือซีรีส์ครบ 500 เรื่อง",
+    "exp_reward": 400,
+    "action_type": "watched_count",
+    "target_count": 500
+  },
+  {
+    "name": "Eternal Screenager",
+    "description": "ดูหนังหรือซีรีส์ครบ 1,000 เรื่อง",
+    "exp_reward": 750,
+    "action_type": "watched_count",
+    "target_count": 1000
+  },
+  {
+    "name": "The Oracle",
+    "description": "ดูหนังหรือซีรีส์ครบ 2,500 เรื่อง ไม่มีอะไรที่คุณยังไม่เคยดู",
+    "exp_reward": 1500,
+    "action_type": "watched_count",
+    "target_count": 2500
+  },
+
+  {
+    "name": "First Opinion",
+    "description": "เขียนรีวิวครั้งแรก",
+    "exp_reward": 15,
+    "action_type": "review_count",
+    "target_count": 1
+  },
+  {
+    "name": "Budding Critic",
+    "description": "เขียนรีวิวครบ 10 ครั้ง",
+    "exp_reward": 30,
+    "action_type": "review_count",
+    "target_count": 10
+  },
+  {
+    "name": "Voice of the Audience",
+    "description": "เขียนรีวิวครบ 25 ครั้ง",
+    "exp_reward": 60,
+    "action_type": "review_count",
+    "target_count": 25
+  },
+  {
+    "name": "Film Journalist",
+    "description": "เขียนรีวิวครบ 50 ครั้ง",
+    "exp_reward": 100,
+    "action_type": "review_count",
+    "target_count": 50
+  },
+  {
+    "name": "The Critic",
+    "description": "เขียนรีวิวครบ 100 ครั้ง",
+    "exp_reward": 175,
+    "action_type": "review_count",
+    "target_count": 100
+  },
+  {
+    "name": "Prolific Reviewer",
+    "description": "เขียนรีวิวครบ 200 ครั้ง",
+    "exp_reward": 300,
+    "action_type": "review_count",
+    "target_count": 200
+  },
+  {
+    "name": "Half a Thousand Opinions",
+    "description": "เขียนรีวิวครบ 500 ครั้ง",
+    "exp_reward": 600,
+    "action_type": "review_count",
+    "target_count": 500
+  },
+  {
+    "name": "Thousand Word Warrior",
+    "description": "เขียนรีวิวครบ 1,000 ครั้ง",
+    "exp_reward": 1000,
+    "action_type": "review_count",
+    "target_count": 1000
+  },
+
+  {
+    "name": "Harshest Judge",
+    "description": "ให้ 1 ดาวกับหนัง 10 เรื่อง บางทีความผิดหวังก็เป็นเรื่องจริง",
+    "exp_reward": 20,
+    "action_type": "rating_one_star_count",
+    "target_count": 10
+  },
+  {
+    "name": "Eternal Optimist",
+    "description": "ให้ 5 ดาวกับหนัง 50 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "rating_five_star_count",
+    "target_count": 50
+  },
+  {
+    "name": "Hard to Please",
+    "description": "ให้คะแนนต่ำกว่า 3 ดาวมากกว่า 100 ครั้ง",
+    "exp_reward": 60,
+    "action_type": "low_rating_count",
+    "target_count": 100
+  },
+
+  {
+    "name": "First Fan",
+    "description": "มีคนติดตามคุณ 1 คนแรก",
+    "exp_reward": 20,
+    "action_type": "follower_count",
+    "target_count": 1
+  },
+  {
+    "name": "Rising Star",
+    "description": "มีคนติดตามครบ 10 คน",
+    "exp_reward": 40,
+    "action_type": "follower_count",
+    "target_count": 10
+  },
+  {
+    "name": "Trending Taste",
+    "description": "มีคนติดตามครบ 50 คน",
+    "exp_reward": 80,
+    "action_type": "follower_count",
+    "target_count": 50
+  },
+  {
+    "name": "Influential Critic",
+    "description": "มีคนติดตามครบ 100 คน",
+    "exp_reward": 150,
+    "action_type": "follower_count",
+    "target_count": 100
+  },
+  {
+    "name": "Community Pillar",
+    "description": "มีคนติดตามครบ 300 คน",
+    "exp_reward": 300,
+    "action_type": "follower_count",
+    "target_count": 300
+  },
+  {
+    "name": "MovieHub Legend",
+    "description": "มีคนติดตามครบ 500 คน คุณคือ influencer ของ MovieHub",
+    "exp_reward": 600,
+    "action_type": "follower_count",
+    "target_count": 500
+  },
+  {
+    "name": "The Icon",
+    "description": "มีคนติดตามครบ 1,000 คน",
+    "exp_reward": 1000,
+    "action_type": "follower_count",
+    "target_count": 1000
+  },
+
+  {
+    "name": "Making Friends",
+    "description": "กด follow คนอื่นครบ 5 คน",
+    "exp_reward": 15,
+    "action_type": "following_count",
+    "target_count": 5
+  },
+  {
+    "name": "Social Butterfly",
+    "description": "กด follow คนอื่นครบ 20 คน",
+    "exp_reward": 30,
+    "action_type": "following_count",
+    "target_count": 20
+  },
+  {
+    "name": "Network Builder",
+    "description": "กด follow คนอื่นครบ 50 คน",
+    "exp_reward": 60,
+    "action_type": "following_count",
+    "target_count": 50
+  },
+
+  {
+    "name": "Marvel Maniac",
+    "description": "ดูหนัง Marvel Studios ครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "studio_watch_marvel",
+    "target_count": 10
+  },
+  {
+    "name": "MCU Scholar",
+    "description": "ดูหนัง Marvel Studios ครบ 30 เรื่อง ดูครบ MCU แล้วใช่ไหม?",
+    "exp_reward": 150,
+    "action_type": "studio_watch_marvel",
+    "target_count": 30
+  },
+  {
+    "name": "DC Devotee",
+    "description": "ดูหนัง DC Studios ครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "studio_watch_dc",
+    "target_count": 10
+  },
+  {
+    "name": "A24 Aficionado",
+    "description": "ดูหนัง A24 ครบ 10 เรื่อง",
+    "exp_reward": 75,
+    "action_type": "studio_watch_a24",
+    "target_count": 10
+  },
+  {
+    "name": "Pixar Loyalist",
+    "description": "ดูหนัง Pixar Animation Studios ครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "studio_watch_pixar",
+    "target_count": 10
+  },
+  {
+    "name": "Pixar Completionist",
+    "description": "ดูหนัง Pixar ครบ 25 เรื่อง ร้องไห้ทุกเรื่องเลยใช่ไหม?",
+    "exp_reward": 150,
+    "action_type": "studio_watch_pixar",
+    "target_count": 25
+  },
+  {
+    "name": "Ghibli Guardian",
+    "description": "ดูหนัง Studio Ghibli ครบ 10 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "studio_watch_ghibli",
+    "target_count": 10
+  },
+  {
+    "name": "Ghibli World Citizen",
+    "description": "ดูหนัง Studio Ghibli ครบ 20 เรื่อง ดูครบทุกเรื่องแล้ว!",
+    "exp_reward": 200,
+    "action_type": "studio_watch_ghibli",
+    "target_count": 20
+  },
+  {
+    "name": "Universal Fan",
+    "description": "ดูหนัง Universal Pictures ครบ 15 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "studio_watch_universal",
+    "target_count": 15
+  },
+  {
+    "name": "Neon Noir",
+    "description": "ดูหนัง NEON ครบ 5 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "studio_watch_neon",
+    "target_count": 5
+  },
+
+  {
+    "name": "Horror Survivor",
+    "description": "ดูหนังสยองขวัญครบ 10 เรื่อง ขอแสดงความกล้าหาญ",
+    "exp_reward": 50,
+    "action_type": "genre_watch_horror",
+    "target_count": 10
+  },
+  {
+    "name": "Master of Horror",
+    "description": "ดูหนังสยองขวัญครบ 50 เรื่อง",
+    "exp_reward": 150,
+    "action_type": "genre_watch_horror",
+    "target_count": 50
+  },
+  {
+    "name": "Comedy Connoisseur",
+    "description": "ดูหนังคอมเมดี้ครบ 20 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "genre_watch_comedy",
+    "target_count": 20
+  },
+  {
+    "name": "Action Hero",
+    "description": "ดูหนัง Action ครบ 20 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "genre_watch_action",
+    "target_count": 20
+  },
+  {
+    "name": "Drama Queen/King",
+    "description": "ดูหนัง Drama ครบ 20 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "genre_watch_drama",
+    "target_count": 20
+  },
+  {
+    "name": "Sci-Fi Visionary",
+    "description": "ดูหนัง Sci-Fi ครบ 20 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "genre_watch_scifi",
+    "target_count": 20
+  },
+  {
+    "name": "Fantasy Wanderer",
+    "description": "ดูหนัง Fantasy ครบ 20 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "genre_watch_fantasy",
+    "target_count": 20
+  },
+  {
+    "name": "Documentary Dipper",
+    "description": "ดูสารคดีครบ 10 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "genre_watch_documentary",
+    "target_count": 10
+  },
+  {
+    "name": "Documentary Deep Diver",
+    "description": "ดูสารคดีครบ 30 เรื่อง ความรู้เพิ่มขึ้นอีกเยอะเลย",
+    "exp_reward": 120,
+    "action_type": "genre_watch_documentary",
+    "target_count": 30
+  },
+  {
+    "name": "Anime Otaku",
+    "description": "ดูอนิเมะครบ 20 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "genre_watch_animation",
+    "target_count": 20
+  },
+  {
+    "name": "Thriller Seeker",
+    "description": "ดูหนัง Thriller ครบ 20 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "genre_watch_thriller",
+    "target_count": 20
+  },
+  {
+    "name": "True Crime Addict",
+    "description": "ดูหนัง Crime ครบ 20 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "genre_watch_crime",
+    "target_count": 20
+  },
+  {
+    "name": "Romance Believer",
+    "description": "ดูหนัง Romance ครบ 15 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "genre_watch_romance",
+    "target_count": 15
+  },
+  {
+    "name": "Genre Omnivore",
+    "description": "ดูหนังครบทุก genre อย่างน้อย genre ละ 1 เรื่อง",
+    "exp_reward": 200,
+    "action_type": "genre_all_unlocked",
+    "target_count": 1
+  },
+
+  {
+    "name": "Francophile",
+    "description": "ดูหนังฝรั่งเศสครบ 5 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "country_watch_france",
+    "target_count": 5
+  },
+  {
+    "name": "K-Cinema Fan",
+    "description": "ดูหนังเกาหลีครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "country_watch_korea",
+    "target_count": 10
+  },
+  {
+    "name": "Hallyu Devotee",
+    "description": "ดูหนังหรือซีรีส์เกาหลีครบ 30 เรื่อง",
+    "exp_reward": 150,
+    "action_type": "country_watch_korea",
+    "target_count": 30
+  },
+  {
+    "name": "J-Cinema Lover",
+    "description": "ดูหนังญี่ปุ่นครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "country_watch_japan",
+    "target_count": 10
+  },
+  {
+    "name": "Bollywood Fan",
+    "description": "ดูหนังอินเดียครบ 5 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "country_watch_india",
+    "target_count": 5
+  },
+  {
+    "name": "Thai Cinema Patriot",
+    "description": "ดูหนังไทยครบ 10 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "country_watch_thailand",
+    "target_count": 10
+  },
+  {
+    "name": "Global Traveler",
+    "description": "ดูหนังจากอย่างน้อย 10 ประเทศ",
+    "exp_reward": 200,
+    "action_type": "unique_country_count",
+    "target_count": 10
+  },
+  {
+    "name": "World Cinema Ambassador",
+    "description": "ดูหนังจากอย่างน้อย 30 ประเทศ",
+    "exp_reward": 400,
+    "action_type": "unique_country_count",
+    "target_count": 30
+  },
+
+  {
+    "name": "Planner",
+    "description": "เพิ่มหนังใน Watchlist ครบ 10 เรื่อง",
+    "exp_reward": 20,
+    "action_type": "watchlist_count",
+    "target_count": 10
+  },
+  {
+    "name": "Master Planner",
+    "description": "เพิ่มหนังใน Watchlist ครบ 50 เรื่อง มีของรอดูเยอะแน่",
+    "exp_reward": 60,
+    "action_type": "watchlist_count",
+    "target_count": 50
+  },
+  {
+    "name": "Library Curator",
+    "description": "เพิ่มหนังใน Library รวมครบ 100 รายการ",
+    "exp_reward": 80,
+    "action_type": "library_total_count",
+    "target_count": 100
+  },
+  {
+    "name": "Archivist",
+    "description": "เพิ่มหนังใน Library รวมครบ 500 รายการ",
+    "exp_reward": 200,
+    "action_type": "library_total_count",
+    "target_count": 500
+  },
+  {
+    "name": "Likeable",
+    "description": "กด Like หนังหรือซีรีส์ครบ 10 รายการ",
+    "exp_reward": 20,
+    "action_type": "like_count",
+    "target_count": 10
+  },
+  {
+    "name": "Love Machine",
+    "description": "กด Like หนังหรือซีรีส์ครบ 100 รายการ",
+    "exp_reward": 60,
+    "action_type": "like_count",
+    "target_count": 100
+  },
+  {
+    "name": "Love Spreader",
+    "description": "กด Like รีวิวของคนอื่นครบ 50 ครั้ง",
+    "exp_reward": 40,
+    "action_type": "review_like_given_count",
+    "target_count": 50
+  },
+  {
+    "name": "Popular Review",
+    "description": "รีวิวของคุณได้รับ Like ครบ 10 ครั้ง",
+    "exp_reward": 50,
+    "action_type": "review_like_received_count",
+    "target_count": 10
+  },
+  {
+    "name": "Viral Critic",
+    "description": "รีวิวของคุณได้รับ Like ครบ 100 ครั้ง",
+    "exp_reward": 200,
+    "action_type": "review_like_received_count",
+    "target_count": 100
+  },
+  {
+    "name": "Nolan Universe",
+    "description": "ดูหนัง Christopher Nolan ครบ 5 เรื่อง",
+    "exp_reward": 75,
+    "action_type": "director_watch_nolan",
+    "target_count": 5
+  },
+  {
+    "name": "Nolan Completionist",
+    "description": "ดูหนัง Christopher Nolan ครบทุกเรื่อง (12 เรื่อง)",
+    "exp_reward": 250,
+    "action_type": "director_watch_nolan",
+    "target_count": 12
+  },
+  {
+    "name": "Tarantino Trained",
+    "description": "ดูหนัง Quentin Tarantino ครบ 5 เรื่อง",
+    "exp_reward": 75,
+    "action_type": "director_watch_tarantino",
+    "target_count": 5
+  },
+  {
+    "name": "Miyazaki Dreamer",
+    "description": "ดูหนัง Hayao Miyazaki ครบ 5 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "director_watch_miyazaki",
+    "target_count": 5
+  },
+  {
+    "name": "Marvel Hero",
+    "description": "ดูหนังที่ Robert Downey Jr. แสดงครบ 10 เรื่อง",
+    "exp_reward": 70,
+    "action_type": "actor_watch_rdj",
+    "target_count": 10
+  },
+  {
+    "name": "Meryl Streep Scholar",
+    "description": "ดูหนังที่ Meryl Streep แสดงครบ 10 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "actor_watch_meryl_streep",
+    "target_count": 10
+  },
+  {
+    "name": "Regular Visitor",
+    "description": "เข้าใช้งาน MovieHub 7 วันติดต่อกัน",
+    "exp_reward": 40,
+    "action_type": "login_streak",
+    "target_count": 7
+  },
+  {
+    "name": "Devoted Fan",
+    "description": "เข้าใช้งาน MovieHub 30 วันติดต่อกัน",
+    "exp_reward": 150,
+    "action_type": "login_streak",
+    "target_count": 30
+  },
+  {
+    "name": "Binge Reviewer",
+    "description": "เขียนรีวิว 5 เรื่องในวันเดียว",
+    "exp_reward": 50,
+    "action_type": "reviews_in_one_day",
+    "target_count": 5
+  },
+  {
+    "name": "Review Streak",
+    "description": "เขียนรีวิวติดต่อกัน 7 วัน อย่างน้อยวันละ 1 ครั้ง",
+    "exp_reward": 80,
+    "action_type": "review_daily_streak",
+    "target_count": 7
+  },
+  {
+    "name": "Watch Marathon",
+    "description": "กดดูหนังหรือซีรีส์ 5 เรื่องในวันเดียว",
+    "exp_reward": 40,
+    "action_type": "watched_in_one_day",
+    "target_count": 5
+  },
+  {
+    "name": "Profile Perfectionist",
+    "description": "กรอกข้อมูล profile ครบทุก field รวมถึง bio และ favorite genres",
+    "exp_reward": 30,
+    "action_type": "profile_complete",
+    "target_count": 1
+  },
+  {
+    "name": "Early Adopter",
+    "description": "สมัครสมาชิกในช่วงเปิดตัว MovieHub",
+    "exp_reward": 100,
+    "action_type": "early_adopter",
+    "target_count": 1
+  },
+  {
+    "name": "Level 5",
+    "description": "ถึง Level 5 แล้ว ยังแค่เริ่มต้น",
+    "exp_reward": 50,
+    "action_type": "reach_level",
+    "target_count": 5
+  },
+  {
+    "name": "Level 10",
+    "description": "ถึง Level 10",
+    "exp_reward": 100,
+    "action_type": "reach_level",
+    "target_count": 10
+  },
+  {
+    "name": "Level 25",
+    "description": "ถึง Level 25 ตัวจริงเรื่องหนัง",
+    "exp_reward": 200,
+    "action_type": "reach_level",
+    "target_count": 25
+  },
+  {
+    "name": "Level 50",
+    "description": "ถึง Level 50 ชื่อของคุณควรอยู่บน Hall of Fame",
+    "exp_reward": 500,
+    "action_type": "reach_level",
+    "target_count": 50
+  },
+  {
+    "name": "Achievement Hunter",
+    "description": "ปลดล็อค Achievement ครบ 20 อัน",
+    "exp_reward": 150,
+    "action_type": "achievement_unlocked_count",
+    "target_count": 20
+  },
+  {
+    "name": "Trophy Collector",
+    "description": "ปลดล็อค Achievement ครบ 50 อัน",
+    "exp_reward": 400,
+    "action_type": "achievement_unlocked_count",
+    "target_count": 50
+  },
+  {
+    "name": "Completionist",
+    "description": "ปลดล็อค Achievement ครบทุกอัน คุณคือ MovieHub ที่มีชีวิต",
+    "exp_reward": 2000,
+    "action_type": "achievement_unlocked_count",
+    "target_count": 100
+  },
+  {
+    "name": "Midnight Viewer",
+    "description": "กด watched ระหว่างเที่ยงคืนถึงตี 4 จำนวน 10 ครั้ง",
+    "exp_reward": 60,
+    "action_type": "midnight_activity_count",
+    "target_count": 10
+  },
+  {
+    "name": "Oscar Night",
+    "description": "ดูหนัง Best Picture ผู้ชนะรางวัล Academy Award ครบ 10 เรื่อง",
+    "exp_reward": 100,
+    "action_type": "watched_oscar_best_picture_count",
+    "target_count": 10
+  },
+  {
+    "name": "Oscars Completionist",
+    "description": "ดูหนัง Best Picture ผู้ชนะทุกปีตั้งแต่ปี 2000",
+    "exp_reward": 300,
+    "action_type": "watched_oscar_best_picture_count",
+    "target_count": 25
+  },
+  {
+    "name": "Sequel Hater",
+    "description": "ให้คะแนน Part 2 หรือ Sequel ต่ำกว่า Part 1 จำนวน 5 ครั้ง",
+    "exp_reward": 40,
+    "action_type": "sequel_rated_lower_count",
+    "target_count": 5
+  },
+  {
+    "name": "Hidden Gem Finder",
+    "description": "รีวิวหนังที่มี vote count น้อยกว่า 1,000 ครบ 10 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "obscure_movie_review_count",
+    "target_count": 10
+  },
+  {
+    "name": "Contrarian",
+    "description": "รีวิวหนังที่คุณให้คะแนนต่างจาก TMDB average เกิน 2 คะแนนครบ 10 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "contrarian_review_count",
+    "target_count": 10
+  },
+  {
+    "name": "Box Office Tracker",
+    "description": "ดูหนังที่เพิ่งเข้าโรงภาพยนตร์ภายใน 7 วันแรก จำนวน 5 เรื่อง",
+    "exp_reward": 80,
+    "action_type": "new_release_early_watched_count",
+    "target_count": 5
+  },
+  {
+    "name": "Nostalgia Trip",
+    "description": "ดูหนังที่ออกก่อนปี 1990 ครบ 10 เรื่อง",
+    "exp_reward": 75,
+    "action_type": "classic_movie_watched_count",
+    "target_count": 10
+  },
+  {
+    "name": "Film Historian",
+    "description": "ดูหนังที่ออกก่อนปี 1970 ครบ 10 เรื่อง ยุคทองของภาพยนตร์",
+    "exp_reward": 150,
+    "action_type": "golden_age_movie_watched_count",
+    "target_count": 10
+  },
+  {
+    "name": "Long Haul",
+    "description": "ดูหนังที่ความยาวเกิน 3 ชั่วโมงครบ 5 เรื่อง",
+    "exp_reward": 60,
+    "action_type": "long_movie_watched_count",
+    "target_count": 5
+  },
+  {
+    "name": "Short Attention Span",
+    "description": "ดูหนังสั้นที่ความยาวน้อยกว่า 90 นาทีครบ 10 เรื่อง",
+    "exp_reward": 30,
+    "action_type": "short_movie_watched_count",
+    "target_count": 10
+  },
+  {
+    "name": "Same but Different",
+    "description": "ดูหนัง Remake ของหนังที่ดูไปแล้ว 3 เรื่อง",
+    "exp_reward": 50,
+    "action_type": "remake_watched_count",
+    "target_count": 3
+  },
+  {
+    "name": "Series Finisher",
+    "description": "ดูซีรีส์จนจบทุก Season ครบ 5 เรื่อง",
+    "exp_reward": 100,
+    "action_type": "series_completed_count",
+    "target_count": 5
+  },
+  {
+    "name": "Pilot Skipper",
+    "description": "เพิ่มซีรีส์ใน Watchlist โดยไม่ได้ดูแม้แต่ Episode เดียว 10 เรื่อง",
+    "exp_reward": 20,
+    "action_type": "series_watchlist_no_watch_count",
+    "target_count": 10
+  }
+]

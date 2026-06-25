@@ -1,23 +1,41 @@
 package library_module
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	shared "github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
+	users "github.com/arinsuda/movie-hub/internal/user_module"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	repo    *repository
-	expPort stats.ExpAdder
+	repo       *repository
+	db         *gorm.DB
+	expPort    stats.ExpAdder
+	achieveSvc achievementsmodule.Service
+	notifSvc   *notification_module.Service
 }
 
-func NewService(db *gorm.DB, exp stats.ExpAdder) *Service {
-	return &Service{repo: newRepository(db), expPort: exp}
+func NewService(
+	db *gorm.DB,
+	exp stats.ExpAdder,
+	achieve achievementsmodule.Service,
+	notif *notification_module.Service,
+) *Service {
+	return &Service{
+		repo:       newRepository(db),
+		db:         db,
+		expPort:    exp,
+		achieveSvc: achieve,
+		notifSvc:   notif,
+	}
 }
 
 func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse, error) {
@@ -25,7 +43,6 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 		return nil, err
 	}
 
-	// Duplicate check before insert.
 	existing, err := s.repo.FindMediaStatus(userID, req.MediaID, req.MediaType)
 	if err == nil {
 		for _, item := range existing {
@@ -54,9 +71,50 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 		return nil, err
 	}
 
-	// Award EXP only for "watched" entries — best-effort.
-	if req.ListType == movie_module.ListWatched {
+	switch req.ListType {
+
+	case movie_module.ListWatched:
+		// ── EXP ──────────────────────────────────────────────────
 		_ = s.expPort.AddExperience(userID, stats.ExpPerWatched)
+
+		// ── Achievement: watched_count ────────────────────────────
+		var watchedCount int64
+		s.db.Model(&LibraryItem{}).
+			Where("user_id = ? AND list_type = 'watched' AND deleted_at IS NULL", userID).
+			Count(&watchedCount)
+		_, _ = s.achieveSvc.Track(userID, "watched_count", int(watchedCount))
+
+		// ── Achievement: library_total_count ─────────────────────
+		s.trackLibraryTotal(userID)
+
+		// ── Notification: fan-out watchlist ke followers ──────────
+		// ใช้ NotifFollowingAddedWatched (ต้องเพิ่ม type ใน notification_module)
+		// ตอนนี้ skip — ส่วนใหญ่ไม่ fan-out watched เพราะ spam
+
+	case movie_module.ListWatchlist:
+		// ── Achievement: watchlist_count ──────────────────────────
+		var watchlistCount int64
+		s.db.Model(&LibraryItem{}).
+			Where("user_id = ? AND list_type = 'watchlist' AND deleted_at IS NULL", userID).
+			Count(&watchlistCount)
+		_, _ = s.achieveSvc.Track(userID, "watchlist_count", int(watchlistCount))
+
+		// ── Achievement: library_total_count ─────────────────────
+		s.trackLibraryTotal(userID)
+
+		// ── Notification: fan-out ให้ followers ───────────────────
+		if s.notifSvc != nil {
+			if actor, err := s.getUserSummary(userID); err == nil {
+				title, _ := s.fetchTitle(req.MediaID, req.MediaType)
+				_ = s.notifSvc.PushFollowingAddedWatchlist(
+					context.Background(),
+					userID,
+					actor.Username,
+					uint(req.MediaID),
+					title,
+				)
+			}
+		}
 	}
 
 	return toResponse(item), nil
@@ -88,7 +146,6 @@ func (s *Service) RemoveItem(itemID, requesterID uint) error {
 		return err
 	}
 
-	// Revoke EXP if it was a watched entry — best-effort.
 	if item.ListType == movie_module.ListWatched {
 		_ = s.expPort.AddExperience(requesterID, -stats.ExpPerWatched)
 	}
@@ -148,7 +205,38 @@ func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_modul
 	return &MediaStatusResponse{MediaID: mediaID, MediaType: mediaType, InLists: inLists}, nil
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Internal Helpers ──────────────────────────────────────────────
+
+// trackLibraryTotal นับ library รวมทุก list_type แล้ว track achievement
+func (s *Service) trackLibraryTotal(userID uint) {
+	var total int64
+	s.db.Model(&LibraryItem{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(&total)
+	_, _ = s.achieveSvc.Track(userID, "library_total_count", int(total))
+}
+
+func (s *Service) getUserSummary(userID uint) (*users.User, error) {
+	var u users.User
+	err := s.db.First(&u, userID).Error
+	return &u, err
+}
+
+func (s *Service) fetchTitle(mediaID int, mediaType movie_module.MediaType) (string, error) {
+	switch mediaType {
+	case movie_module.MediaMovie:
+		if d, err := tmdbmodule.GetMovieByID(mediaID); err == nil {
+			return d.Title, nil
+		}
+	case movie_module.MediaSeries:
+		if d, err := tmdbmodule.GetSeriesByID(mediaID); err == nil {
+			return d.Name, nil
+		}
+	}
+	return "", nil
+}
+
+// ── Existing Helpers (unchanged) ─────────────────────────────────
 
 func validateAddItemRequest(req AddItemRequest) error {
 	if req.MediaType != movie_module.MediaMovie && req.MediaType != movie_module.MediaSeries {
@@ -165,19 +253,16 @@ func validateAddItemRequest(req AddItemRequest) error {
 }
 
 func toResponse(item *LibraryItem) *LibraryItemResponse {
-	// ── 1. Parse tags จาก JSON string ที่เก็บใน DB ────────────────
 	tags := []string{}
 	if item.Tags != "" {
 		_ = json.Unmarshal([]byte(item.Tags), &tags)
 	}
 
-	// ── 2. เริ่มต้น MediaSummary ด้วย fallback ────────────────────
 	media := shared.MediaSummary{
 		ID:        item.MediaID,
 		MediaType: item.MediaType,
 	}
 
-	// ── 3. Fetch รายละเอียดจาก TMDB แยกตาม MediaType ─────────────
 	switch item.MediaType {
 	case movie_module.MediaMovie:
 		if details, err := tmdbmodule.GetMovieByID(item.MediaID); err == nil && details != nil {
@@ -186,10 +271,9 @@ func toResponse(item *LibraryItem) *LibraryItemResponse {
 			media.Genres = details.Genres
 			media.VoteAverage = float32(details.VoteAverage)
 		}
-
 	case movie_module.MediaSeries:
 		if details, err := tmdbmodule.GetSeriesByID(item.MediaID); err == nil && details != nil {
-			media.Title = details.Name // TV ใช้ Name ไม่ใช่ Title
+			media.Title = details.Name
 			media.PosterURL = details.PosterPath
 			media.Genres = details.Genres
 			media.VoteAverage = float32(details.VoteAverage)
@@ -198,9 +282,9 @@ func toResponse(item *LibraryItem) *LibraryItemResponse {
 
 	return &LibraryItemResponse{
 		ID:        item.ID,
-		Media:     media, // ✅ populated แล้ว
+		Media:     media,
 		ListType:  item.ListType,
-		Tags:      tags, // ✅ unmarshal จาก DB แล้ว
+		Tags:      tags,
 		WatchedAt: item.WatchedAt,
 		Note:      item.Note,
 		CreatedAt: item.CreatedAt,

@@ -1,14 +1,16 @@
 package review_module
 
 import (
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, exp stats.ExpAdder) {
-	svc := NewService(db, mc, exp)
+func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, exp stats.ExpAdder, achieve achievementsmodule.Service, notif *notification_module.Service) {
+	svc := NewService(db, mc, exp, achieve, notif)
 	h := NewHandler(svc)
 
 	// ── User reviews ─────────────────────────────────────────────

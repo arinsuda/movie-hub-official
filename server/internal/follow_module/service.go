@@ -1,13 +1,32 @@
 package follow_module
 
-import "gorm.io/gorm"
+import (
+	"context"
+
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	users "github.com/arinsuda/movie-hub/internal/user_module"
+	"gorm.io/gorm"
+)
 
 type Service struct {
-	repo *repository
+	repo       *repository
+	db         *gorm.DB
+	achieveSvc achievementsmodule.Service
+	notifSvc   *notification_module.Service
 }
 
-func NewService(db *gorm.DB) *Service {
-	return &Service{repo: newRepository(db)}
+func NewService(
+	db *gorm.DB,
+	achieve achievementsmodule.Service,
+	notif *notification_module.Service,
+) *Service {
+	return &Service{
+		repo:       newRepository(db),
+		db:         db,
+		achieveSvc: achieve,
+		notifSvc:   notif,
+	}
 }
 
 func (s *Service) Follow(requesterID, targetID uint) (*FollowResponse, error) {
@@ -15,6 +34,13 @@ func (s *Service) Follow(requesterID, targetID uint) (*FollowResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Track achievement + notification เฉพาะที่ accepted ทันที (public account)
+	// กรณี pending จะ track ตอน AcceptFollow แทน
+	if follow.Status == StatusAccepted {
+		s.onFollowAccepted(requesterID, targetID)
+	}
+
 	return &FollowResponse{
 		FollowerID: follow.FollowerID,
 		FolloweeID: follow.FolloweeID,
@@ -28,7 +54,14 @@ func (s *Service) Unfollow(requesterID, targetID uint) error {
 
 // AcceptFollow — requesterID คือ followee (เจ้าของ account ที่กด accept)
 func (s *Service) AcceptFollow(requesterID, followerID uint) error {
-	return s.repo.AcceptFollow(followerID, requesterID)
+	if err := s.repo.AcceptFollow(followerID, requesterID); err != nil {
+		return err
+	}
+
+	// pending → accepted: track achievement และส่ง notification ตอนนี้
+	s.onFollowAccepted(followerID, requesterID)
+
+	return nil
 }
 
 // RejectFollow — requesterID คือ followee (เจ้าของ account ที่กด reject)
@@ -63,6 +96,43 @@ func (s *Service) GetPendingRequests(requesterID, userID uint) ([]UserSummary, e
 	}
 	return toSummaryList(rows), nil
 }
+
+// ── Internal ──────────────────────────────────────────────────────
+
+// onFollowAccepted รวม logic ที่ต้องทำเมื่อ follow ถูก accept
+// เรียกได้จากทั้ง Follow (public) และ AcceptFollow (private)
+func (s *Service) onFollowAccepted(followerID, followeeID uint) {
+	ctx := context.Background()
+
+	// ── Achievement: following_count (ฝั่งคนกด follow) ──────────
+	var followingCount int64
+	s.db.Model(&UserFollow{}).
+		Where("follower_id = ? AND status = ?", followerID, StatusAccepted).
+		Count(&followingCount)
+	_, _ = s.achieveSvc.Track(followerID, "following_count", int(followingCount))
+
+	// ── Achievement: follower_count (ฝั่งคนถูก follow) ──────────
+	var followerCount int64
+	s.db.Model(&UserFollow{}).
+		Where("followee_id = ? AND status = ?", followeeID, StatusAccepted).
+		Count(&followerCount)
+	_, _ = s.achieveSvc.Track(followeeID, "follower_count", int(followerCount))
+
+	// ── Notification: แจ้ง followee ว่ามีคน follow ──────────────
+	if s.notifSvc != nil {
+		if actor, err := s.getUserSummary(followerID); err == nil {
+			_ = s.notifSvc.PushFollowedYou(ctx, followeeID, followerID, actor.Username)
+		}
+	}
+}
+
+func (s *Service) getUserSummary(userID uint) (*users.User, error) {
+	var u users.User
+	err := s.db.First(&u, userID).Error
+	return &u, err
+}
+
+// ── Mappers ───────────────────────────────────────────────────────
 
 func toSummaryList(rows []listRow) []UserSummary {
 	result := make([]UserSummary, len(rows))

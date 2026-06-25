@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/like_module"
@@ -14,7 +15,6 @@ import (
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
 
-	// "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -56,32 +56,38 @@ func Connect(cfg *config.Config) {
 	if err := seedRoles(db); err != nil {
 		log.Fatalf("❌ Seed roles failed: %v", err)
 	}
+
+	if err := achievementsmodule.SeedFromFile(db, "database/seeder/achievement.json"); err != nil {
+		log.Fatalf("❌ Seed achievements failed: %v", err)
+	}
 }
 
 func autoMigrate(db *gorm.DB) error {
 	log.Println("⏳ Running AutoMigrate...")
 	err := db.AutoMigrate(
-		// User
+
 		&user_module.Role{},
 		&user_module.User{},
 		&user_module.EmailVerification{},
 		&user_module.RefreshToken{},
 		&user_module.EmailChangeRequest{},
 		&user_module.PasswordResetToken{},
-		// Social
+
 		&follow_module.UserFollow{},
 		&user_stats_module.UserStatus{},
-		// Library (watchlist / favorite / watched)
+
 		&library_module.LibraryItem{},
-		// Review
+
 		&review_module.Review{},
 		&review_module.ReviewLike{},
 		&review_module.ReviewComment{},
-		// Media
-		&like_module.MediaLike{}, // like ต่อ media — source of truth ของ like_count
+
+		&like_module.MediaLike{},
 		&media_stats_module.MediaStat{},
-		// &user_stats_module.UserStat{}, // เก็บแค่ view_count
 		&noti.Notification{},
+
+		&achievementsmodule.Achievement{},
+		&achievementsmodule.UserAchievement{},
 	)
 	if err != nil {
 		return err
@@ -90,8 +96,6 @@ func autoMigrate(db *gorm.DB) error {
 	return nil
 }
 
-// runSQLMigrations รัน SQL ที่ GORM AutoMigrate ทำไม่ได้ (VIEW, FUNCTION, INDEX พิเศษ)
-// ใช้ CREATE OR REPLACE ทั้งหมด → idempotent รันซ้ำกี่ครั้งก็ได้
 func runSQLMigrations(db *gorm.DB) error {
 	log.Println("⏳ Running SQL migrations...")
 
@@ -102,7 +106,6 @@ func runSQLMigrations(db *gorm.DB) error {
 		{
 			name: "user_stats view",
 			sql: `
-                -- เคลียร์ของเก่าออกให้หมดก่อนเพื่อความสะอาด ไม่ว่ามันจะเป็น Table หรือ View
                 DROP VIEW IF EXISTS user_stats CASCADE;
                 DROP TABLE IF EXISTS user_stats CASCADE;
 

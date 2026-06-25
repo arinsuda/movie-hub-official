@@ -1,12 +1,13 @@
 package like_module
 
 import (
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB) {
-	svc := NewService(db)
+func RegisterRoutes(router fiber.Router, db *gorm.DB, achieve achievementsmodule.Service) {
+	svc := NewService(db, achieve)
 	h := NewHandler(svc)
 
 	router.Get("/users/:userId/likes", h.GetLikes)

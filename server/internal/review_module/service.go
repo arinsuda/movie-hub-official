@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
@@ -13,13 +15,29 @@ import (
 )
 
 type Service struct {
-	repo    *repository
-	minio   *storage.MinIOClient
-	expPort stats.ExpAdder // port — no direct import of the concrete Service
+	repo        *repository
+	db          *gorm.DB
+	minio       *storage.MinIOClient
+	expPort     stats.ExpAdder
+	achieveSvc  achievementsmodule.Service
+	notifSvc    *notification_module.Service
 }
 
-func NewService(db *gorm.DB, mc *storage.MinIOClient, exp stats.ExpAdder) *Service {
-	return &Service{repo: newRepository(db), minio: mc, expPort: exp}
+func NewService(
+	db *gorm.DB,
+	mc *storage.MinIOClient,
+	exp stats.ExpAdder,
+	achieve achievementsmodule.Service,
+	notif *notification_module.Service,
+) *Service {
+	return &Service{
+		repo:       newRepository(db),
+		db:         db,
+		minio:      mc,
+		expPort:    exp,
+		achieveSvc: achieve,
+		notifSvc:   notif,
+	}
 }
 
 // ── Review ────────────────────────────────────────────────────────
@@ -49,8 +67,55 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		return nil, err
 	}
 
-	// Award EXP — best-effort, do not fail the request on error.
+	// ── EXP ───────────────────────────────────────────────────────
 	_ = s.expPort.AddExperience(userID, stats.ExpPerReview)
+
+	// ── Achievement: review_count ─────────────────────────────────
+	var reviewCount int64
+	s.db.Model(&Review{}).
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Count(&reviewCount)
+	_, _ = s.achieveSvc.Track(userID, "review_count", int(reviewCount))
+
+	// ── Achievement: rating_one_star_count / rating_five_star_count ──
+	// rating เก็บเป็น 0.5-5 แต่ achievement ใช้แนวคิด 1-5 ดาว
+	// 1 ดาว = rating 1.0 (หรือ <= 1), 5 ดาว = rating 5.0
+	if req.Rating <= 1.0 {
+		var oneStarCount int64
+		s.db.Model(&Review{}).
+			Where("user_id = ? AND rating <= 1.0 AND deleted_at IS NULL", userID).
+			Count(&oneStarCount)
+		_, _ = s.achieveSvc.Track(userID, "rating_one_star_count", int(oneStarCount))
+	}
+	if req.Rating == 5.0 {
+		var fiveStarCount int64
+		s.db.Model(&Review{}).
+			Where("user_id = ? AND rating = 5.0 AND deleted_at IS NULL", userID).
+			Count(&fiveStarCount)
+		_, _ = s.achieveSvc.Track(userID, "rating_five_star_count", int(fiveStarCount))
+	}
+	if req.Rating < 3.0 {
+		var lowRatingCount int64
+		s.db.Model(&Review{}).
+			Where("user_id = ? AND rating < 3.0 AND deleted_at IS NULL", userID).
+			Count(&lowRatingCount)
+		_, _ = s.achieveSvc.Track(userID, "low_rating_count", int(lowRatingCount))
+	}
+
+	// ── Notification: fan-out ให้ followers ──────────────────────
+	if req.IsPublic && s.notifSvc != nil {
+		// ดึง username ของ reviewer
+		if actor, err := s.getUserSummary(userID); err == nil {
+			title, _ := fetchMediaSummary(req.MediaID, req.MediaType)
+			_ = s.notifSvc.PushFollowingReviewed(
+				context.Background(),
+				userID,
+				actor.Username,
+				review.ID,
+				title,
+			)
+		}
+	}
 
 	inserted, err := s.repo.FindReviewByID(review.ID)
 	if err != nil {
@@ -143,7 +208,6 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 		return err
 	}
 
-	// Revoke EXP — best-effort.
 	_ = s.expPort.AddExperience(requesterID, -stats.ExpPerReview)
 	return nil
 }
@@ -193,8 +257,36 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 		return err
 	}
 
-	// Award EXP to the review author, not the liker.
+	// ── EXP ──────────────────────────────────────────────────────
 	_ = s.expPort.AddExperience(review.UserID, stats.ExpPerLike)
+
+	// ── Achievement: review_like_given_count (ฝั่งคนกด like) ────
+	var likeGivenCount int64
+	s.db.Model(&ReviewLike{}).Where("user_id = ?", requesterID).Count(&likeGivenCount)
+	_, _ = s.achieveSvc.Track(requesterID, "review_like_given_count", int(likeGivenCount))
+
+	// ── Achievement: review_like_received_count (ฝั่งเจ้าของ review) ──
+	var likeReceivedCount int64
+	s.db.Model(&ReviewLike{}).
+		Joins("JOIN reviews ON reviews.id = review_likes.review_id").
+		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
+		Count(&likeReceivedCount)
+	_, _ = s.achieveSvc.Track(review.UserID, "review_like_received_count", int(likeReceivedCount))
+
+	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
+	if s.notifSvc != nil && review.UserID != requesterID {
+		if actor, err := s.getUserSummary(requesterID); err == nil {
+			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
+			_ = s.notifSvc.PushFollowingLikedReview(
+				context.Background(),
+				requesterID,
+				actor.Username,
+				reviewID,
+				title,
+			)
+		}
+	}
+
 	return nil
 }
 
@@ -208,7 +300,6 @@ func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
 		return err
 	}
 
-	// Revoke EXP from the review author.
 	_ = s.expPort.AddExperience(review.UserID, -stats.ExpPerLike)
 	return nil
 }
@@ -279,6 +370,12 @@ func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+func (s *Service) getUserSummary(userID uint) (*users.User, error) {
+	var u users.User
+	err := s.db.First(&u, userID).Error
+	return &u, err
+}
 
 func validateReviewRequest(req CreateReviewRequest) error {
 	if req.Rating < 0.5 || req.Rating > 5 || math.Mod(float64(req.Rating)*2, 1) != 0 {
