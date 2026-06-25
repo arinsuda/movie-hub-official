@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
@@ -14,6 +15,7 @@ import (
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+	"golang.org/x/crypto/bcrypt"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -53,7 +55,7 @@ func Connect(cfg *config.Config) {
 		log.Fatalf("❌ SQL migrations failed: %v", err)
 	}
 
-	if err := seedRoles(db); err != nil {
+	if err := seedInitialData(db); err != nil {
 		log.Fatalf("❌ Seed roles failed: %v", err)
 	}
 
@@ -142,17 +144,52 @@ func runSQLMigrations(db *gorm.DB) error {
 	return nil
 }
 
-func seedRoles(db *gorm.DB) error {
+func seedInitialData(db *gorm.DB) error {
+	// 1. Seed Roles
 	roles := []user_module.Role{
 		{RoleName: user_module.RoleAdmin},
 		{RoleName: user_module.RoleUser},
 	}
 	for _, role := range roles {
-		result := db.FirstOrCreate(&role, user_module.Role{RoleName: role.RoleName})
-		if result.Error != nil {
-			return result.Error
+		if err := db.FirstOrCreate(&role, user_module.Role{RoleName: role.RoleName}).Error; err != nil {
+			return err
 		}
 	}
 	log.Println("✅ Roles seeded")
+
+	// 2. Seed Admin Account
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+
+	if adminEmail != "" && adminPassword != "" {
+		var count int64
+		// เช็คว่ามี admin อยู่หรือยัง
+		db.Model(&user_module.User{}).Where("email = ?", adminEmail).Count(&count)
+
+		if count == 0 {
+			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+
+			// ดึง ID ของ Role Admin (สมมติว่า RoleAdmin คือ "admin")
+			var roleAdmin user_module.Role
+			db.Where("role_name = ?", user_module.RoleAdmin).First(&roleAdmin)
+
+			adminUser := &user_module.User{
+				Username: adminUsername,
+				Email:    adminEmail,
+				Password: string(hashedPassword),
+				RoleID:   roleAdmin.ID,
+				// ถ้ามี field อื่นที่จำเป็น เช่น IsActive ให้ใส่เพิ่มที่นี่
+			}
+
+			if err := db.Create(adminUser).Error; err != nil {
+				return err
+			}
+			log.Println("✅ Admin account created from .env")
+		}
+	}
 	return nil
 }

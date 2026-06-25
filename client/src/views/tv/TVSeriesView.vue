@@ -93,7 +93,10 @@
           @mouseenter="onCardEnter(show.id, show)"
           @mouseleave="onCardLeave(show.id)"
         >
-          <RouterLink :to="`/tv/${show.id}`" class="poster-card">
+          <RouterLink
+            :to="{ name: 'tv-detail', params: { id: show.id } }"
+            class="poster-card"
+          >
             <img
               :src="
                 show.poster_path
@@ -120,6 +123,7 @@
                 :show-skeleton="getState(show.id).showSkeleton.value"
                 :show-fallback="getState(show.id).showFallback.value"
                 @iframe-load="getState(show.id).onIframeLoad()"
+                media-type="tv"
               />
             </div>
           </Transition>

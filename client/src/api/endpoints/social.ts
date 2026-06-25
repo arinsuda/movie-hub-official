@@ -27,7 +27,7 @@ export const reviewApi = {
     }),
 
   getMediaReviews: (
-    mediaType: "movies" | "series",
+    mediaType: "movies" | "tv",
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
   ) =>

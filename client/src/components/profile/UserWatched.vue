@@ -21,6 +21,7 @@
         :key="item.id"
         class="poster-card"
         :style="{ '--i': i }"
+        
       >
         <div class="poster-frame" tabindex="0">
           <img

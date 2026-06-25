@@ -74,7 +74,6 @@
         <div class="review-header">
           <div class="user-info">
             <div class="user-avatar">
-              <!-- ถ้ามี avatar ให้แสดงรูป ถ้าไม่มีแสดง icon -->
               <img
                 v-if="item.user.avatar_url"
                 :src="item.user.avatar_url"
@@ -113,6 +112,7 @@
 
   const props = defineProps<{
     movieId: number
+    mediaType?: "movie" | "tv"
   }>()
 
   const auth = useAuthStore()
@@ -122,6 +122,12 @@
   const reviews = ref<ReviewResponse[]>([])
   const userId = auth.user?.id || 0
   const displayRating = computed(() => hoverRating.value || userRating.value)
+
+  // ─── Derived values ───────────────────────────────────────────────────────
+  // media_type ส่งไป API: "movie" | "tv"
+  const mt = computed(() => props.mediaType ?? "movie")
+  // path segment สำหรับ getMediaReviews: "movies" | "tv"
+  const reviewSegment = computed(() => (mt.value === "tv" ? "tv" : "movies"))
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("th-TH", {
@@ -137,7 +143,7 @@
     try {
       const res = await reviewApi.createReview(userId, {
         media_id: props.movieId,
-        media_type: "movie",
+        media_type: mt.value,
         rating: userRating.value,
         body: newReview.value,
         is_public: true,
@@ -159,7 +165,10 @@
   onMounted(async () => {
     if (props.movieId !== 0) {
       try {
-        const res = await reviewApi.getMediaReviews("movies", props.movieId)
+        const res = await reviewApi.getMediaReviews(
+          reviewSegment.value,
+          props.movieId,
+        )
         reviews.value = res.data.reviews
       } catch (err) {
         console.error("getMediaReviews failed:", err)

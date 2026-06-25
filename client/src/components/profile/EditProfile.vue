@@ -726,6 +726,7 @@
       if (avatarFile.value) payload.append("avatar", avatarFile.value)
       await userApi.updateProfile(props.user!.id, payload)
       await authStore.fetchMe()
+       emit("close")
     } catch (err) {
       console.error("Save profile failed:", err)
     } finally {

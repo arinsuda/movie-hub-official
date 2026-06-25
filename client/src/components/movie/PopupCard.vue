@@ -1,7 +1,7 @@
 <template>
   <div class="popup__media">
     <RouterLink
-      :to="{ name: 'movie-detail', params: { id: movie.id } }"
+      :to="{ name: detailRouteName, params: { id: movie.id } }"
       class="popup__media-link"
     >
       <div v-if="showSkeleton" class="popup__skeleton" aria-hidden="true">
@@ -30,7 +30,6 @@
         allow="
           autoplay;
           encrypted-media;
-          generative-ai;
           gyroscope;
           picture-in-picture;
           web-share;
@@ -57,7 +56,7 @@
   <div class="popup__info">
     <div class="popup__title-row">
       <RouterLink
-        :to="{ name: 'movie-detail', params: { id: movie.id } }"
+        :to="{ name: detailRouteName, params: { id: movie.id } }"
         class="popup__title-link"
       >
         <h3 class="popup__title">{{ movie.title }}</h3>
@@ -88,7 +87,7 @@
 
       <RouterLink
         :to="{
-          name: 'movie-detail',
+          name: detailRouteName,
           params: { id: movie.id },
           query: { action: 'review' },
         }"
@@ -127,7 +126,6 @@
 
 <script setup lang="ts">
   import { computed, ref, onMounted } from "vue"
-  import { useRouter } from "vue-router"
   import {
     Film,
     Star,
@@ -140,10 +138,9 @@
   import { useImageUrl } from "@/composables/useImageUrl"
   import type { Movie } from "@/types"
   import type { ResolvedTrailer } from "@/composables/useTrailerPreview"
-
-  import { movieApi } from "@/api/endpoints/movie"
   import { libraryApi } from "@/api/endpoints/library"
   import { useAuthStore } from "@/stores/auth"
+  import { mediaApi } from "@/api/endpoints/media"
 
   const props = defineProps<{
     movie: Movie
@@ -152,18 +149,25 @@
     isIframeLoaded: boolean
     showSkeleton: boolean
     showFallback: boolean
+    mediaType?: "movie" | "tv"
   }>()
 
   const emit = defineEmits<{
     (e: "iframe-load"): void
   }>()
 
-  const router = useRouter()
   const authStore = useAuthStore()
-
   const currentUserId = computed(() => authStore.user?.id ?? null)
 
-  // ─── Reactive Stats State ──────────────────────────────────────────────────
+  // ─── Derived media type (default: "movie") ────────────────────────────────
+  const mt = computed(() => props.mediaType ?? "movie")
+
+  // ─── Route name ───────────────────────────────────────────────────────────
+  const detailRouteName = computed(() =>
+    mt.value === "tv" ? "tv-detail" : "movie-detail",
+  )
+
+  // ─── Reactive Stats State ─────────────────────────────────────────────────
   const stats = ref({
     view_count: 0,
     like_count: 0,
@@ -176,7 +180,7 @@
 
   onMounted(async () => {
     try {
-      const resStats = await movieApi.getMediaStats("movie", props.movie.id)
+      const resStats = await mediaApi.getMediaStats(mt.value, props.movie.id)
       const s = resStats.data?.stats || (resStats.data as any)?.stats
 
       if (s) {
@@ -195,10 +199,10 @@
       const resLibrary = await libraryApi.getMediaStatus(
         userId,
         props.movie.id,
-        "movie",
+        mt.value,
       )
       const watchlistInfo = resLibrary.data?.in_lists?.find(
-        item => item.list_type === "watchlist",
+        (item: any) => item.list_type === "watchlist",
       )
 
       if (watchlistInfo) {
@@ -210,18 +214,16 @@
     }
   })
 
-  // ─── Interaction Handlers (เปลี่ยนมาใช้ Custom Toast) ───────────────────────
-
-  // จัดการระบบ กดถูกใจการ์ดภาพยนตร์ (Like/Unlike)
+  // ─── Like Toggle ──────────────────────────────────────────────────────────
   async function handleLikeToggle() {
     try {
       if (isLiked.value) {
-        await movieApi.unlikeMedia("movie", props.movie.id)
+        await mediaApi.unlikeMedia(mt.value, props.movie.id)
         stats.value.like_count = Math.max(0, stats.value.like_count - 1)
         isLiked.value = false
         window.$toast?.info(`ลบออกจากรายการที่ชอบแล้ว`, props.movie.title)
       } else {
-        await movieApi.likeMedia("movie", props.movie.id)
+        await mediaApi.likeMedia(mt.value, props.movie.id)
         stats.value.like_count++
         isLiked.value = true
         window.$toast?.success(
@@ -230,11 +232,11 @@
         )
       }
     } catch (err) {
-      window.$toast?.error("เกิดข้อผิดพลาด กรุณาลองใหมี่อีกครั้ง", "REMOV HUB")
+      window.$toast?.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", "REMOV HUB")
     }
   }
 
-  // จัดการระบบ กดเซฟ/ถอนคิวออกจาก Watchlist ส่วนตัวแบบ Real-time
+  // ─── Watchlist Toggle ─────────────────────────────────────────────────────
   async function handleWatchlistToggle() {
     if (!currentUserId.value) {
       window.$toast?.warning("กรุณาเข้าสู่ระบบก่อนใช้งาน", "แจ้งเตือน")
@@ -245,7 +247,6 @@
     try {
       if (isInWatchlist.value && watchlistItemId.value) {
         await libraryApi.removeItem(userId, watchlistItemId.value)
-
         stats.value.watchlist_count = Math.max(
           0,
           stats.value.watchlist_count - 1,
@@ -256,7 +257,7 @@
       } else {
         const res = await libraryApi.addItem(userId, {
           media_id: props.movie.id,
-          media_type: "movie",
+          media_type: mt.value,
           list_type: "watchlist",
         })
 
@@ -280,8 +281,7 @@
     }
   }
 
-  // ─── Composables & Computed ──────────────────────────────────────────────────
-
+  // ─── Composables & Computed ───────────────────────────────────────────────
   const { backdropImage } = useImageUrl()
 
   const backdropUrl = computed(() => {

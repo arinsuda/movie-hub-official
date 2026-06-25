@@ -228,10 +228,10 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed, watchEffect } from "vue"
+  import { ref, onMounted, computed } from "vue"
   import { useRoute, useRouter } from "vue-router"
   import { movieApi } from "@/api/api"
-  import { libraryApi } from "@/api/endpoints/library" // 👈 1. นำเข้า libraryApi เข้ามาร่วมงาน
+  import { libraryApi } from "@/api/endpoints/library" 
   import { gsap } from "gsap"
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
@@ -283,10 +283,6 @@ import { mediaApi } from "@/api/endpoints/media"
 
   const watchlist_ItemId = ref<number | null>(null)
   const watched_ItemId = ref<number | null>(null)
-
-  watchEffect(() => {
-    console.log("เช็คข้อมูลหนังในหน้านี้:", movie.value)
-  })
 
   function goBack() {
     router.back()
