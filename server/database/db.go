@@ -67,6 +67,7 @@ func autoMigrate(db *gorm.DB) error {
 		&user_module.EmailVerification{},
 		&user_module.RefreshToken{},
 		&user_module.EmailChangeRequest{},
+		&user_module.PasswordResetToken{},
 		// Social
 		&follow_module.UserFollow{},
 		&user_stats_module.UserStatus{},

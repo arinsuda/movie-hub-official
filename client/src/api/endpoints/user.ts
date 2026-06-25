@@ -1,5 +1,5 @@
 import api from "../index"
-import type { UserProfile } from "@/types"
+import type { ChangePassword, UserProfile } from "@/types"
 
 export const userApi = {
   me: (userId: number) => api.get<{ user: UserProfile }>(`/users/${userId}`),
@@ -26,4 +26,8 @@ export const userApi = {
 
   updateEmail: (userId: number, newEmail: string) =>
     api.patch(`/users/${userId}/email`, { new_email: newEmail }),
+
+  // รับ body เพื่อส่ง old/new/confirm password ไปด้วย
+  changePassword: (userId: number, data: ChangePassword) =>
+    api.patch(`/users/${userId}/password`, data),
 }

@@ -307,6 +307,7 @@ func (s *Service) ChangePassword(targetUserID, requesterID uint, req ChangePassw
 // ถ้า email ไม่มีในระบบ → return nil เฉยๆ (ป้องกัน user enumeration attack)
 func (s *Service) ForgotPassword(email string) error {
 	email = strings.TrimSpace(strings.ToLower(email))
+	log.Printf("DEBUG ForgotPassword: email=%s", email)
 
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {

@@ -81,8 +81,6 @@
             :disabled="emailStep !== 'input'"
             placeholder="your@email.com"
           />
-
-          <!-- ยังไม่ verified → Verify Email -->
           <button
             v-if="!isEmailVerified && emailStep === 'idle'"
             type="button"
@@ -91,8 +89,6 @@
           >
             <Mail :size="12" /> Verify Email
           </button>
-
-          <!-- idle + verified → Change Email -->
           <button
             v-else-if="emailStep === 'idle'"
             type="button"
@@ -101,8 +97,6 @@
           >
             <Pencil :size="12" /> Change Email
           </button>
-
-          <!-- requesting OTP -->
           <button
             v-else-if="emailStep === 'requesting'"
             type="button"
@@ -111,8 +105,6 @@
           >
             <span class="btn-spinner" /> Sending…
           </button>
-
-          <!-- verify OTP → แสดงใน otp-box ด้านล่าง, ปุ่ม Cancel -->
           <button
             v-else-if="emailStep === 'otp'"
             type="button"
@@ -121,8 +113,6 @@
           >
             <X :size="12" /> Cancel
           </button>
-
-          <!-- input email ใหม่ -->
           <template v-else-if="emailStep === 'input'">
             <button
               type="button"
@@ -143,8 +133,6 @@
               <X :size="12" /> Cancel
             </button>
           </template>
-
-          <!-- waiting for link click → spinner -->
           <button
             v-else-if="emailStep === 'waiting'"
             type="button"
@@ -153,8 +141,6 @@
           >
             <span class="btn-spinner" /> Waiting…
           </button>
-
-          <!-- done ✓ -->
           <button
             v-else-if="emailStep === 'done'"
             type="button"
@@ -164,8 +150,6 @@
             <CheckCircle :size="13" /> Verified!
           </button>
         </div>
-
-        <!-- OTP box -->
         <transition name="otp-slide">
           <div v-if="emailStep === 'otp'" class="otp-box">
             <p class="otp-hint">
@@ -188,23 +172,21 @@
                 :disabled="otpValue.length !== 6 || otpConfirming"
                 @click="handleVerifyOTP"
               >
-                <span v-if="otpConfirming" class="btn-spinner" />
-                <span v-else>Confirm</span>
+                <span v-if="otpConfirming" class="btn-spinner" /><span v-else
+                  >Confirm</span
+                >
               </button>
             </div>
             <p v-if="otpError" class="otp-error">{{ otpError }}</p>
           </div>
         </transition>
-
-        <!-- waiting hint -->
         <transition name="otp-slide">
           <div v-if="emailStep === 'waiting'" class="otp-box otp-box--waiting">
             <div class="waiting-row">
               <span class="waiting-spinner" />
               <p class="otp-hint" style="margin: 0">
                 Verification link sent to <strong>{{ form.email }}</strong
-                >.<br />
-                Click the link in your email to confirm.
+                >.<br />Click the link in your email to confirm.
               </p>
             </div>
             <button
@@ -216,8 +198,6 @@
             </button>
           </div>
         </transition>
-
-        <!-- email hint while inputting -->
         <p v-if="emailStep === 'input'" class="email-hint">
           <Info :size="11" /> Type your new email then save. A verification link
           will be sent.
@@ -291,6 +271,146 @@
           </button>
         </div>
       </div>
+
+      <!-- ─── Change Password ──────────────────────────────────── -->
+      <div class="field-divider" />
+      <div class="section-header" @click="pwOpen = !pwOpen">
+        <div class="section-header__left">
+          <KeyRound :size="14" class="section-header__icon" />
+          <span class="section-header__title">Change Password</span>
+        </div>
+        <ChevronDown
+          :size="14"
+          class="section-header__chevron"
+          :class="{ 'section-header__chevron--open': pwOpen }"
+        />
+      </div>
+
+      <transition name="pw-slide">
+        <div v-if="pwOpen" class="pw-section">
+          <div class="field-group">
+            <label class="field-label" for="ep-old-pw">Current Password</label>
+            <div class="pw-input-wrap">
+              <input
+                id="ep-old-pw"
+                v-model="pwForm.old_password"
+                :type="showOld ? 'text' : 'password'"
+                class="field-input"
+                autocomplete="current-password"
+                placeholder="Your current password"
+                :disabled="pwLoading"
+              />
+              <button
+                type="button"
+                class="pw-toggle"
+                @click="showOld = !showOld"
+                tabindex="-1"
+              >
+                <EyeOff v-if="showOld" :size="14" /><Eye v-else :size="14" />
+              </button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="ep-new-pw">New Password</label>
+            <div class="pw-input-wrap">
+              <input
+                id="ep-new-pw"
+                v-model="pwForm.new_password"
+                :type="showNew ? 'text' : 'password'"
+                class="field-input"
+                autocomplete="new-password"
+                placeholder="At least 8 characters"
+                :disabled="pwLoading"
+              />
+              <button
+                type="button"
+                class="pw-toggle"
+                @click="showNew = !showNew"
+                tabindex="-1"
+              >
+                <EyeOff v-if="showNew" :size="14" /><Eye v-else :size="14" />
+              </button>
+            </div>
+            <!-- strength bar -->
+            <div v-if="pwForm.new_password" class="strength-bar">
+              <div
+                class="strength-bar__fill"
+                :class="`strength-bar__fill--${pwStrength.level}`"
+                :style="{ width: pwStrength.width }"
+              />
+            </div>
+            <span
+              v-if="pwForm.new_password"
+              class="strength-label"
+              :class="`strength-label--${pwStrength.level}`"
+              >{{ pwStrength.label }}</span
+            >
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="ep-confirm-pw"
+              >Confirm New Password</label
+            >
+            <div class="pw-input-wrap">
+              <input
+                id="ep-confirm-pw"
+                v-model="pwForm.confirm_password"
+                :type="showConfirm ? 'text' : 'password'"
+                class="field-input"
+                autocomplete="new-password"
+                placeholder="Repeat your new password"
+                :disabled="pwLoading"
+              />
+              <button
+                type="button"
+                class="pw-toggle"
+                @click="showConfirm = !showConfirm"
+                tabindex="-1"
+              >
+                <EyeOff v-if="showConfirm" :size="14" /><Eye
+                  v-else
+                  :size="14"
+                />
+              </button>
+            </div>
+            <transition name="inline-err">
+              <span
+                v-if="
+                  pwForm.confirm_password &&
+                  pwForm.new_password !== pwForm.confirm_password
+                "
+                class="inline-error"
+              >
+                <AlertCircle :size="11" /> Passwords do not match
+              </span>
+            </transition>
+          </div>
+
+          <!-- feedback -->
+          <transition name="otp-slide">
+            <div v-if="pwError" class="pw-alert pw-alert--error">
+              <AlertCircle :size="13" /> {{ pwError }}
+            </div>
+          </transition>
+          <transition name="otp-slide">
+            <div v-if="pwSuccess" class="pw-alert pw-alert--success">
+              <CheckCircle :size="13" /> Password changed successfully!
+            </div>
+          </transition>
+
+          <button
+            type="button"
+            class="pw-submit-btn"
+            :disabled="pwLoading || !pwCanSubmit"
+            @click="handleChangePassword"
+          >
+            <span v-if="pwLoading" class="btn-spinner" />
+            <span v-else>Update Password</span>
+          </button>
+        </div>
+      </transition>
+      <!-- ─────────────────────────────────────────────────────── -->
     </form>
 
     <div class="edit-footer">
@@ -307,8 +427,9 @@
         :disabled="saving || !isDirty"
         @click="handleSave"
       >
-        <span v-if="saving" class="save-spinner" />
-        <span v-else>Save Changes</span>
+        <span v-if="saving" class="save-spinner" /><span v-else
+          >Save Changes</span
+        >
       </button>
     </div>
 
@@ -332,6 +453,11 @@
     Mail,
     Info,
     CheckCircle,
+    KeyRound,
+    ChevronDown,
+    Eye,
+    EyeOff,
+    AlertCircle,
   } from "lucide-vue-next"
   import type { UserProfile } from "@/types/user"
   import { authApi, userApi } from "@/api/api"
@@ -343,11 +469,9 @@
 
   const authStore = useAuthStore()
 
-  // ─── email step machine ───────────────────────────────────────────────────────
-  // idle → requesting → otp → input → waiting → done → idle
+  // ── email step machine ────────────────────────────────────────────────
   type EmailStep = "idle" | "requesting" | "otp" | "input" | "waiting" | "done"
   const emailStep = ref<EmailStep>("idle")
-  // ─────────────────────────────────────────────────────────────────────────────
 
   const saving = ref(false)
   const avatarFile = ref<File | null>(null)
@@ -357,9 +481,8 @@
   const otpError = ref("")
   const otpConfirming = ref(false)
 
-  // polling
   let pollTimer: ReturnType<typeof setInterval> | null = null
-  const POLL_INTERVAL = 3000 // ms
+  const POLL_INTERVAL = 3000
 
   const genderOptions = [
     { value: "male", label: "Male" },
@@ -394,7 +517,73 @@
       form.is_private !== initialForm.is_private,
   )
 
-  // ─── helpers ─────────────────────────────────────────────────────────────────
+  // ── change password state ─────────────────────────────────────────────
+  const pwOpen = ref(false)
+  const pwLoading = ref(false)
+  const pwError = ref("")
+  const pwSuccess = ref(false)
+  const showOld = ref(false)
+  const showNew = ref(false)
+  const showConfirm = ref(false)
+
+  const pwForm = reactive({
+    old_password: "",
+    new_password: "",
+    confirm_password: "",
+  })
+
+  const pwStrength = computed(() => {
+    const p = pwForm.new_password
+    if (!p) return { level: "none", label: "", width: "0%" }
+    let score = 0
+    if (p.length >= 8) score++
+    if (p.length >= 12) score++
+    if (/[A-Z]/.test(p)) score++
+    if (/[0-9]/.test(p)) score++
+    if (/[^A-Za-z0-9]/.test(p)) score++
+    if (score <= 1) return { level: "weak", label: "Weak", width: "25%" }
+    if (score <= 2) return { level: "fair", label: "Fair", width: "50%" }
+    if (score <= 3) return { level: "good", label: "Good", width: "75%" }
+    return { level: "strong", label: "Strong", width: "100%" }
+  })
+
+  const pwCanSubmit = computed(
+    () =>
+      pwForm.old_password.length > 0 &&
+      pwForm.new_password.length >= 8 &&
+      pwForm.new_password === pwForm.confirm_password,
+  )
+
+  async function handleChangePassword() {
+    if (!props.user?.id || !pwCanSubmit.value) return
+    pwError.value = ""
+    pwSuccess.value = false
+    pwLoading.value = true
+    try {
+      await userApi.changePassword(props.user.id, {
+        old_password: pwForm.old_password,
+        new_password: pwForm.new_password,
+        confirm_password: pwForm.confirm_password,
+      })
+      pwSuccess.value = true
+      pwForm.old_password = ""
+      pwForm.new_password = ""
+      pwForm.confirm_password = ""
+      setTimeout(() => {
+        pwSuccess.value = false
+      }, 4000)
+    } catch (e: any) {
+      const status = e?.response?.status
+      if (status === 401) pwError.value = "Current password is incorrect."
+      else if (status === 400)
+        pwError.value = e?.response?.data?.error ?? "Invalid request."
+      else pwError.value = "Something went wrong. Please try again."
+    } finally {
+      pwLoading.value = false
+    }
+  }
+
+  // ── email helpers ─────────────────────────────────────────────────────
   function stopPolling() {
     if (pollTimer) {
       clearInterval(pollTimer)
@@ -410,7 +599,6 @@
     form.email = initialForm.email
   }
 
-  /** เริ่ม poll ตรวจว่า backend เปลี่ยน email + verified แล้วหรือยัง */
   function startPolling(newEmail: string) {
     stopPolling()
     pollTimer = setInterval(async () => {
@@ -431,7 +619,6 @@
       }
     }, POLL_INTERVAL)
   }
-  // ─────────────────────────────────────────────────────────────────────────────
 
   function handleFileChange(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0]
@@ -444,7 +631,6 @@
     reader.readAsDataURL(file)
   }
 
-  // step 1 – request OTP
   function handleRequestOTP() {
     if (!props.user?.id) return
     showEmailConfirmModal.value = true
@@ -464,7 +650,6 @@
     }
   }
 
-  // step 2 – verify OTP → unlock input
   async function handleVerifyOTP() {
     if (!props.user?.id || otpValue.value.length !== 6) return
     otpConfirming.value = true
@@ -473,7 +658,7 @@
       await userApi.verifyEmailChange(props.user.id, otpValue.value)
       emailStep.value = "input"
       otpValue.value = ""
-      form.email = "" // ให้ user พิมพ์ email ใหม่
+      form.email = ""
     } catch (err: any) {
       otpError.value = err?.response?.data?.error ?? "Invalid OTP."
     } finally {
@@ -481,14 +666,12 @@
     }
   }
 
-  // step 3 – save new email → backend ส่ง verification link → poll
   async function handleUpdateEmail() {
     if (!props.user?.id || !form.email) return
     emailSaving.value = true
     otpError.value = ""
     try {
       await userApi.updateEmail(props.user.id, form.email)
-      // ไม่ปิด modal, ไม่ reset — เข้า waiting
       emailStep.value = "waiting"
       startPolling(form.email)
     } catch (err: any) {
@@ -498,13 +681,12 @@
     }
   }
 
-  // resend verification link ขณะ waiting
   async function handleResendEmailVerification() {
     if (!form.email) return
     try {
       await authApi.resendVerification(form.email)
     } catch {
-      /* show toast ถ้ามี */
+      /* ignore */
     }
   }
 
@@ -512,15 +694,12 @@
     resetEmailFlow()
   }
 
-  // ถ้ายังอยู่กลางคัน flow → ยกเลิกทั้งหมด (email กลับเป็นเดิม)
   function handleClose() {
-    if (emailStep.value !== "idle" && emailStep.value !== "done") {
+    if (emailStep.value !== "idle" && emailStep.value !== "done")
       resetEmailFlow()
-    }
     emit("close")
   }
 
-  // verify email (กรณียังไม่ verified ตั้งแต่แรก)
   async function handleResendVerification() {
     if (!props.user?.email) return
     try {
@@ -547,7 +726,6 @@
       if (avatarFile.value) payload.append("avatar", avatarFile.value)
       await userApi.updateProfile(props.user!.id, payload)
       await authStore.fetchMe()
-      // ไม่ emit close — ให้ user กดปิดเอง
     } catch (err) {
       console.error("Save profile failed:", err)
     } finally {
@@ -765,7 +943,7 @@
     margin-top: -4px;
   }
 
-  /* Email row */
+  /* Email */
   .email-row {
     display: flex;
     gap: 8px;
@@ -775,7 +953,6 @@
     flex: 1;
     min-width: 0;
   }
-
   .email-action-btn {
     display: inline-flex;
     align-items: center;
@@ -800,7 +977,6 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
-
   .email-action-btn--verify {
     border-color: rgba(255, 214, 10, 0.3);
     color: var(--c-yellow);
@@ -809,7 +985,6 @@
     background: rgba(255, 214, 10, 0.08);
     border-color: rgba(255, 214, 10, 0.5);
   }
-
   .email-action-btn--cancel {
     color: var(--c-sub);
   }
@@ -822,8 +997,17 @@
   .email-action-btn--confirm:hover:not(:disabled) {
     background: #ff3b30;
   }
+  .email-action-btn--waiting {
+    color: var(--c-sub);
+    gap: 6px;
+  }
+  .email-action-btn--done {
+    border-color: rgba(48, 209, 88, 0.4);
+    color: var(--c-green);
+    background: rgba(48, 209, 88, 0.08);
+  }
 
-  /* OTP box */
+  /* OTP */
   .otp-box {
     background: var(--c-card);
     border: 1px solid var(--c-border);
@@ -858,8 +1042,39 @@
     color: #ff453a;
     margin: 0;
   }
-
-  /* Email hint */
+  .otp-box--waiting {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .waiting-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .waiting-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-top-color: var(--c-sub);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .resend-btn {
+    font-family: var(--font);
+    font-size: 0.7rem;
+    color: var(--c-sub);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    align-self: flex-start;
+  }
+  .resend-btn:hover {
+    color: var(--c-text);
+  }
   .email-hint {
     display: flex;
     align-items: center;
@@ -869,7 +1084,205 @@
     margin: 0;
   }
 
-  /* OTP slide animation */
+  /* ── Change Password section ──────────────────────────────────────── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
+    border-radius: 9px;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.18s;
+    margin-bottom: 4px;
+  }
+  .section-header:hover {
+    border-color: var(--c-border-h);
+  }
+  .section-header__left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-header__icon {
+    color: var(--c-sub);
+    flex-shrink: 0;
+  }
+  .section-header__title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--c-text);
+  }
+  .section-header__chevron {
+    color: var(--c-sub);
+    transition: transform 0.25s var(--ease);
+    flex-shrink: 0;
+  }
+  .section-header__chevron--open {
+    transform: rotate(180deg);
+  }
+
+  .pw-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: var(--c-card);
+    border: 1px solid var(--c-border);
+    border-radius: 9px;
+    margin-bottom: 4px;
+  }
+
+  .pw-input-wrap {
+    position: relative;
+  }
+  .pw-input-wrap .field-input {
+    padding-right: 36px;
+  }
+  .pw-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--c-sub);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+  }
+  .pw-toggle:hover {
+    color: var(--c-text);
+  }
+
+  /* strength bar */
+  .strength-bar {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 9999px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .strength-bar__fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition:
+      width 0.3s ease,
+      background 0.3s ease;
+  }
+  .strength-bar__fill--weak {
+    background: #e50914;
+  }
+  .strength-bar__fill--fair {
+    background: #f59e0b;
+  }
+  .strength-bar__fill--good {
+    background: #3b82f6;
+  }
+  .strength-bar__fill--strong {
+    background: #22c55e;
+  }
+  .strength-label {
+    font-size: 0.68rem;
+    margin-top: 2px;
+  }
+  .strength-label--weak {
+    color: #e50914;
+  }
+  .strength-label--fair {
+    color: #f59e0b;
+  }
+  .strength-label--good {
+    color: #3b82f6;
+  }
+  .strength-label--strong {
+    color: #22c55e;
+  }
+
+  /* inline error */
+  .inline-error {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: #ff453a;
+    margin-top: 2px;
+  }
+  .inline-err-enter-active {
+    transition: all 0.2s ease;
+  }
+  .inline-err-leave-active {
+    transition: all 0.15s ease;
+  }
+  .inline-err-enter-from,
+  .inline-err-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  /* pw feedback alerts */
+  .pw-alert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    padding: 8px 12px;
+    border-radius: 8px;
+  }
+  .pw-alert--error {
+    background: rgba(229, 9, 20, 0.1);
+    border: 1px solid rgba(229, 9, 20, 0.25);
+    color: #ff6b6b;
+  }
+  .pw-alert--success {
+    background: rgba(48, 209, 88, 0.1);
+    border: 1px solid rgba(48, 209, 88, 0.25);
+    color: #30d158;
+  }
+
+  .pw-submit-btn {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 9px 18px;
+    background: var(--c-red);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      opacity 0.2s;
+  }
+  .pw-submit-btn:hover:not(:disabled) {
+    background: #ff3b30;
+  }
+  .pw-submit-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* animations */
+  .pw-slide-enter-active {
+    transition: all 0.28s var(--ease);
+  }
+  .pw-slide-leave-active {
+    transition: all 0.2s ease-in;
+  }
+  .pw-slide-enter-from,
+  .pw-slide-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
   .otp-slide-enter-active,
   .otp-slide-leave-active {
     transition: all 0.22s var(--ease);
@@ -880,7 +1293,6 @@
     transform: translateY(-6px);
   }
 
-  /* Spinner */
   .btn-spinner {
     width: 11px;
     height: 11px;
@@ -1032,54 +1444,5 @@
     to {
       transform: rotate(360deg);
     }
-  }
-
-  /* waiting state */
-  .email-action-btn--waiting {
-    color: var(--c-sub);
-    gap: 6px;
-  }
-
-  .email-action-btn--done {
-    border-color: rgba(48, 209, 88, 0.4);
-    color: var(--c-green);
-    background: rgba(48, 209, 88, 0.08);
-  }
-
-  .otp-box--waiting {
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .waiting-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .waiting-spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.15);
-    border-top-color: var(--c-sub);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .resend-btn {
-    font-family: var(--font);
-    font-size: 0.7rem;
-    color: var(--c-sub);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    align-self: flex-start;
-  }
-  .resend-btn:hover {
-    color: var(--c-text);
   }
 </style>

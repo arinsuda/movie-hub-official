@@ -42,3 +42,9 @@ export interface RequestEmailChangeRequest {
 export interface VerifyEmailChangeRequest {
   otp: string
 }
+
+export interface ChangePassword {
+  old_password: string
+  new_password: string
+  confirm_password: string
+}

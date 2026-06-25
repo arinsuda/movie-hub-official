@@ -45,6 +45,8 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 
 	mw := auth_module.NewMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
+	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer)
+	authSvc.SetUserService(userSvc)
 	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)
 	library_module.RegisterRoutes(protected, db, statsSvc)

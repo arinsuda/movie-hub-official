@@ -19,3 +19,14 @@ export interface RegisterRequest {
 export interface AuthResponse {
   user: AuthUser
 }
+
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+export interface ResetPasswordRequest {
+  token: string
+  user_id: number
+  new_password: string
+  confirm_password: string
+}
