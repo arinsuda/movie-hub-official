@@ -31,26 +31,93 @@
         </button>
       </div>
 
-      <select
-        v-model="store.filters.actionType"
-        class="select-field"
-        @change="onActionTypeChange"
-      >
-        <option value="">ทุกประเภท</option>
-        <option v-for="t in store.actionTypes" :key="t" :value="t">
-          {{ t }}
-        </option>
-      </select>
+      <!-- ตัวกรองประเภท -->
+      <div class="dropdown" ref="typeDropdownRef">
+        <button
+          type="button"
+          class="dropdown-trigger"
+          :class="{ active: isTypeDropdownOpen || !!store.filters.actionType }"
+          @click="toggleDropdown('type')"
+        >
+          <component
+            :is="
+              store.filters.actionType
+                ? getAchievementIcon(store.filters.actionType)
+                : ListFilter
+            "
+            :size="14"
+          />
+          <span>
+            {{
+              store.filters.actionType
+                ? getActionTypeLabel(store.filters.actionType)
+                : "ทุกประเภท"
+            }}
+          </span>
+          <ChevronDown
+            :size="14"
+            class="chevron"
+            :class="{ open: isTypeDropdownOpen }"
+          />
+        </button>
 
-      <select
-        v-model.number="store.filters.limit"
-        class="select-field select-field--sm"
-        @change="onLimitChange"
-      >
-        <option :value="12">12 / หน้า</option>
-        <option :value="24">24 / หน้า</option>
-        <option :value="48">48 / หน้า</option>
-      </select>
+        <Transition name="dropdown-fade">
+          <div v-if="isTypeDropdownOpen" class="dropdown-menu">
+            <button
+              class="dropdown-item"
+              :class="{ selected: !store.filters.actionType }"
+              @click="selectActionType('')"
+            >
+              <ListFilter :size="14" />
+              <span>ทุกประเภท</span>
+            </button>
+            <button
+              v-for="t in store.actionTypes"
+              :key="t"
+              class="dropdown-item"
+              :class="{ selected: store.filters.actionType === t }"
+              @click="selectActionType(t)"
+            >
+              <component :is="getAchievementIcon(t)" :size="14" />
+              <span>{{ getActionTypeLabel(t) }}</span>
+            </button>
+          </div>
+        </Transition>
+      </div>
+
+      <!-- จำนวนต่อหน้า -->
+      <div class="dropdown dropdown--sm" ref="limitDropdownRef">
+        <button
+          type="button"
+          class="dropdown-trigger dropdown-trigger--sm"
+          :class="{ active: isLimitDropdownOpen }"
+          @click="toggleDropdown('limit')"
+        >
+          <span>{{ store.filters.limit }} / หน้า</span>
+          <ChevronDown
+            :size="14"
+            class="chevron"
+            :class="{ open: isLimitDropdownOpen }"
+          />
+        </button>
+
+        <Transition name="dropdown-fade">
+          <div
+            v-if="isLimitDropdownOpen"
+            class="dropdown-menu dropdown-menu--sm"
+          >
+            <button
+              v-for="opt in limitOptions"
+              :key="opt"
+              class="dropdown-item"
+              :class="{ selected: store.filters.limit === opt }"
+              @click="selectLimit(opt)"
+            >
+              <span>{{ opt }} / หน้า</span>
+            </button>
+          </div>
+        </Transition>
+      </div>
     </div>
 
     <div v-if="store.loading" class="grid-skeleton">
@@ -185,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted } from "vue"
+  import { computed, onMounted, onUnmounted, ref } from "vue"
   import { useRoute } from "vue-router"
   import {
     Search,
@@ -195,9 +262,14 @@
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    ChevronDown,
+    ListFilter,
   } from "lucide-vue-next"
   import { useAchievementStore } from "@/stores/achievement"
-  import { getAchievementIcon } from "@/utils/achievementIcons"
+  import {
+    getAchievementIcon,
+    getActionTypeLabel,
+  } from "@/utils/achievementIcons"
   import type { UnlockedFilter } from "@/types/achievement"
 
   const route = useRoute()
@@ -210,6 +282,8 @@
     { label: "ปลดล็อกแล้ว", value: "unlocked" },
     { label: "ยังไม่ปลดล็อก", value: "locked" },
   ]
+
+  const limitOptions = [12, 24, 48]
 
   // สร้างรายการเลขหน้าแบบมี "..." เมื่อหน้าเยอะ เช่น 1 ... 4 5 6 ... 12
   const pageList = computed<(number | "...")[]>(() => {
@@ -274,6 +348,49 @@
       store.fetchUserAchievements(userId.value),
     ])
   })
+
+  // ── Dropdown: ประเภท ──
+  const isTypeDropdownOpen = ref(false)
+  const typeDropdownRef = ref<HTMLElement | null>(null)
+
+  // ── Dropdown: จำนวนต่อหน้า ──
+  const isLimitDropdownOpen = ref(false)
+  const limitDropdownRef = ref<HTMLElement | null>(null)
+
+  function toggleDropdown(which: "type" | "limit") {
+    if (which === "type") {
+      isTypeDropdownOpen.value = !isTypeDropdownOpen.value
+      isLimitDropdownOpen.value = false
+    } else {
+      isLimitDropdownOpen.value = !isLimitDropdownOpen.value
+      isTypeDropdownOpen.value = false
+    }
+  }
+
+  function selectActionType(value: string) {
+    store.filters.actionType = value
+    isTypeDropdownOpen.value = false
+    onActionTypeChange()
+  }
+
+  function selectLimit(value: number) {
+    store.filters.limit = value
+    isLimitDropdownOpen.value = false
+    onLimitChange()
+  }
+
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as Node
+    if (typeDropdownRef.value && !typeDropdownRef.value.contains(target)) {
+      isTypeDropdownOpen.value = false
+    }
+    if (limitDropdownRef.value && !limitDropdownRef.value.contains(target)) {
+      isLimitDropdownOpen.value = false
+    }
+  }
+
+  onMounted(() => document.addEventListener("click", handleClickOutside))
+  onUnmounted(() => document.removeEventListener("click", handleClickOutside))
 </script>
 
 <style scoped>
@@ -367,17 +484,106 @@
     color: #fff;
   }
 
-  .select-field {
+  /* ── Custom dropdown (ใช้แทน native <select> เพื่อคุมธีมได้เต็มที่) ── */
+  .dropdown {
+    position: relative;
+  }
+  .dropdown--sm {
+    flex-shrink: 0;
+  }
+
+  .dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: #0d0d0d;
     border: 1px solid var(--c-border);
     border-radius: 8px;
-    color: #fff;
+    color: var(--c-sub);
     font-size: 0.8rem;
+    font-weight: 500;
     padding: 8px 10px;
     cursor: pointer;
+    min-width: 170px;
+    transition: all 0.15s var(--ease);
   }
-  .select-field--sm {
-    min-width: 90px;
+  .dropdown-trigger:hover {
+    border-color: var(--c-border-h);
+  }
+  .dropdown-trigger.active {
+    color: #fff;
+    border-color: var(--c-border-h);
+  }
+  .dropdown-trigger span {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dropdown-trigger .chevron {
+    transition: transform 0.2s var(--ease);
+    flex-shrink: 0;
+    color: var(--c-sub);
+  }
+  .dropdown-trigger .chevron.open {
+    transform: rotate(180deg);
+  }
+
+  .dropdown-trigger--sm {
+    min-width: 104px;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #161616;
+    border: 1px solid var(--c-border-h);
+    border-radius: 10px;
+    padding: 6px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+  }
+  .dropdown-menu--sm {
+    min-width: 104px;
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--c-sub);
+    font-size: 0.8rem;
+    text-align: left;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+  }
+  .dropdown-item.selected {
+    background: var(--c-red);
+    color: #fff;
+  }
+
+  .dropdown-fade-enter-active,
+  .dropdown-fade-leave-active {
+    transition: all 0.15s var(--ease);
+  }
+  .dropdown-fade-enter-from,
+  .dropdown-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 
   .grid-skeleton,
@@ -545,7 +751,7 @@
     border: 1px solid var(--c-border);
   }
 
-.pagination-wrap {
+  .pagination-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
