@@ -97,6 +97,16 @@ const router = createRouter({
           component: () => import("@/views/movie/Upcoming.vue"),
         },
         {
+          path: "about-us",
+          name: "about-us",
+          component: () => import("@/views/aboutus/AboutUsView.vue"),
+        },
+        {
+          path: "donate",
+          name: "donate",
+          component: () => import("@/views/aboutus/DonateView.vue"),
+        },
+        {
           path: "users/:userId",
           name: "user-profile",
           component: () => import("@/views/user/UserProfileView.vue"),

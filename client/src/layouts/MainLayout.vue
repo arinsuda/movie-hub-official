@@ -30,6 +30,12 @@
           :class="{ active: route.name?.toString().startsWith('upcoming') }"
           >UPCOMING</RouterLink
         >
+        <RouterLink
+          to="/about-us"
+          class="nav-link"
+          :class="{ active: route.name?.toString().startsWith('aboutUs') }"
+          >ABOUT US</RouterLink
+        >
       </nav>
 
       <div class="nav-right">
