@@ -22,7 +22,11 @@
         class="poster-card"
         :style="{ '--i': i }"
       >
-        <div class="poster-frame" tabindex="0">
+        <div
+          class="poster-frame"
+          tabindex="0"
+          @click="goToDetail(item.mediaId, item.mediaType)"
+        >
           <img
             v-if="item.coverUrl"
             :src="item.coverUrl"
@@ -61,7 +65,12 @@
         </div>
 
         <div class="poster-meta">
-          <h4 class="poster-name">{{ item.title }}</h4>
+          <h4
+            class="poster-name"
+            @click="goToDetail(item.mediaId, item.mediaType)"
+          >
+            {{ item.title }}
+          </h4>
         </div>
       </div>
     </div>
@@ -72,6 +81,7 @@
   import { onMounted, ref } from "vue"
   import { Bookmark, Film, X, Clock } from "lucide-vue-next"
   import { libraryApi } from "@/api/api"
+  import { useRouter } from "vue-router"
   import type { ListType } from "@/types"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
@@ -79,6 +89,8 @@
     userId: number
     listType: ListType
   }>()
+
+  const router = useRouter()
 
   const loading = ref(false)
 
@@ -91,6 +103,8 @@
 
   interface WatchlistItem {
     id: number
+    mediaId: number
+    mediaType: string
     title: string
     category: string
     coverUrl: string
@@ -110,6 +124,8 @@
 
       watchlist.value = response.data.items.map(item => ({
         id: item.id,
+        mediaId: item.media.id,
+        mediaType: item.media.media_type,
         title: item.media.title,
         category: item.media.media_type,
         coverUrl: item.media.poster_url
@@ -125,6 +141,13 @@
       loading.value = false
     }
   })
+
+  function goToDetail(mediaId: number, mediaType: string) {
+    router.push({
+      name: mediaType === "tv" ? "tv-detail" : "movie-detail",
+      params: { id: mediaId },
+    })
+  }
 
   function handleRemove(id: number) {
     const item = watchlist.value.find(i => i.id === id)

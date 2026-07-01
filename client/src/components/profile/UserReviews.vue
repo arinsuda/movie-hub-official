@@ -40,7 +40,10 @@
         :style="{ '--i': i }"
       >
         <!-- Poster -->
-        <div class="poster">
+        <div
+          class="poster"
+          @click="goToDetail(review.mediaId, review.mediaType)"
+        >
           <img
             v-if="review.posterUrl"
             :src="review.posterUrl"
@@ -55,7 +58,12 @@
         <!-- Body -->
         <div class="review-body">
           <div class="title-rating-row">
-            <h4 class="review-title">{{ review.targetName }}</h4>
+            <h4
+              class="review-title"
+              @click="goToDetail(review.mediaId, review.mediaType)"
+            >
+              {{ review.targetName }}
+            </h4>
             <div class="inline-rating">
               <span class="inline-rating-num">{{
                 review.rating.toFixed(1)
@@ -128,9 +136,12 @@
   import { computed, onMounted, onUnmounted, ref } from "vue"
   import { Star, Film, Pencil, Trash2, MoreHorizontal } from "lucide-vue-next"
   import { reviewApi } from "@/api/api"
+  import { useRouter } from "vue-router"
   import type { ReviewResponse } from "@/types"
   import EditReview from "./components/EditReview.vue"
   import DeleteReview from "./components/DeleteReview.vue"
+
+  const router = useRouter()
 
   const props = defineProps<{ userId: number }>()
 
@@ -147,6 +158,13 @@
   const openMenuId = ref<number | null>(null)
   const editTarget = ref<ReviewResponse | null>(null)
   const deleteTarget = ref<ReviewResponse | null>(null)
+
+  function goToDetail(mediaId: number, mediaType: string) {
+    router.push({
+      name: mediaType === "tv" ? "tv-detail" : "movie-detail",
+      params: { id: mediaId },
+    })
+  }
 
   function toggleMenu(id: number) {
     openMenuId.value = openMenuId.value === id ? null : id
@@ -188,6 +206,8 @@
       ...r,
       targetName: r.media.title || `#${r.media.id}`,
       posterUrl: r.media.poster_url || null,
+      mediaId: r.media.id,
+      mediaType: r.media.media_type,
       createdAt: new Date(r.created_at).toLocaleDateString("th-TH", {
         year: "numeric",
         month: "short",
@@ -382,6 +402,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    cursor: pointer;
   }
   .poster-img {
     width: 100%;
@@ -410,6 +431,11 @@
     color: #fff;
     margin: 0;
     line-height: 1.3;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .review-title:hover {
+    color: var(--c-red);
   }
 
   .inline-rating {

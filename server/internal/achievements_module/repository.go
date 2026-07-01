@@ -28,14 +28,13 @@ func (r *repository) ListAllAchievements(filter PaginationQuery) ([]Achievement,
 	var achievements []Achievement
 	var total int64
 
-	q := r.db.Model(&Achievement{})
-
-	if err := q.Count(&total).Error; err != nil {
+	countQuery := r.db.Model(&Achievement{}).Session(&gorm.Session{})
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err := q.
-		Order("action_type ASC, target_count ASC").
+	err := r.db.Model(&Achievement{}).
+		Order("id ASC").
 		Limit(filter.Limit).
 		Offset(filter.Offset()).
 		Find(&achievements).Error
@@ -62,31 +61,86 @@ func (r *repository) ListUserAchievements(userID uint, filter UserAchievementFil
 	var list []UserAchievement
 	var total int64
 
-	q := r.db.Model(&UserAchievement{}).
-		Preload("Achievement").
-		Where("user_id = ?", userID)
-
-	if filter.Unlocked != nil {
-		q = q.Where("is_unlocked = ?", *filter.Unlocked)
-	}
-
-	if filter.ActionType != "" {
-		q = q.Joins("JOIN achievements ON achievements.id = user_achievements.achievement_id").
-			Where("achievements.action_type = ?", filter.ActionType).
+	// สร้าง query ใหม่ทุกครั้งที่เรียก เพื่อไม่ให้ clause ไปติดกันระหว่าง Count กับ Find
+	buildQuery := func() *gorm.DB {
+		q := r.db.Table("achievements").
+			Joins(`LEFT JOIN user_achievements
+				ON user_achievements.achievement_id = achievements.id
+				AND user_achievements.user_id = ?
+				AND user_achievements.deleted_at IS NULL`, userID).
 			Where("achievements.deleted_at IS NULL")
+
+		if filter.ActionType != "" {
+			q = q.Where("achievements.action_type = ?", filter.ActionType)
+		}
+
+		if filter.Unlocked != nil {
+			if *filter.Unlocked {
+				q = q.Where("user_achievements.is_unlocked = true")
+			} else {
+				// ยังไม่ unlock = ไม่มีแถวใน user_achievements เลย หรือมีแต่ is_unlocked = false
+				q = q.Where("COALESCE(user_achievements.is_unlocked, false) = false")
+			}
+		}
+
+		return q
 	}
 
-	if err := q.Count(&total).Error; err != nil {
+	if err := buildQuery().Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err := q.
-		Order("is_unlocked DESC, current_count DESC").
+	var achievements []Achievement
+	err := buildQuery().
+		Select("achievements.*").
+		Order("achievements.id ASC").
 		Limit(filter.Limit).
 		Offset(filter.Offset()).
-		Find(&list).Error
+		Find(&achievements).Error
+	if err != nil {
+		return nil, 0, err
+	}
 
-	return list, total, err
+	if len(achievements) == 0 {
+		return list, total, nil
+	}
+
+	ids := make([]uint, len(achievements))
+	for i, a := range achievements {
+		ids[i] = a.ID
+	}
+
+	// ดึง progress จริงของ user เฉพาะ achievement ที่อยู่ในหน้านี้
+	var uas []UserAchievement
+	if err := r.db.
+		Where("user_id = ? AND achievement_id IN ?", userID, ids).
+		Find(&uas).Error; err != nil {
+		return nil, 0, err
+	}
+
+	uaMap := make(map[uint]UserAchievement, len(uas))
+	for _, ua := range uas {
+		uaMap[ua.AchievementID] = ua
+	}
+
+	// merge: ถ้า user ยังไม่มีแถว -> ใส่ default locked, current_count = 0
+	list = make([]UserAchievement, len(achievements))
+	for i, a := range achievements {
+		if ua, ok := uaMap[a.ID]; ok {
+			ua.Achievement = a
+			list[i] = ua
+		} else {
+			list[i] = UserAchievement{
+				UserID:        userID,
+				AchievementID: a.ID,
+				Achievement:   a,
+				CurrentCount:  0,
+				IsUnlocked:    false,
+			}
+		}
+	}
+
+	return list, total, nil
 }
 
 func (r *repository) FindUserAchievement(userID, achievementID uint) (*UserAchievement, error) {

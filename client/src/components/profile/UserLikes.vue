@@ -22,7 +22,11 @@
         class="poster-card"
         :style="{ '--i': i }"
       >
-        <div class="poster-frame" tabindex="0">
+        <div
+          class="poster-frame"
+          tabindex="0"
+          @click="goToDetail(item.id, item.category)"
+        >
           <img
             v-if="item.coverUrl"
             :src="item.coverUrl"
@@ -69,7 +73,9 @@
         </div>
 
         <div class="poster-meta">
-          <h4 class="poster-name">{{ item.title }}</h4>
+          <h4 class="poster-name" @click="goToDetail(item.id, item.category)">
+            {{ item.title }}
+          </h4>
         </div>
       </div>
     </div>
@@ -80,10 +86,13 @@
   import { onMounted, ref } from "vue"
   import { Heart, Film, X, Clock } from "lucide-vue-next"
   import { mediaApi } from "@/api/endpoints/media"
+  import { useRouter } from "vue-router"
   import type { LikeItem, ListType } from "@/types"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
+
+  const router = useRouter()
 
   const props = defineProps<{
     userId: number
@@ -131,6 +140,13 @@
       loading.value = false
     }
   })
+
+  function goToDetail(mediaId: number, mediaType: string) {
+    router.push({
+      name: mediaType === "tv" ? "tv-detail" : "movie-detail",
+      params: { id: mediaId },
+    })
+  }
 
   function handleRemove(id: number) {
     const item = items.value.find(i => i.id === id)

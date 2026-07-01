@@ -2,42 +2,52 @@
   <div class="ach-root">
     <div class="section-head">
       <span class="eyebrow">Achievements</span>
-      <span class="count-chip"
-        >{{ unlockedCount }} / {{ achievements.length }}</span
-      >
+      <span class="count-chip">{{ store.pagination.total }} unlocked</span>
       <div class="rule" />
+      <RouterLink
+        :to="{ name: 'user-achievements', params: { userId } }"
+        class="view-all"
+      >
+        ดูทั้งหมด
+      </RouterLink>
     </div>
 
-    <div v-if="loading" class="state-loading">
+    <div v-if="store.loading" class="state-loading">
       <div class="loader-bar"><div class="loader-fill" /></div>
+    </div>
+
+    <div v-else-if="store.error" class="state-empty">{{ store.error }}</div>
+
+    <div v-else-if="store.userAchievements.length === 0" class="state-empty">
+      ยังไม่มี Achievement ที่ปลดล็อก
     </div>
 
     <div v-else class="ach-list">
       <div
-        v-for="(item, i) in achievements"
-        :key="item.id"
+        v-for="(ua, i) in store.userAchievements"
+        :key="ua.achievement_id"
         class="ach-card"
-        :class="item.isUnlocked ? 'ach-card--unlocked' : 'ach-card--locked'"
         :style="{ '--i': i }"
       >
-        <div class="ach-icon-box" :class="{ lit: item.isUnlocked }">
-          <component :is="item.icon" :size="15" :stroke-width="1.8" />
+        <div class="ach-icon-box lit">
+          <component
+            :is="getAchievementIcon(ua.achievement.action_type)"
+            :size="15"
+            :stroke-width="1.8"
+          />
         </div>
 
         <div class="ach-info">
-          <p class="ach-name">{{ item.title }}</p>
-          <p class="ach-desc">{{ item.description }}</p>
-          <p v-if="item.isUnlocked && item.unlockedAt" class="ach-unlocked-at">
-            <CheckCircle :size="9" /> {{ item.unlockedAt }}
+          <p class="ach-name">{{ ua.achievement.name }}</p>
+          <p class="ach-desc">{{ ua.achievement.description }}</p>
+          <p v-if="ua.unlocked_at" class="ach-unlocked-at">
+            <CheckCircle :size="9" /> {{ formatDate(ua.unlocked_at) }}
           </p>
         </div>
 
         <div class="ach-badge">
-          <span v-if="item.isUnlocked" class="badge badge--done">
+          <span class="badge badge--done">
             <CheckCircle :size="9" /> Unlocked
-          </span>
-          <span v-else class="badge badge--locked">
-            <Lock :size="9" /> Locked
           </span>
         </div>
       </div>
@@ -46,84 +56,24 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from "vue"
-  import {
-    UserCheck,
-    PenLine,
-    Eye,
-    Heart,
-    Flame,
-    CheckCircle,
-    Lock,
-    type LucideIcon,
-  } from "lucide-vue-next"
+  import { onMounted } from "vue"
+  import { CheckCircle } from "lucide-vue-next"
+  import { useAchievementStore } from "@/stores/achievement"
+  import { getAchievementIcon } from "@/utils/achievementIcons"
 
   const props = defineProps<{ userId: number }>()
-  const loading = ref(false)
+  const store = useAchievementStore()
 
-  interface Achievement {
-    id: number
-    title: string
-    description: string
-    icon: LucideIcon
-    isUnlocked: boolean
-    unlockedAt?: string
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
 
-  const achievements = ref<Achievement[]>([])
-  const unlockedCount = computed(
-    () => achievements.value.filter(a => a.isUnlocked).length,
-  )
-
-  onMounted(async () => {
-    try {
-      loading.value = true
-      await new Promise(r => setTimeout(r, 400))
-      achievements.value = [
-        {
-          id: 1,
-          title: "First Step",
-          description: "สมัครสมาชิกและตั้งค่าข้อมูลโปรไฟล์เสร็จสมบูรณ์",
-          icon: UserCheck,
-          isUnlocked: true,
-          unlockedAt: "10 Jan 2026",
-        },
-        {
-          id: 2,
-          title: "Pro Critic",
-          description: "เขียนรีวิวภาพยนตร์หรือเนื้อหาครบ 5 ครั้ง",
-          icon: PenLine,
-          isUnlocked: true,
-          unlockedAt: "15 May 2026",
-        },
-        {
-          id: 3,
-          title: "True Supporter",
-          description: "กดถูกใจรีวิวหรือคอมเมนต์ที่ชื่นชอบครบ 20 ครั้ง",
-          icon: Heart,
-          isUnlocked: true,
-          unlockedAt: "1 Jun 2026",
-        },
-        {
-          id: 4,
-          title: "Night Watcher",
-          description: "เพิ่มรายการหนังไว้ใน Watchlist ครบ 10 เรื่อง",
-          icon: Eye,
-          isUnlocked: false,
-        },
-        {
-          id: 5,
-          title: "Elite Streak",
-          description: "เข้าใช้งานแพลตฟอร์มติดต่อกันยาวนานครบ 30 วัน",
-          icon: Flame,
-          isUnlocked: false,
-        },
-      ]
-    } catch (err) {
-      console.error("Fetch achievements failed:", err)
-    } finally {
-      loading.value = false
-    }
+  onMounted(() => {
+    store.fetchUnlockedOnly(props.userId)
   })
 </script>
 
@@ -171,6 +121,17 @@
     height: 1px;
     background: var(--c-border);
   }
+  .view-all {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--c-sub);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .view-all:hover {
+    color: #fff;
+  }
 
   .state-loading {
     padding: 48px 0;
@@ -199,6 +160,13 @@
     100% {
       left: 100%;
     }
+  }
+
+  .state-empty {
+    padding: 32px 0;
+    text-align: center;
+    color: var(--c-sub);
+    font-size: 0.78rem;
   }
 
   .ach-list {
@@ -235,8 +203,7 @@
     background: var(--c-card);
     border-color: var(--c-border-h);
   }
-
-  .ach-card--unlocked::before {
+  .ach-card::before {
     content: "";
     position: absolute;
     left: 0;
@@ -245,13 +212,6 @@
     width: 2px;
     background: #fff;
     border-radius: 0 2px 2px 0;
-  }
-  .ach-card--locked {
-    opacity: 0.4;
-    filter: grayscale(1);
-  }
-  .ach-card--locked:hover {
-    opacity: 0.55;
   }
 
   .ach-icon-box {
@@ -265,10 +225,6 @@
     justify-content: center;
     color: var(--c-sub);
     transition: all 0.2s;
-  }
-  .ach-card--unlocked:hover .ach-icon-box {
-    border-color: rgba(255, 255, 255, 0.18);
-    color: #fff;
   }
   .ach-icon-box.lit {
     color: #fff;
@@ -317,11 +273,6 @@
     background: rgba(255, 255, 255, 0.05);
     color: #fff;
     border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  .badge--locked {
-    background: transparent;
-    color: var(--c-muted);
-    border: 1px solid var(--c-border);
   }
 
   @media (max-width: 480px) {
