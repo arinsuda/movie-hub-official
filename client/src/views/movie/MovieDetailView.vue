@@ -214,7 +214,10 @@
             <h2 class="section-title">
               <i class="pi pi-comments"></i>รีวิวจากผู้ใช้งาน REMOV
             </h2>
-            <MovieReviews :movie-id="movieId" />
+            <MovieReviews
+              :movie-id="movieId"
+              @review-submitted="onReviewSubmitted"
+            />
           </section>
         </div>
       </div>
@@ -231,13 +234,13 @@
   import { ref, onMounted, computed } from "vue"
   import { useRoute, useRouter } from "vue-router"
   import { movieApi } from "@/api/api"
-  import { libraryApi } from "@/api/endpoints/library" 
+  import { libraryApi } from "@/api/endpoints/library"
   import { gsap } from "gsap"
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
-import { mediaApi } from "@/api/endpoints/media"
+  import { mediaApi } from "@/api/endpoints/media"
 
   const route = useRoute()
   const router = useRouter()
@@ -460,20 +463,8 @@ import { mediaApi } from "@/api/endpoints/media"
     }
   }
 
-  onMounted(async () => {
-    if (!movieId.value) {
-      router.push({ name: "upcoming" })
-      return
-    }
-
+  async function fetchStats() {
     try {
-      isLoading.value = true
-
-      const res = await movieApi.getById(movieId.value)
-      movie.value = res.data.movie
-      castList.value = res.data.credits?.cast?.slice(0, 8) || []
-      videoList.value = res.data.videos || []
-
       const statsRes = await mediaApi.getMediaStats("movie", movieId.value)
 
       if (statsRes.data && statsRes.data.stats) {
@@ -493,10 +484,39 @@ import { mediaApi } from "@/api/endpoints/media"
           average_rating: incomingStats.average_rating ?? 0.0,
           has_rating: incomingStats.has_rating ?? false,
         }
+
         if (incomingStats.watchlisted_at) {
           isWatchlisted.value = true
         }
       }
+    } catch (err) {
+      console.error("ไม่สามารถดึงข้อมูลสถิติของภาพยนตร์ได้:", err)
+    }
+  }
+
+  function onReviewSubmitted() {
+    fetchStats()
+  }
+
+  onMounted(async () => {
+    if (!movieId.value) {
+      router.push({ name: "upcoming" })
+      return
+    }
+
+    try {
+      isLoading.value = true
+
+      const res = await movieApi.getById(movieId.value)
+      movie.value = res.data.movie
+      castList.value = res.data.credits?.cast?.slice(0, 8) || []
+      videoList.value = res.data.videos || []
+
+      mediaApi.recordMediaView("movie", movieId.value).catch(err => {
+        console.warn("record view failed:", err)
+      })
+
+      await fetchStats()
 
       if (currentUserId.value) {
         try {

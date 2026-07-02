@@ -71,3 +71,25 @@
     @apply transition-all duration-300 hover:scale-105 hover:shadow-2xl cursor-pointer;
   }
 }
+
+.dp__theme_dark {
+  --dp-background-color: #141414;
+  --dp-text-color: #ffffff;
+  --dp-hover-color: #2a2a2a;
+  --dp-hover-text-color: #ffffff;
+  --dp-primary-color: #e50914;
+  --dp-primary-disabled-color: #7a1f24;
+  --dp-primary-text-color: #ffffff;
+  --dp-secondary-color: #a3a3a3;
+  --dp-border-color: #2a2a2a;
+  --dp-menu-border-color: #2a2a2a;
+  --dp-border-color-hover: #e50914;
+  --dp-border-color-focus: #e50914;
+  --dp-disabled-color: #333333;
+  --dp-disabled-color-text: #666666;
+  --dp-icon-color: #a3a3a3;
+  --dp-danger-color: #e53935;
+  --dp-marker-color: #e50914;
+  --dp-highlight-color: rgb(229 9 20 / 20%);
+}
+

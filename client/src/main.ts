@@ -6,7 +6,8 @@ import App from "./App.vue"
 import router from "./router"
 
 import { useAuthStore } from "@/stores/auth"
-
+import { VueDatePicker } from "@vuepic/vue-datepicker"
+import "@vuepic/vue-datepicker/dist/main.css"
 import "./assets/styles/main.css"
 import "primeicons/primeicons.css"
 import PrimeVue from "primevue/config"
@@ -17,6 +18,8 @@ async function bootstrap() {
 
   const pinia = createPinia()
   app.use(pinia)
+  app.use(PrimeVue, { ripple: true })
+  app.component("VueDatePicker", VueDatePicker)
 
   // restore session
   const authStore = useAuthStore()

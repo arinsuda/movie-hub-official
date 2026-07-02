@@ -23,7 +23,7 @@ export interface CreateReviewRequest {
   rating: number
   body: string
   is_public: boolean
-  watched_at?: string
+  watched_at?: string | null
 }
 
 export interface UpdateReviewRequest {
@@ -60,5 +60,5 @@ export interface LikeItem {
 }
 
 export interface LikesResponse {
-  likes: LikeItem[] 
+  likes: LikeItem[]
 }
