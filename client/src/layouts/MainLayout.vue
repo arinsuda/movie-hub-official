@@ -1,10 +1,11 @@
 <template>
   <div class="app-shell">
     <header class="navbar" :class="{ 'navbar--scrolled': scrolled }">
-      <RouterLink to="/" class="nav-logo">
+      <RouterLink to="/" class="nav-logo" @click="closeMobileMenu">
         <span class="logo-movie">RE</span><span class="logo-hub">MOV</span>
       </RouterLink>
 
+      <!-- Desktop / Tablet nav links -->
       <nav class="nav-links">
         <RouterLink
           to="/"
@@ -52,6 +53,15 @@
             @keydown.enter="doSearch"
             @keydown.escape="closeSearch"
           />
+
+          <button
+            v-if="searchOpen"
+            class="search-close-btn"
+            @click="closeSearch"
+            aria-label="Close search"
+          >
+            <X :size="16" />
+          </button>
 
           <div
             v-if="searchOpen && (suggestions.length > 0 || searchLoading)"
@@ -112,7 +122,7 @@
         </div>
 
         <div class="user-menu" v-if="authStore.user" ref="userMenuRef">
-          <button class="user-trigger" @click="userMenuOpen = !userMenuOpen">
+          <button class="user-trigger" @click="toggleUserMenu">
             <div class="user-avatar">
               <img
                 v-if="authStore.user.avatar_url"
@@ -169,8 +179,106 @@
             </div>
           </Transition>
         </div>
+
+        <!-- Hamburger toggle: shows on tablet/mobile -->
+        <button
+          class="hamburger-btn"
+          :class="{ 'hamburger-btn--active': mobileMenuOpen }"
+          @click="toggleMobileMenu"
+          aria-label="Toggle menu"
+        >
+          <span class="hamburger-line" />
+          <span class="hamburger-line" />
+          <span class="hamburger-line" />
+        </button>
       </div>
     </header>
+
+    <!-- Mobile / Tablet slide-down menu -->
+    <Transition name="mobile-menu">
+      <div
+        v-if="mobileMenuOpen"
+        class="mobile-menu-overlay"
+        @click.self="closeMobileMenu"
+      >
+        <nav class="mobile-menu-panel">
+          <RouterLink
+            to="/"
+            class="mobile-nav-link"
+            :class="{ active: route.name === 'home' }"
+            @click="closeMobileMenu"
+            >HOME</RouterLink
+          >
+          <RouterLink
+            to="/movies"
+            class="mobile-nav-link"
+            :class="{ active: route.path.startsWith('/movies') }"
+            @click="closeMobileMenu"
+            >MOVIES</RouterLink
+          >
+          <RouterLink
+            to="/tv"
+            class="mobile-nav-link"
+            :class="{ active: route.path.startsWith('/tv') }"
+            @click="closeMobileMenu"
+            >TV SERIES</RouterLink
+          >
+          <RouterLink
+            to="/upcoming"
+            class="mobile-nav-link"
+            :class="{ active: route.name?.toString().startsWith('upcoming') }"
+            @click="closeMobileMenu"
+            >UPCOMING</RouterLink
+          >
+          <RouterLink
+            to="/about-us"
+            class="mobile-nav-link"
+            :class="{ active: route.name?.toString().startsWith('aboutUs') }"
+            @click="closeMobileMenu"
+            >ABOUT US</RouterLink
+          >
+
+          <div class="mobile-menu-divider" />
+
+          <template v-if="authStore.user">
+            <RouterLink
+              :to="`/users/${authStore.user.id}`"
+              class="mobile-nav-link mobile-nav-link--sub"
+              @click="closeMobileMenu"
+            >
+              <UserIcon :size="16" />Profile
+            </RouterLink>
+            <RouterLink
+              :to="`/users/${authStore.user.id}/library`"
+              class="mobile-nav-link mobile-nav-link--sub"
+              @click="closeMobileMenu"
+            >
+              <BookMarked :size="16" />My Library
+            </RouterLink>
+            <RouterLink
+              :to="`/users/${authStore.user.id}/achievements`"
+              class="mobile-nav-link mobile-nav-link--sub"
+              @click="closeMobileMenu"
+            >
+              <Trophy :size="16" />Achievement
+            </RouterLink>
+            <RouterLink
+              :to="`/users/${authStore.user.id}/feed`"
+              class="mobile-nav-link mobile-nav-link--sub"
+              @click="closeMobileMenu"
+            >
+              <Rss :size="16" />Feed
+            </RouterLink>
+            <button
+              class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--danger"
+              @click="handleLogout"
+            >
+              <LogOut :size="16" />Log out
+            </button>
+          </template>
+        </nav>
+      </div>
+    </Transition>
 
     <main class="page-content">
       <RouterView />
@@ -196,6 +304,7 @@ import {
   Rss,
   LogOut,
   Star,
+  X,
 } from "lucide-vue-next";
 
 interface SearchSuggestion {
@@ -216,6 +325,7 @@ const searchQuery = ref("");
 const searchInput = ref<HTMLInputElement | null>(null);
 const userMenuOpen = ref(false);
 const userMenuRef = ref<HTMLElement | null>(null);
+const mobileMenuOpen = ref(false);
 
 const suggestions = ref<SearchSuggestion[]>([]);
 const searchLoading = ref(false);
@@ -320,6 +430,22 @@ function doSearch() {
   closeSearch();
 }
 
+function closeMobileMenu() {
+  mobileMenuOpen.value = false;
+}
+
+// ปุ่ม avatar และปุ่ม hamburger ต้อง "เปิดพร้อมกันไม่ได้"
+// ไม่งั้นจะเห็น dropdown เล็ก + mobile menu เต็มจอซ้อนกัน (ตามที่เจอในภาพ)
+function toggleUserMenu() {
+  userMenuOpen.value = !userMenuOpen.value;
+  if (userMenuOpen.value) mobileMenuOpen.value = false;
+}
+
+function toggleMobileMenu() {
+  mobileMenuOpen.value = !mobileMenuOpen.value;
+  if (mobileMenuOpen.value) userMenuOpen.value = false;
+}
+
 function onClickOutside(e: MouseEvent) {
   if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
     userMenuOpen.value = false;
@@ -328,17 +454,33 @@ function onClickOutside(e: MouseEvent) {
 
 async function handleLogout() {
   userMenuOpen.value = false;
+  mobileMenuOpen.value = false;
   await authStore.logout();
   router.push({ name: "login" });
 }
 
+// ปิดเมนูมือถืออัตโนมัติเมื่อขยายจอกลับมาเป็นเดสก์ท็อป
+function onResize() {
+  if (window.innerWidth > 900 && mobileMenuOpen.value) {
+    mobileMenuOpen.value = false;
+  }
+}
+
+// ล็อกการ scroll พื้นหลังตอนเปิดเมนูมือถือ
+watch(mobileMenuOpen, (open) => {
+  document.body.style.overflow = open ? "hidden" : "";
+});
+
 onMounted(() => {
   window.addEventListener("scroll", onScroll, { passive: true });
   document.addEventListener("click", onClickOutside);
+  window.addEventListener("resize", onResize);
 });
 onUnmounted(() => {
   window.removeEventListener("scroll", onScroll);
   document.removeEventListener("click", onClickOutside);
+  window.removeEventListener("resize", onResize);
+  document.body.style.overflow = "";
 });
 </script>
 
@@ -363,7 +505,9 @@ onUnmounted(() => {
   transition:
     background 0.3s,
     backdrop-filter 0.3s,
-    border-color 0.3s;
+    border-color 0.3s,
+    padding 0.3s,
+    height 0.3s;
   border-bottom: 1px solid transparent;
 }
 .navbar--scrolled {
@@ -380,6 +524,7 @@ onUnmounted(() => {
   text-decoration: none;
   letter-spacing: -0.5px;
   flex-shrink: 0;
+  z-index: 1;
 }
 .logo-movie {
   color: #ffffff;
@@ -401,6 +546,7 @@ onUnmounted(() => {
   color: #a3a3a3;
   text-decoration: none;
   border-radius: 6px;
+  white-space: nowrap;
   transition:
     color 0.2s,
     background 0.2s;
@@ -442,6 +588,7 @@ onUnmounted(() => {
   display: flex;
   padding: 0.5rem 0.6rem;
   transition: color 0.2s;
+  flex-shrink: 0;
 }
 .search-icon-btn:hover {
   color: #fff;
@@ -452,11 +599,23 @@ onUnmounted(() => {
   outline: none;
   color: #fff;
   font-size: 0.875rem;
-  width: 260px; /* เดิม 200px */
+  width: 260px;
   padding: 0.5rem 0.75rem 0.5rem 0;
+  min-width: 0;
 }
 .search-input::placeholder {
   color: #666;
+}
+
+/* ปุ่มปิด search เฉพาะจอเล็ก (ซ่อนบนเดสก์ท็อปโดย default) */
+.search-close-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #a3a3a3;
+  cursor: pointer;
+  padding: 0.4rem;
+  flex-shrink: 0;
 }
 
 /* Search suggestions dropdown */
@@ -465,15 +624,15 @@ onUnmounted(() => {
   top: calc(100% + 8px);
   left: 0;
   right: 0;
-  min-width: 360px; /* เดิม 280px */
-  max-height: 480px; /* กันล้นจอตอนผลลัพธ์เยอะ */
+  min-width: 360px;
+  max-height: 480px;
   overflow-y: auto;
   background: #1f1f1f;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
   z-index: 200;
+  -webkit-overflow-scrolling: touch;
 }
 
 .search-suggestion-loading {
@@ -485,28 +644,37 @@ onUnmounted(() => {
 .search-suggestion-item {
   display: flex;
   align-items: center;
-  gap: 0.85rem; /* เดิม 0.6rem */
+  gap: 0.85rem;
   width: 100%;
-  padding: 0.75rem 1rem; /* เดิม 0.5rem 0.75rem */
+  padding: 0.75rem 1rem;
   background: none;
   border: none;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s;
 }
+.search-suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
 
 .suggestion-poster {
-  width: 44px; /* เดิม 32px */
-  height: 64px; /* เดิม 48px */
+  width: 44px;
+  height: 64px;
   object-fit: cover;
   border-radius: 5px;
   flex-shrink: 0;
   background: #2a2a2a;
 }
 
+.suggestion-info {
+  min-width: 0;
+  flex: 1;
+}
+
 .suggestion-title {
   color: #fff;
-  font-size: 0.95rem; /* เดิม 0.85rem */
+  font-size: 0.95rem;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -514,7 +682,7 @@ onUnmounted(() => {
 
 .suggestion-type {
   color: #888;
-  font-size: 0.78rem; /* เดิม 0.7rem */
+  font-size: 0.78rem;
 }
 
 .suggestion-meta {
@@ -601,6 +769,7 @@ onUnmounted(() => {
   transition:
     color 0.2s,
     background 0.2s;
+  flex-shrink: 0;
 }
 .icon-btn:hover,
 .has-unread {
@@ -611,6 +780,7 @@ onUnmounted(() => {
 /* User menu */
 .user-menu {
   position: relative;
+  flex-shrink: 0;
 }
 .user-trigger {
   display: flex;
@@ -646,6 +816,7 @@ onUnmounted(() => {
 .user-name {
   font-size: 0.85rem;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .dropdown-menu {
@@ -704,8 +875,368 @@ onUnmounted(() => {
   transform: translateY(-6px);
 }
 
+/* ── Hamburger (ซ่อนเป็นค่าเริ่มต้นบนเดสก์ท็อป) ───────── */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  z-index: 1;
+}
+.hamburger-line {
+  width: 20px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition:
+    transform 0.25s ease,
+    opacity 0.2s ease;
+}
+.hamburger-btn--active .hamburger-line:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.hamburger-btn--active .hamburger-line:nth-child(2) {
+  opacity: 0;
+}
+.hamburger-btn--active .hamburger-line:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ── Mobile slide-down menu ───────────────────────────── */
+.mobile-menu-overlay {
+  position: fixed;
+  inset: 64px 0 0 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 99;
+}
+.mobile-menu-panel {
+  background: #181818;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 1rem 1.25rem;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: #d1d1d1;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.mobile-nav-link.active {
+  color: #fff;
+}
+.mobile-nav-link--sub {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #a3a3a3;
+}
+.mobile-nav-link--danger {
+  color: #e50914;
+}
+.mobile-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.5rem 0;
+}
+
+.mobile-menu-enter-active,
+.mobile-menu-leave-active {
+  transition: opacity 0.2s ease;
+}
+.mobile-menu-enter-from,
+.mobile-menu-leave-to {
+  opacity: 0;
+}
+
 /* ── Page content ──────────────────────────────────── */
 .page-content {
   padding-top: 64px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   - ≥1440px : จอใหญ่ / iMac / desktop monitor
+   - 1200–1439px : notebook / laptop มาตรฐาน (เช่น MacBook Pro 14"/16")
+   - 1025–1199px : notebook ขนาดเล็ก / iPad Pro landscape
+   - 901–1024px  : iPad / Tablet (landscape เล็ก, portrait ใหญ่)
+   - 769–900px   : iPad Mini / Tablet portrait, mobile landscape ใหญ่
+   - 577–768px   : Tablet แนวตั้งเล็ก / mobile landscape
+   - 421–576px   : มือถือจอใหญ่ (เช่น iPhone Pro Max, Android ใหญ่)
+   - ≤420px      : มือถือจอมาตรฐาน/เล็ก (iPhone SE ฯลฯ)
+   ════════════════════════════════════════════════════════════ */
+
+/* ── จอใหญ่พิเศษ (จอ Desktop / iMac ขนาดใหญ่) ────────── */
+@media (min-width: 1440px) {
+  .navbar {
+    padding: 0 3rem;
+    gap: 2.5rem;
+  }
+  .nav-link {
+    font-size: 0.85rem;
+    padding: 0.45rem 0.9rem;
+  }
+  .search-input {
+    width: 300px;
+  }
+}
+
+/* ── Notebook / Laptop ทั่วไป (1200–1439px) ───────────── */
+@media (max-width: 1439px) {
+  .navbar {
+    padding: 0 1.75rem;
+    gap: 1.5rem;
+  }
+}
+
+/* ── Notebook เล็ก / iPad Pro แนวนอน (1025–1199px) ────── */
+@media (max-width: 1199px) {
+  .navbar {
+    gap: 1rem;
+    padding: 0 1.5rem;
+  }
+  .nav-links {
+    gap: 0;
+  }
+  .nav-link {
+    font-size: 0.78rem;
+    padding: 0.4rem 0.55rem;
+  }
+  .search-input {
+    width: 200px;
+  }
+  .user-name {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* ── iPad / Tablet แนวนอน (901–1024px) ─────────────────
+   จุดนี้เริ่มแน่นเกินไปสำหรับเมนูเต็ม -> ซ่อน nav-links หลัก
+   แล้วสลับไปใช้ hamburger menu แทน                     */
+@media (max-width: 1024px) {
+  .nav-links {
+    display: none;
+  }
+  .hamburger-btn {
+    display: flex;
+  }
+  .navbar {
+    gap: 0.75rem;
+  }
+  .search-input {
+    width: 180px;
+  }
+  .user-name {
+    display: none; /* โชว์เฉพาะ avatar เพื่อประหยัดพื้นที่ */
+  }
+  .user-trigger {
+    padding: 0.3rem;
+    gap: 0;
+  }
+  .user-trigger .rotate-180,
+  .user-trigger svg:last-child {
+    display: none;
+  }
+  /* ลิงก์ Profile/Library/Achievement/Feed/Logout ย้ายไปอยู่ใน
+     mobile-menu-panel แล้ว จึงปิด dropdown เล็กของ avatar บนจอแคบ
+     เพื่อไม่ให้เปิดซ้อนกันสองเมนู */
+  .dropdown-menu {
+    display: none !important;
+  }
+}
+
+/* ── Tablet แนวตั้ง / iPad Mini (769–900px) ───────────── */
+@media (max-width: 900px) {
+  .navbar {
+    padding: 0 1.25rem;
+    height: 60px;
+  }
+  .page-content {
+    padding-top: 60px;
+  }
+  .mobile-menu-overlay {
+    inset: 60px 0 0 0;
+  }
+  .mobile-menu-panel {
+    max-height: calc(100vh - 60px);
+  }
+  .nav-logo {
+    font-size: 1.35rem;
+  }
+  .search-input {
+    width: 150px;
+  }
+}
+
+/* ── Tablet เล็ก / Mobile แนวนอน (577–768px) ──────────── */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0 1rem;
+    gap: 0.5rem;
+  }
+  .nav-right {
+    gap: 0.25rem;
+  }
+
+  /* ให้ช่องค้นหาขยายเต็มระหว่างโลโก้กับปุ่มอื่น ๆ ตอนเปิด */
+  .search-box--open {
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1f1f1f;
+    border-radius: 10px;
+    z-index: 150;
+  }
+  .search-input {
+    width: 100%;
+  }
+  .search-close-btn {
+    display: flex;
+  }
+  .search-suggestions {
+    left: 0;
+    right: 0;
+    min-width: 0;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* ── มือถือจอใหญ่ (421–576px) ─────────────────────────── */
+@media (max-width: 576px) {
+  .navbar {
+    padding: 0 0.75rem;
+    height: 56px;
+  }
+  .page-content {
+    padding-top: 56px;
+  }
+  .mobile-menu-overlay {
+    inset: 56px 0 0 0;
+  }
+  .mobile-menu-panel {
+    max-height: calc(100vh - 56px);
+    padding: 0.5rem 0.75rem 1rem;
+  }
+  .nav-logo {
+    font-size: 1.2rem;
+  }
+  .search-box--open {
+    left: 0.5rem;
+    right: 0.5rem;
+  }
+  .suggestion-poster {
+    width: 38px;
+    height: 56px;
+  }
+  .suggestion-title {
+    font-size: 0.85rem;
+  }
+  .notification-wrapper {
+    display: flex;
+  }
+  .bell-badge {
+    min-width: 14px;
+    height: 14px;
+    font-size: 0.6rem;
+  }
+  .hamburger-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* ── มือถือจอเล็ก (≤420px, เช่น iPhone SE) ────────────── */
+@media (max-width: 420px) {
+  .navbar {
+    gap: 0.35rem;
+    padding: 0 0.6rem;
+  }
+  .nav-logo {
+    font-size: 1.05rem;
+  }
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+  .user-avatar {
+    width: 26px;
+    height: 26px;
+  }
+  .search-close-btn {
+    padding: 0.3rem;
+  }
+  .search-suggestions {
+    max-height: 60vh;
+  }
+  .suggestion-poster {
+    width: 34px;
+    height: 50px;
+  }
+  .mobile-nav-link {
+    font-size: 0.85rem;
+    padding: 0.75rem 0.4rem;
+  }
+}
+
+/* ── รองรับจอความละเอียดสูง / Retina (Mac, iPad Pro) ──── */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .navbar {
+    border-bottom-width: 0.5px;
+  }
+}
+
+/* ── รองรับแนวนอนของมือถือที่จอเตี้ยมาก (landscape height เล็ก) ── */
+@media (max-height: 420px) and (orientation: landscape) {
+  .mobile-menu-panel {
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  .navbar {
+    height: 52px;
+  }
+  .page-content {
+    padding-top: 52px;
+  }
+}
+
+/* ── ผู้ใช้ที่ตั้งค่าลด motion ในระบบ ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .navbar,
+  .hamburger-line,
+  .dropdown-enter-active,
+  .dropdown-leave-active,
+  .mobile-menu-enter-active,
+  .mobile-menu-leave-active {
+    transition: none !important;
+  }
 }
 </style>
