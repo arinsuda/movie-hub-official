@@ -83,6 +83,7 @@ func autoMigrate(db *gorm.DB) error {
 		&review_module.Review{},
 		&review_module.ReviewLike{},
 		&review_module.ReviewComment{},
+		&review_module.ReviewHelpful{},
 
 		&like_module.MediaLike{},
 		&media_stats_module.MediaStat{},

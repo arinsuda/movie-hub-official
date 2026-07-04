@@ -52,6 +52,48 @@
             @keydown.enter="doSearch"
             @keydown.escape="closeSearch"
           />
+
+          <div
+            v-if="searchOpen && (suggestions.length > 0 || searchLoading)"
+            class="search-suggestions"
+          >
+            <div v-if="searchLoading" class="search-suggestion-loading">
+              กำลังค้นหา...
+            </div>
+
+            <button
+              v-for="item in suggestions"
+              :key="`${item.type}-${item.id}`"
+              class="search-suggestion-item"
+              @click="goToItem(item)"
+            >
+              <img
+                v-if="item.poster_path"
+                :src="item.poster_path"
+                class="suggestion-poster"
+              />
+              <div class="suggestion-info">
+                <span class="suggestion-title">{{ item.title }}</span>
+                <div class="suggestion-meta">
+                  <span class="suggestion-type">{{
+                    item.type === "movie" ? "หนัง" : "ซีรีส์"
+                  }}</span>
+                  <span v-if="item.rating" class="suggestion-rating">
+                    <Star :size="11" fill="#f5c518" color="#f5c518" />
+                    {{ item.rating.toFixed(1) }}
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            <button
+              v-if="!searchLoading && suggestions.length > 0"
+              class="search-suggestion-viewall"
+              @click="doSearch"
+            >
+              ดูผลลัพธ์ทั้งหมดสำหรับ "{{ searchQuery }}"
+            </button>
+          </div>
         </div>
 
         <div class="notification-wrapper">
@@ -137,361 +179,533 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, nextTick } from "vue"
-  import { useRouter, useRoute } from "vue-router"
-  import { useAuthStore } from "@/stores/auth"
-  import ToastContainer from "@/components/common/ToastContainer.vue" // นำเข้ามาไว้ที่นี่
-  import {
-    Search,
-    Bell,
-    User as UserIcon,
-    ChevronDown,
-    BookMarked,
-    Trophy,
-    Rss,
-    LogOut,
-  } from "lucide-vue-next"
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import ToastContainer from "@/components/common/ToastContainer.vue";
+import { movieApi } from "@/api/endpoints/movie";
+import { getTmdbImageUrl } from "@/utils/image";
+import type { Movie, TVSeries } from "@/types";
+import {
+  Search,
+  Bell,
+  User as UserIcon,
+  ChevronDown,
+  BookMarked,
+  Trophy,
+  Rss,
+  LogOut,
+  Star,
+} from "lucide-vue-next";
 
-  const router = useRouter()
-  const route = useRoute()
-  const authStore = useAuthStore()
+interface SearchSuggestion {
+  id: number;
+  type: "movie" | "tv";
+  title: string;
+  poster_path: string | null;
+  rating: number | null;
+}
 
-  const scrolled = ref(false)
-  const searchOpen = ref(false)
-  const searchQuery = ref("")
-  const searchInput = ref<HTMLInputElement | null>(null)
-  const userMenuOpen = ref(false)
-  const userMenuRef = ref<HTMLElement | null>(null)
+const router = useRouter();
+const route = useRoute();
+const authStore = useAuthStore();
 
-  // จัดการสถานะแจ้งเตือนกระดิ่ง
-  const notificationCount = ref(0)
-  const hasNotifications = computed(() => notificationCount.value > 0)
+const scrolled = ref(false);
+const searchOpen = ref(false);
+const searchQuery = ref("");
+const searchInput = ref<HTMLInputElement | null>(null);
+const userMenuOpen = ref(false);
+const userMenuRef = ref<HTMLElement | null>(null);
 
-  function incrementNotification() {
-    notificationCount.value++
+const suggestions = ref<SearchSuggestion[]>([]);
+const searchLoading = ref(false);
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function mapMovie(m: Movie): SearchSuggestion {
+  return {
+    id: m.id,
+    type: "movie",
+    title: m.title,
+    poster_path: m.poster_path ? getTmdbImageUrl(m.poster_path) : null,
+    rating: m.vote_average,
+  };
+}
+
+function mapSeries(s: TVSeries): SearchSuggestion {
+  return {
+    id: s.id,
+    type: "tv",
+    title: s.name,
+    poster_path: s.poster_path ? getTmdbImageUrl(s.poster_path) : null,
+    rating: s.vote_average,
+  };
+}
+
+async function fetchSuggestions(query: string) {
+  if (!query.trim()) {
+    suggestions.value = [];
+    return;
   }
+  searchLoading.value = true;
+  try {
+    const [movieRes, seriesRes] = await Promise.all([
+      movieApi.search(query, 1),
+      movieApi.searchSeries(query, 1),
+    ]);
+    const movies = movieRes.data.results.map(mapMovie);
+    const series = seriesRes.data.results.map(mapSeries);
 
-  function clearNotifications() {
-    notificationCount.value = 0
-  }
-
-  function onScroll() {
-    scrolled.value = window.scrollY > 20
-  }
-
-  function toggleSearch() {
-    searchOpen.value = !searchOpen.value
-    if (searchOpen.value) {
-      nextTick(() => searchInput.value?.focus())
+    const merged: SearchSuggestion[] = [];
+    const maxLen = Math.max(movies.length, series.length);
+    for (let i = 0; i < maxLen; i++) {
+      const movie = movies[i];
+      const show = series[i];
+      if (movie) merged.push(movie);
+      if (show) merged.push(show);
     }
-  }
 
-  function closeSearch() {
-    searchOpen.value = false
-    searchQuery.value = ""
+    suggestions.value = merged.slice(0, 4);
+  } catch (err) {
+    console.error("โหลดรายการแนะนำล้มเหลว:", err);
+    suggestions.value = [];
+  } finally {
+    searchLoading.value = false;
   }
+}
 
-  function doSearch() {
-    if (!searchQuery.value.trim()) return
-    router.push({ name: "movies", query: { q: searchQuery.value.trim() } })
-    closeSearch()
+watch(searchQuery, (val) => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => fetchSuggestions(val), 300);
+});
+
+function goToItem(item: SearchSuggestion) {
+  router.push(item.type === "movie" ? `/movies/${item.id}` : `/tv/${item.id}`);
+  closeSearch();
+}
+
+const notificationCount = ref(0);
+const hasNotifications = computed(() => notificationCount.value > 0);
+
+function incrementNotification() {
+  notificationCount.value++;
+}
+
+function clearNotifications() {
+  notificationCount.value = 0;
+}
+
+function onScroll() {
+  scrolled.value = window.scrollY > 20;
+}
+
+function toggleSearch() {
+  searchOpen.value = !searchOpen.value;
+  if (searchOpen.value) {
+    nextTick(() => searchInput.value?.focus());
   }
+}
 
-  function onClickOutside(e: MouseEvent) {
-    if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
-      userMenuOpen.value = false
-    }
+function closeSearch() {
+  searchOpen.value = false;
+  searchQuery.value = "";
+  suggestions.value = [];
+}
+
+function doSearch() {
+  if (!searchQuery.value.trim()) return;
+  router.push({
+    name: "search-results",
+    query: { q: searchQuery.value.trim() },
+  });
+  closeSearch();
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
+    userMenuOpen.value = false;
   }
+}
 
-  async function handleLogout() {
-    userMenuOpen.value = false
-    await authStore.logout()
-    router.push({ name: "login" })
-  }
+async function handleLogout() {
+  userMenuOpen.value = false;
+  await authStore.logout();
+  router.push({ name: "login" });
+}
 
-  onMounted(() => {
-    window.addEventListener("scroll", onScroll, { passive: true })
-    document.addEventListener("click", onClickOutside)
-  })
-  onUnmounted(() => {
-    window.removeEventListener("scroll", onScroll)
-    document.removeEventListener("click", onClickOutside)
-  })
+onMounted(() => {
+  window.addEventListener("scroll", onScroll, { passive: true });
+  document.addEventListener("click", onClickOutside);
+});
+onUnmounted(() => {
+  window.removeEventListener("scroll", onScroll);
+  document.removeEventListener("click", onClickOutside);
+});
 </script>
 
 <style scoped>
-  .app-shell {
-    min-height: 100vh;
-    background: #141414;
-  }
+.app-shell {
+  min-height: 100vh;
+  background: #141414;
+}
 
-  /* ── Navbar ─────────────────────────────────────────── */
-  .navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    padding: 0 2rem;
-    height: 64px;
-    transition:
-      background 0.3s,
-      backdrop-filter 0.3s,
-      border-color 0.3s;
-    border-bottom: 1px solid transparent;
-  }
-  .navbar--scrolled {
-    background: rgba(20, 20, 20, 0.92);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-color: rgba(255, 255, 255, 0.06);
-  }
+/* ── Navbar ─────────────────────────────────────────── */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0 2rem;
+  height: 64px;
+  transition:
+    background 0.3s,
+    backdrop-filter 0.3s,
+    border-color 0.3s;
+  border-bottom: 1px solid transparent;
+}
+.navbar--scrolled {
+  background: rgba(20, 20, 20, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.06);
+}
 
-  .nav-logo {
-    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
-    font-size: 1.5rem;
-    font-weight: 900;
-    text-decoration: none;
-    letter-spacing: -0.5px;
-    flex-shrink: 0;
-  }
-  .logo-movie {
-    color: #ffffff;
-  }
-  .logo-hub {
-    color: #e50914;
-  }
+.nav-logo {
+  font-family: "Noto Sans Thai", "Arial Black", sans-serif;
+  font-size: 1.5rem;
+  font-weight: 900;
+  text-decoration: none;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+.logo-movie {
+  color: #ffffff;
+}
+.logo-hub {
+  color: #e50914;
+}
 
-  .nav-links {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-  .nav-link {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: 0.8px;
-    color: #a3a3a3;
-    text-decoration: none;
-    border-radius: 6px;
-    transition:
-      color 0.2s,
-      background 0.2s;
-  }
-  .nav-link:hover {
-    color: #fff;
-  }
-  .nav-link.active {
-    color: #fff;
-  }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.nav-link {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: #a3a3a3;
+  text-decoration: none;
+  border-radius: 6px;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+.nav-link:hover {
+  color: #fff;
+}
+.nav-link.active {
+  color: #fff;
+}
 
-  .nav-right {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
+.nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 
-  /* Search */
-  .search-box {
-    display: flex;
-    align-items: center;
-    background: transparent;
-    border-radius: 9999px;
-    overflow: hidden;
-    transition: background 0.2s;
-  }
-  .search-box--open {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .search-icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #a3a3a3;
-    display: flex;
-    padding: 0.5rem 0.6rem;
-    transition: color 0.2s;
-  }
-  .search-icon-btn:hover {
-    color: #fff;
-  }
-  .search-input {
-    background: none;
-    border: none;
-    outline: none;
-    color: #fff;
-    font-size: 0.875rem;
-    width: 200px;
-    padding: 0.5rem 0.75rem 0.5rem 0;
-  }
-  .search-input::placeholder {
-    color: #666;
-  }
+/* Search */
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border-radius: 9999px;
+  overflow: visible;
+  transition: background 0.2s;
+}
+.search-box--open {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+.search-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #a3a3a3;
+  display: flex;
+  padding: 0.5rem 0.6rem;
+  transition: color 0.2s;
+}
+.search-icon-btn:hover {
+  color: #fff;
+}
+.search-input {
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.875rem;
+  width: 260px; /* เดิม 200px */
+  padding: 0.5rem 0.75rem 0.5rem 0;
+}
+.search-input::placeholder {
+  color: #666;
+}
 
-  /* Notification Wrapper & Badge */
-  .notification-wrapper {
-    position: relative; /* ให้กระดิ่งและ Toast อิงตำแหน่งกับ Container นี้ */
-    display: flex;
-    align-items: center;
-  }
+/* Search suggestions dropdown */
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  min-width: 360px; /* เดิม 280px */
+  max-height: 480px; /* กันล้นจอตอนผลลัพธ์เยอะ */
+  overflow-y: auto;
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  z-index: 200;
+}
 
-  .bell-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    background: #e50914;
-    color: white;
-    font-size: 0.65rem;
-    font-weight: bold;
-    min-width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    border: 2px solid #141414;
-    animation: pulse-badge 0.3s ease-out;
-  }
+.search-suggestion-loading {
+  padding: 0.75rem;
+  color: #888;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.search-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem; /* เดิม 0.6rem */
+  width: 100%;
+  padding: 0.75rem 1rem; /* เดิม 0.5rem 0.75rem */
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
 
-  @keyframes pulse-badge {
-    0% {
-      transform: scale(0.6);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-    100% {
-      transform: scale(1);
-    }
-  }
+.suggestion-poster {
+  width: 44px; /* เดิม 32px */
+  height: 64px; /* เดิม 48px */
+  object-fit: cover;
+  border-radius: 5px;
+  flex-shrink: 0;
+  background: #2a2a2a;
+}
 
-  /* Icon button */
-  .icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #a3a3a3;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    transition:
-      color 0.2s,
-      background 0.2s;
-  }
-  .icon-btn:hover,
-  .has-unread {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.08);
-  }
+.suggestion-title {
+  color: #fff;
+  font-size: 0.95rem; /* เดิม 0.85rem */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  /* User menu */
-  .user-menu {
-    position: relative;
-  }
-  .user-trigger {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 9999px;
-    padding: 0.3rem 0.75rem 0.3rem 0.3rem;
-    cursor: pointer;
-    color: #fff;
-    transition: background 0.2s;
-  }
-  .user-trigger:hover {
-    background: rgba(255, 255, 255, 0.12);
-  }
-  .user-avatar {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: #2a2a2a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .user-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .user-name {
-    font-size: 0.85rem;
-    font-weight: 500;
-  }
+.suggestion-type {
+  color: #888;
+  font-size: 0.78rem; /* เดิม 0.7rem */
+}
 
-  .dropdown-menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    min-width: 160px;
-    background: #1f1f1f;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    padding: 0.4rem;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-  }
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 0.75rem;
-    font-size: 0.875rem;
-    color: #d1d1d1;
-    text-decoration: none;
-    border-radius: 6px;
-    border: none;
-    background: none;
-    width: 100%;
-    cursor: pointer;
-    transition:
-      background 0.15s,
-      color 0.15s;
-    text-align: left;
-  }
-  .dropdown-item:hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-  }
-  .dropdown-item--danger:hover {
-    background: rgba(229, 9, 20, 0.12);
-    color: #e50914;
-  }
-  .dropdown-divider {
-    height: 1px;
-    background: rgba(255, 255, 255, 0.07);
-    margin: 0.3rem 0;
-  }
+.suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 
-  /* Dropdown transition */
-  .dropdown-enter-active,
-  .dropdown-leave-active {
-    transition:
-      opacity 0.15s,
-      transform 0.15s;
-  }
-  .dropdown-enter-from,
-  .dropdown-leave-to {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
+.suggestion-rating {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.78rem;
+  color: #f5c518;
+  font-weight: 600;
+}
+.search-suggestion-viewall {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e50914;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+.search-suggestion-viewall:hover {
+  background: rgba(229, 9, 20, 0.1);
+}
 
-  /* ── Page content ──────────────────────────────────── */
-  .page-content {
-    padding-top: 64px;
+/* Notification Wrapper & Badge */
+.notification-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #e50914;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #141414;
+  animation: pulse-badge 0.3s ease-out;
+}
+
+@keyframes pulse-badge {
+  0% {
+    transform: scale(0.6);
   }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Icon button */
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #a3a3a3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+.icon-btn:hover,
+.has-unread {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* User menu */
+.user-menu {
+  position: relative;
+}
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem 0.3rem 0.3rem;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.2s;
+}
+.user-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  background: #1f1f1f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.4rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: #d1d1d1;
+  text-decoration: none;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  width: 100%;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  text-align: left;
+}
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.dropdown-item--danger:hover {
+  background: rgba(229, 9, 20, 0.12);
+  color: #e50914;
+}
+.dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 0.3rem 0;
+}
+
+/* Dropdown transition */
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* ── Page content ──────────────────────────────────── */
+.page-content {
+  padding-top: 64px;
+}
 </style>

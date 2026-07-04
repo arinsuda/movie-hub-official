@@ -1,14 +1,14 @@
-import { createRouter, createWebHistory } from "vue-router"
-import { useAuthStore } from "@/stores/auth"
+import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
 function hasGenres(genres: string | null | undefined): boolean {
-  if (!genres) return false
-  if (genres === "null") return false
+  if (!genres) return false;
+  if (genres === "null") return false;
   try {
-    const parsed = JSON.parse(genres)
-    return Array.isArray(parsed) && parsed.length > 0
+    const parsed = JSON.parse(genres);
+    return Array.isArray(parsed) && parsed.length > 0;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -70,6 +70,11 @@ const router = createRouter({
           path: "",
           name: "home",
           component: () => import("@/views/HomeView.vue"),
+        },
+        {
+          path: "search",
+          name: "search-results",
+          component: () => import("@/views/SearchResultView.vue"),
         },
         {
           path: "movies",
@@ -136,25 +141,25 @@ const router = createRouter({
       component: () => import("@/views/NotFoundView.vue"),
     },
   ],
-})
+});
 
-router.beforeEach(async to => {
-  const authStore = useAuthStore()
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore();
 
   if (!authStore.user && to.meta.requiresAuth) {
     try {
-      await authStore.fetchMe()
+      await authStore.fetchMe();
     } catch (error) {
-      console.error(error)
+      console.error(error);
     }
   }
 
   // ยังไม่ login → ไป login
   if (to.meta.requiresAuth && !authStore.isLoggedIn)
-    return { name: "login", query: { redirect: to.fullPath } }
+    return { name: "login", query: { redirect: to.fullPath } };
 
   // login แล้วเข้า guest-only page → ไป home
-  if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" }
+  if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" };
 
   // ✅ ต้อง requiresAuth ด้วย ไม่งั้น guest route ก็โดน redirect
   if (
@@ -163,7 +168,7 @@ router.beforeEach(async to => {
     !hasGenres(authStore.user?.favorite_genres) &&
     to.name !== "onboarding"
   ) {
-    return { name: "onboarding" }
+    return { name: "onboarding" };
   }
 
   // ✅ ใช้ hasGenres ให้สอดคล้องกัน
@@ -172,8 +177,8 @@ router.beforeEach(async to => {
     hasGenres(authStore.user?.favorite_genres) &&
     to.name === "onboarding"
   ) {
-    return { name: "home" }
+    return { name: "home" };
   }
-})
+});
 
-export default router
+export default router;
