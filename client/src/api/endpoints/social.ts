@@ -1,4 +1,4 @@
-import api from "../index"
+import api from "../index";
 import type {
   ReviewResponse,
   CreateReviewRequest,
@@ -14,7 +14,7 @@ import type {
   FeedItemResponse,
   MediaType,
   ListType,
-} from "@/types"
+} from "@/types";
 
 // ── Review ─────────────────────────────────────────────────────────
 export const reviewApi = {
@@ -31,12 +31,9 @@ export const reviewApi = {
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
   ) =>
-    api.get<{ reviews: ReviewResponse[] }>(
-      `/${mediaType}/${mediaId}/reviews`,
-      {
-        params: { page: 1, limit: 20, ...params },
-      },
-    ),
+    api.get<{ reviews: ReviewResponse[] }>(`/${mediaType}/${mediaId}/reviews`, {
+      params: { page: 1, limit: 20, ...params },
+    }),
 
   updateReview: (userId: number, reviewId: number, data: UpdateReviewRequest) =>
     api.patch<{ review: ReviewResponse }>(
@@ -50,6 +47,12 @@ export const reviewApi = {
   likeReview: (reviewId: number) => api.post(`/reviews/${reviewId}/likes`),
 
   unlikeReview: (reviewId: number) => api.delete(`/reviews/${reviewId}/likes`),
+
+  markHelpful: (reviewId: number) =>
+    api.post<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
+
+  unmarkHelpful: (reviewId: number) =>
+    api.delete<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
 
   getComments: (reviewId: number, page = 1, limit = 20) =>
     api.get<PaginatedResponse<CommentResponse>>(
@@ -73,7 +76,7 @@ export const reviewApi = {
 
   deleteComment: (reviewId: number, commentId: number) =>
     api.delete(`/reviews/${reviewId}/comments/${commentId}`),
-}
+};
 
 // ── Library ────────────────────────────────────────────────────────
 export const libraryApi = {
@@ -105,7 +108,7 @@ export const libraryApi = {
 
   removeItem: (userId: number, itemId: number) =>
     api.delete(`/users/${userId}/library/${itemId}`),
-}
+};
 
 // ── Follow / Feed ──────────────────────────────────────────────────
 export const followApi = {
@@ -136,4 +139,4 @@ export const followApi = {
     api.get<PaginatedResponse<FeedItemResponse>>("/feed", {
       params: { page, limit },
     }),
-}
+};

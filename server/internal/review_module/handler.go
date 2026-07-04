@@ -238,6 +238,34 @@ func (h *Handler) DeleteComment(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// ── Helpful ───────────────────────────────────────────────────────
+
+func (h *Handler) MarkHelpful(c fiber.Ctx) error {
+	reviewID, err := parseReviewID(c)
+	if err != nil {
+		return badRequest(c, "invalid review id")
+	}
+	claims := mw.GetClaims(c)
+
+	if err := h.svc.MarkHelpful(reviewID, claims.UserID); err != nil {
+		return handleError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *Handler) UnmarkHelpful(c fiber.Ctx) error {
+	reviewID, err := parseReviewID(c)
+	if err != nil {
+		return badRequest(c, "invalid review id")
+	}
+	claims := mw.GetClaims(c)
+
+	if err := h.svc.UnmarkHelpful(reviewID, claims.UserID); err != nil {
+		return handleError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 // routeToMediaType แปลง URL segment → media_type value ใน DB
@@ -308,6 +336,10 @@ func handleError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "already liked"})
 	case errors.Is(err, ErrNotLiked):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not liked"})
+	case errors.Is(err, ErrAlreadyMarkedHelpful):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "already marked helpful"})
+	case errors.Is(err, ErrNotMarkedHelpful):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not marked helpful"})
 	case errors.Is(err, ErrInvalidWatchedAt):
 		return badRequest(c, "invalid watched_at format, use YYYY-MM-DD")
 	case errors.Is(err, ErrInvalidRating):

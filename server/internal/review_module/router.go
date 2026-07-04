@@ -25,10 +25,12 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, mc *storage.MinIOClient, e
 	router.Get("/:mediaType/:mediaId/reviews", h.GetMediaReviews)
 	router.Get("/:mediaType/:mediaId/rating", h.GetMediaRating)
 
-	// ── Like / Comment ────────────────────────────────────────────
+	// ── Like / Helpful / Comment ──────────────────────────────────
 	reviews := router.Group("/reviews/:reviewId")
 	reviews.Post("/likes", h.LikeReview)
 	reviews.Delete("/likes", h.UnlikeReview)
+	reviews.Post("/helpful", h.MarkHelpful)     // NEW
+	reviews.Delete("/helpful", h.UnmarkHelpful) // NEW
 	reviews.Get("/comments", h.GetComments)
 	reviews.Post("/comments", h.CreateComment)
 	reviews.Patch("/comments/:commentId", h.UpdateComment)

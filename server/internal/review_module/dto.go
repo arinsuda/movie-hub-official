@@ -25,18 +25,20 @@ type UpdateReviewRequest struct {
 }
 
 type ReviewResponse struct {
-	ID           uint                      `json:"id"`
-	User         users.UserSummaryResponse `json:"user"`
-	Media        tmdb.Media                `json:"media"`
-	Rating       float32                   `json:"rating"`
-	Body         string                    `json:"body"`
-	IsPublic     bool                      `json:"is_public"`
-	WatchedAt    *time.Time                `json:"watched_at"`
-	LikeCount    int                       `json:"like_count"`
-	CommentCount int                       `json:"comment_count"`
-	IsLiked      bool                      `json:"is_liked"`
-	CreatedAt    time.Time                 `json:"created_at"`
-	UpdatedAt    time.Time                 `json:"updated_at"`
+	ID             uint                      `json:"id"`
+	User           users.UserSummaryResponse `json:"user"`
+	Media          tmdb.Media                `json:"media"`
+	Rating         float32                   `json:"rating"`
+	Body           string                    `json:"body"`
+	IsPublic       bool                      `json:"is_public"`
+	WatchedAt      *time.Time                `json:"watched_at"`
+	LikeCount      int                       `json:"like_count"`
+	CommentCount   int                       `json:"comment_count"`
+	IsLiked        bool                      `json:"is_liked"`
+	HelpfulCount   int                       `json:"helpful_count"`    // NEW
+	IsHelpfulVoted bool                      `json:"is_helpful_voted"` // NEW
+	CreatedAt      time.Time                 `json:"created_at"`
+	UpdatedAt      time.Time                 `json:"updated_at"`
 }
 
 // ── In-app Rating (aggregate) ─────────────────────────────────────

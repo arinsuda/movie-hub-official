@@ -231,820 +231,1094 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed } from "vue"
-  import { useRoute, useRouter } from "vue-router"
-  import { movieApi } from "@/api/api"
-  import { libraryApi } from "@/api/endpoints/library"
-  import { gsap } from "gsap"
-  import PopupTrailer from "@/components/movie/PopupTrailer.vue"
-  import MovieReviews from "@/components/movie/MovieReviews.vue"
-  import { resolveTrailer } from "@/composables/useTrailerPreview"
-  import { useAuthStore } from "@/stores/auth"
-  import { mediaApi } from "@/api/endpoints/media"
+import { ref, onMounted, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { movieApi } from "@/api/api";
+import { libraryApi } from "@/api/endpoints/library";
+import { gsap } from "gsap";
+import PopupTrailer from "@/components/movie/PopupTrailer.vue";
+import MovieReviews from "@/components/movie/MovieReviews.vue";
+import { resolveTrailer } from "@/composables/useTrailerPreview";
+import { useAuthStore } from "@/stores/auth";
+import { mediaApi } from "@/api/endpoints/media";
 
-  const route = useRoute()
-  const router = useRouter()
-  const movieId = computed(() => Number(route.params.id))
+const route = useRoute();
+const router = useRouter();
+const movieId = computed(() => Number(route.params.id));
 
-  const authStore = useAuthStore()
-  const currentUserId = computed(() => authStore.user?.id ?? null)
-  const showTrailerPopup = ref(false)
-  const movieTrailerUrl = computed(() => {
-    const videos = videoList.value
-    const resolved = resolveTrailer(videos)
-    return resolved ? resolved.embedUrl : null
-  })
+const authStore = useAuthStore();
+const currentUserId = computed(() => authStore.user?.id ?? null);
+const showTrailerPopup = ref(false);
+const movieTrailerUrl = computed(() => {
+  const videos = videoList.value;
+  const resolved = resolveTrailer(videos);
+  return resolved ? resolved.embedUrl : null;
+});
 
-  // Animation Refs
-  const pageRef = ref<HTMLElement | null>(null)
-  const backBtnRef = ref<HTMLElement | null>(null)
-  const sidebarRef = ref<HTMLElement | null>(null)
-  const contentRef = ref<HTMLElement | null>(null)
+// Animation Refs
+const pageRef = ref<HTMLElement | null>(null);
+const backBtnRef = ref<HTMLElement | null>(null);
+const sidebarRef = ref<HTMLElement | null>(null);
+const contentRef = ref<HTMLElement | null>(null);
 
-  // States
-  const movie = ref<any>(null)
-  const castList = ref<any[]>([])
-  const videoList = ref<any[]>([])
-  const isLoading = ref(true)
+// States
+const movie = ref<any>(null);
+const castList = ref<any[]>([]);
+const videoList = ref<any[]>([]);
+const isLoading = ref(true);
 
-  const removStats = ref({
-    media_id: 0,
-    media_type: "movie",
-    like_count: 0,
-    view_count: 0,
-    review_count: 0,
-    watchlist_count: 0,
-    liked_at: null as string | null,
-    average_rating: 0.0,
-    has_rating: false,
-  })
+const removStats = ref({
+  media_id: 0,
+  media_type: "movie",
+  like_count: 0,
+  view_count: 0,
+  review_count: 0,
+  watchlist_count: 0,
+  liked_at: null as string | null,
+  average_rating: 0.0,
+  has_rating: false,
+});
 
-  const isLiked = computed(() => removStats.value.liked_at !== null)
+const isLiked = computed(() => removStats.value.liked_at !== null);
 
-  const isWatchlisted = ref(false)
-  const isWatched = ref(false)
+const isWatchlisted = ref(false);
+const isWatched = ref(false);
 
-  const watchlist_ItemId = ref<number | null>(null)
-  const watched_ItemId = ref<number | null>(null)
+const watchlist_ItemId = ref<number | null>(null);
+const watched_ItemId = ref<number | null>(null);
 
-  function goBack() {
-    router.back()
-  }
+function goBack() {
+  router.back();
+}
 
-  function formatYear(dateStr: string): string {
-    if (!dateStr) return ""
-    return dateStr.split("-")[0] || ""
-  }
+function formatYear(dateStr: string): string {
+  if (!dateStr) return "";
+  return dateStr.split("-")[0] || "";
+}
 
-  function formatRuntime(minutes: number): string {
-    if (!minutes) return ""
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours} ชม. ${mins} นาที` : `${mins} นาที`
-  }
+function formatRuntime(minutes: number): string {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours} ชม. ${mins} นาที` : `${mins} นาที`;
+}
 
-  function formatMoney(amount: number): string {
-    if (!amount || amount === 0) return "-"
-    return amount.toLocaleString("en-US")
-  }
+function formatMoney(amount: number): string {
+  if (!amount || amount === 0) return "-";
+  return amount.toLocaleString("en-US");
+}
 
-  function formatStatus(status: string): string {
-    const statusMap: Record<string, string> = {
-      Released: "เข้าฉายแล้ว",
-      "Post Production": "อยู่ในขั้นตอนหลังการถ่ายทำ",
-      "In Production": "กำลังถ่ายทำ",
-      Planned: "วางแผนการสร้าง",
+function formatStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    Released: "เข้าฉายแล้ว",
+    "Post Production": "อยู่ในขั้นตอนหลังการถ่ายทำ",
+    "In Production": "กำลังถ่ายทำ",
+    Planned: "วางแผนการสร้าง",
+  };
+  return statusMap[status] || status;
+}
+
+async function toggleLike() {
+  try {
+    if (isLiked.value) {
+      await mediaApi.unlikeMedia("movie", movieId.value);
+      removStats.value.liked_at = null;
+      removStats.value.like_count = Math.max(
+        0,
+        removStats.value.like_count - 1,
+      );
+      window.$toast?.info("ลบภาพยนตร์ออกจากรายการที่ชอบแล้ว");
+    } else {
+      await mediaApi.likeMedia("movie", movieId.value);
+      removStats.value.liked_at = new Date().toISOString();
+      removStats.value.like_count += 1;
+      window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️");
     }
-    return statusMap[status] || status
+  } catch (err) {
+    console.error("ล้มเหลวในการบันทึกสถานะถูกใจ:", err);
+    window.$toast?.error("เกิดข้อผิดพลาดในการบันทึกสถานะไลก์");
+  }
+}
+
+async function toggleWatchlist() {
+  if (!currentUserId.value) {
+    window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+    return;
   }
 
-  async function toggleLike() {
-    try {
-      if (isLiked.value) {
-        await mediaApi.unlikeMedia("movie", movieId.value)
-        removStats.value.liked_at = null
-        removStats.value.like_count = Math.max(
-          0,
-          removStats.value.like_count - 1,
-        )
-        window.$toast?.info("ลบภาพยนตร์ออกจากรายการที่ชอบแล้ว")
-      } else {
-        await mediaApi.likeMedia("movie", movieId.value)
-        removStats.value.liked_at = new Date().toISOString()
-        removStats.value.like_count += 1
-        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️")
-      }
-    } catch (err) {
-      console.error("ล้มเหลวในการบันทึกสถานะถูกใจ:", err)
-      window.$toast?.error("เกิดข้อผิดพลาดในการบันทึกสถานะไลก์")
-    }
-  }
-
-  async function toggleWatchlist() {
-    if (!currentUserId.value) {
-      window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน")
-      return
-    }
-
-    try {
-      if (isWatchlisted.value) {
-        if (!watchlist_ItemId.value) {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            movieId.value,
-            "movie",
-          )
-          const inLists = libRes.data?.in_lists || []
-          const watchlistInfo = inLists.find(
-            (l: any) => l.list_type === "watchlist",
-          )
-
-          if (watchlistInfo) {
-            watchlist_ItemId.value = watchlistInfo.item_id
-          } else {
-            isWatchlisted.value = false
-            return
-          }
-        }
-
-        await libraryApi.removeItem(
+  try {
+    if (isWatchlisted.value) {
+      if (!watchlist_ItemId.value) {
+        const libRes = await libraryApi.getMediaStatus(
           currentUserId.value,
-          watchlist_ItemId.value!,
-        )
+          movieId.value,
+          "movie",
+        );
+        const inLists = libRes.data?.in_lists || [];
+        const watchlistInfo = inLists.find(
+          (l: any) => l.list_type === "watchlist",
+        );
 
-        removStats.value.watchlist_count = Math.max(
-          0,
-          removStats.value.watchlist_count - 1,
-        )
-        isWatchlisted.value = false
-        watchlist_ItemId.value = null
-        window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว")
-      } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
-          media_id: movieId.value,
-          media_type: "movie",
-          list_type: "watchlist",
-        })
-
-        if (res.data?.item) {
-          watchlist_ItemId.value = res.data.item.id
+        if (watchlistInfo) {
+          watchlist_ItemId.value = watchlistInfo.item_id;
+        } else {
+          isWatchlisted.value = false;
+          return;
         }
-
-        removStats.value.watchlist_count += 1
-        isWatchlisted.value = true
-        window.$toast?.success("เพิ่มเข้าเพลย์ลิสต์สำเร็จ 🍿")
       }
-    } catch (err) {
-      console.error("ล้มเหลวในการแก้ไขสถานะ Watchlist:", err)
-      window.$toast?.error("ไม่สามารถบันทึกข้อมูลเพลย์ลิสต์ได้")
+
+      await libraryApi.removeItem(currentUserId.value, watchlist_ItemId.value!);
+
+      removStats.value.watchlist_count = Math.max(
+        0,
+        removStats.value.watchlist_count - 1,
+      );
+      isWatchlisted.value = false;
+      watchlist_ItemId.value = null;
+      window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว");
+    } else {
+      const res = await libraryApi.addItem(currentUserId.value, {
+        media_id: movieId.value,
+        media_type: "movie",
+        list_type: "watchlist",
+      });
+
+      if (res.data?.item) {
+        watchlist_ItemId.value = res.data.item.id;
+      }
+
+      removStats.value.watchlist_count += 1;
+      isWatchlisted.value = true;
+      window.$toast?.success("เพิ่มเข้าเพลย์ลิสต์สำเร็จ 🍿");
     }
+  } catch (err) {
+    console.error("ล้มเหลวในการแก้ไขสถานะ Watchlist:", err);
+    window.$toast?.error("ไม่สามารถบันทึกข้อมูลเพลย์ลิสต์ได้");
+  }
+}
+
+async function toggleWatched() {
+  if (!currentUserId.value) {
+    window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน");
+    return;
   }
 
-  async function toggleWatched() {
-    if (!currentUserId.value) {
-      window.$toast?.error("กรุณาเข้าสู่ระบบก่อนใช้งาน")
-      return
-    }
+  try {
+    if (isWatched.value && watched_ItemId.value) {
+      await libraryApi.removeItem(currentUserId.value, watched_ItemId.value);
 
-    try {
-      if (isWatched.value && watched_ItemId.value) {
-        await libraryApi.removeItem(currentUserId.value, watched_ItemId.value)
+      isWatched.value = false;
+      watched_ItemId.value = null;
+      window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม");
+    } else {
+      const res = await libraryApi.addItem(currentUserId.value, {
+        media_id: movieId.value,
+        media_type: "movie",
+        list_type: "watched",
+        watched_at: new Date().toISOString().split("T")[0],
+      });
 
-        isWatched.value = false
-        watched_ItemId.value = null
-        window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม")
-      } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
-          media_id: movieId.value,
-          media_type: "movie",
-          list_type: "watched",
-          watched_at: new Date().toISOString().split("T")[0],
-        })
-
-        if (res.data?.item) {
-          watched_ItemId.value = res.data.item.id
-        }
-
-        isWatched.value = true
-        window.$toast?.success("มาร์กสถานะว่ารับชมหนังเรื่องนี้แล้ว! ✔️")
+      if (res.data?.item) {
+        watched_ItemId.value = res.data.item.id;
       }
-    } catch (err) {
-      console.error("ล้มเหลวในการแก้ไขสถานะ Watched:", err)
-      window.$toast?.error("ไม่สามารถบันทึกสถานะการรับชมได้")
+
+      isWatched.value = true;
+      window.$toast?.success("มาร์กสถานะว่ารับชมหนังเรื่องนี้แล้ว! ✔️");
     }
+  } catch (err) {
+    console.error("ล้มเหลวในการแก้ไขสถานะ Watched:", err);
+    window.$toast?.error("ไม่สามารถบันทึกสถานะการรับชมได้");
   }
+}
 
-  // Entrance GSAP Animation
-  function animateEntrance() {
-    if (!backBtnRef.value || !sidebarRef.value || !contentRef.value) return
+// Entrance GSAP Animation
+function animateEntrance() {
+  if (!backBtnRef.value || !sidebarRef.value || !contentRef.value) return;
 
-    const tl = gsap.timeline({ defaults: { ease: "power3.out" } })
+  const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
+  tl.fromTo(
+    backBtnRef.value,
+    { opacity: 0, x: -20 },
+    { opacity: 1, x: 0, duration: 0.4 },
+  );
+  tl.fromTo(
+    sidebarRef.value,
+    { opacity: 0, y: 30, scale: 0.95 },
+    { opacity: 1, y: 0, scale: 1, duration: 0.6 },
+    "-=0.2",
+  );
+
+  const contentElements = Array.from(contentRef.value.children);
+  if (contentElements.length > 0) {
     tl.fromTo(
-      backBtnRef.value,
-      { opacity: 0, x: -20 },
-      { opacity: 1, x: 0, duration: 0.4 },
-    )
-    tl.fromTo(
-      sidebarRef.value,
-      { opacity: 0, y: 30, scale: 0.95 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.6 },
-      "-=0.2",
-    )
-
-    const contentElements = Array.from(contentRef.value.children)
-    if (contentElements.length > 0) {
-      tl.fromTo(
-        contentElements,
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
-        "-=0.4",
-      )
-    }
+      contentElements,
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.5, stagger: 0.06 },
+      "-=0.4",
+    );
   }
+}
 
-  async function fetchStats() {
-    try {
-      const statsRes = await mediaApi.getMediaStats("movie", movieId.value)
+async function fetchStats() {
+  try {
+    const statsRes = await mediaApi.getMediaStats("movie", movieId.value);
 
-      if (statsRes.data && statsRes.data.stats) {
-        const incomingStats = statsRes.data.stats
+    if (statsRes.data && statsRes.data.stats) {
+      const incomingStats = statsRes.data.stats;
 
-        removStats.value = {
-          media_id: incomingStats.media_id ?? 0,
-          media_type: incomingStats.media_type ?? "movie",
-          like_count: incomingStats.like_count ?? 0,
-          view_count: incomingStats.view_count ?? 0,
-          review_count: incomingStats.review_count ?? 0,
-          watchlist_count: incomingStats.watchlist_count ?? 0,
-          liked_at:
-            incomingStats.liked_at !== undefined
-              ? incomingStats.liked_at
-              : null,
-          average_rating: incomingStats.average_rating ?? 0.0,
-          has_rating: incomingStats.has_rating ?? false,
-        }
+      removStats.value = {
+        media_id: incomingStats.media_id ?? 0,
+        media_type: incomingStats.media_type ?? "movie",
+        like_count: incomingStats.like_count ?? 0,
+        view_count: incomingStats.view_count ?? 0,
+        review_count: incomingStats.review_count ?? 0,
+        watchlist_count: incomingStats.watchlist_count ?? 0,
+        liked_at:
+          incomingStats.liked_at !== undefined ? incomingStats.liked_at : null,
+        average_rating: incomingStats.average_rating ?? 0.0,
+        has_rating: incomingStats.has_rating ?? false,
+      };
 
-        if (incomingStats.watchlisted_at) {
-          isWatchlisted.value = true
-        }
+      if (incomingStats.watchlisted_at) {
+        isWatchlisted.value = true;
       }
-    } catch (err) {
-      console.error("ไม่สามารถดึงข้อมูลสถิติของภาพยนตร์ได้:", err)
     }
+  } catch (err) {
+    console.error("ไม่สามารถดึงข้อมูลสถิติของภาพยนตร์ได้:", err);
+  }
+}
+
+function onReviewSubmitted() {
+  fetchStats();
+}
+
+onMounted(async () => {
+  if (!movieId.value) {
+    router.push({ name: "upcoming" });
+    return;
   }
 
-  function onReviewSubmitted() {
-    fetchStats()
-  }
+  try {
+    isLoading.value = true;
 
-  onMounted(async () => {
-    if (!movieId.value) {
-      router.push({ name: "upcoming" })
-      return
-    }
+    const res = await movieApi.getById(movieId.value);
+    movie.value = res.data.movie;
+    castList.value = res.data.credits?.cast?.slice(0, 8) || [];
+    videoList.value = res.data.videos || [];
 
-    try {
-      isLoading.value = true
+    mediaApi.recordMediaView("movie", movieId.value).catch((err) => {
+      console.warn("record view failed:", err);
+    });
 
-      const res = await movieApi.getById(movieId.value)
-      movie.value = res.data.movie
-      castList.value = res.data.credits?.cast?.slice(0, 8) || []
-      videoList.value = res.data.videos || []
+    await fetchStats();
 
-      mediaApi.recordMediaView("movie", movieId.value).catch(err => {
-        console.warn("record view failed:", err)
-      })
+    if (currentUserId.value) {
+      try {
+        const libRes = await libraryApi.getMediaStatus(
+          currentUserId.value,
+          movieId.value,
+          "movie",
+        );
+        const inLists = libRes.data?.in_lists || [];
 
-      await fetchStats()
-
-      if (currentUserId.value) {
-        try {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            movieId.value,
-            "movie",
-          )
-          const inLists = libRes.data?.in_lists || []
-
-          const watchlistInfo = inLists.find(l => l.list_type === "watchlist")
-          if (watchlistInfo) {
-            isWatchlisted.value = true
-            watchlist_ItemId.value = watchlistInfo.item_id
-          }
-
-          const watchedInfo = inLists.find(l => l.list_type === "watched")
-          if (watchedInfo) {
-            isWatched.value = true
-            watched_ItemId.value = watchedInfo.item_id
-          }
-        } catch (libErr) {
-          console.error(
-            "ไม่สามารถดึงข้อมูลลิสต์สถานะของผู้ใช้จากห้องสมุดได้:",
-            libErr,
-          )
+        const watchlistInfo = inLists.find((l) => l.list_type === "watchlist");
+        if (watchlistInfo) {
+          isWatchlisted.value = true;
+          watchlist_ItemId.value = watchlistInfo.item_id;
         }
-      }
 
-      isLoading.value = false
-      setTimeout(() => {
-        animateEntrance()
-      }, 50)
-    } catch (err) {
-      console.error("Error fetching movie details:", err)
-      isLoading.value = false
+        const watchedInfo = inLists.find((l) => l.list_type === "watched");
+        if (watchedInfo) {
+          isWatched.value = true;
+          watched_ItemId.value = watchedInfo.item_id;
+        }
+      } catch (libErr) {
+        console.error(
+          "ไม่สามารถดึงข้อมูลลิสต์สถานะของผู้ใช้จากห้องสมุดได้:",
+          libErr,
+        );
+      }
     }
-  })
+
+    isLoading.value = false;
+    setTimeout(() => {
+      animateEntrance();
+    }, 50);
+  } catch (err) {
+    console.error("Error fetching movie details:", err);
+    isLoading.value = false;
+  }
+});
 </script>
 
 <style scoped>
-  @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap");
 
-  .movie-detail-page {
-    --red: #e50914;
-    --gold: #f5c518;
-    --neon-pink: #ff2a74;
-    --bg: #080808;
-    --surface: #121212;
-    --surface2: #1c1c1c;
-    --border: rgba(255, 255, 255, 0.08);
-    --text: #f0f0f0;
-    --muted: #8a8a8a;
+.movie-detail-page {
+  --red: #e50914;
+  --gold: #f5c518;
+  --neon-pink: #ff2a74;
+  --bg: #080808;
+  --surface: #121212;
+  --surface2: #1c1c1c;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f0f0f0;
+  --muted: #8a8a8a;
 
-    font-family: "Noto Sans Thai", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    position: relative;
-    overflow-x: hidden;
-  }
+  font-family: "Noto Sans Thai", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
 
-  .btn-secondary-action.active-like {
-    background: rgba(255, 42, 116, 0.2) !important;
-    border-color: var(--neon-pink) !important;
-    color: var(--neon-pink) !important;
-  }
+.btn-secondary-action.active-like {
+  background: rgba(255, 42, 116, 0.2) !important;
+  border-color: var(--neon-pink) !important;
+  color: var(--neon-pink) !important;
+}
 
-  .btn-secondary-action.active-watchlist {
-    background: rgba(245, 197, 24, 0.15) !important;
-    border-color: var(--gold) !important;
-    color: var(--gold) !important;
-  }
+.btn-secondary-action.active-watchlist {
+  background: rgba(245, 197, 24, 0.15) !important;
+  border-color: var(--gold) !important;
+  color: var(--gold) !important;
+}
 
-  .btn-secondary-action.active-watched {
-    background: rgba(46, 213, 115, 0.15) !important;
-    border-color: #2ed573 !important;
-    color: #2ed573 !important;
-  }
+.btn-secondary-action.active-watched {
+  background: rgba(46, 213, 115, 0.15) !important;
+  border-color: #2ed573 !important;
+  color: #2ed573 !important;
+}
 
-  .detail-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 550px;
-    z-index: 0;
-    pointer-events: none;
-  }
-  .detail-backdrop__img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center 20%;
-    opacity: 0.22;
-    filter: blur(4px);
-  }
-  .detail-backdrop__overlay {
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(
-        to top,
-        var(--bg) 0%,
-        rgba(8, 8, 8, 0.7) 60%,
-        transparent 100%
-      ),
-      linear-gradient(
-        to right,
-        var(--bg) 0%,
-        transparent 30%,
-        transparent 70%,
-        var(--bg) 100%
-      );
-  }
-  .btn-back {
-    position: absolute;
-    top: 2rem;
-    left: 2rem;
-    z-index: 10;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--border);
-    color: #fff;
-    padding: 0.55rem 1.1rem;
-    border-radius: 9999px;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    backdrop-filter: blur(8px);
-    transition:
-      background 0.2s,
-      border-color 0.2s;
-  }
-  .btn-back:hover {
-    background: var(--surface2);
-    border-color: rgba(255, 255, 255, 0.2);
-  }
+.detail-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 550px;
+  z-index: 0;
+  pointer-events: none;
+}
+.detail-backdrop__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 20%;
+  opacity: 0.22;
+  filter: blur(4px);
+}
+.detail-backdrop__overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to top,
+      var(--bg) 0%,
+      rgba(8, 8, 8, 0.7) 60%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      var(--bg) 0%,
+      transparent 30%,
+      transparent 70%,
+      var(--bg) 100%
+    );
+}
+.btn-back {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border);
+  color: #fff;
+  padding: 0.55rem 1.1rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.btn-back:hover {
+  background: var(--surface2);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.detail-container {
+  position: relative;
+  z-index: 2;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 7.5rem 1.75rem 6rem;
+  box-sizing: border-box;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 3.5rem;
+  align-items: flex-start;
+}
+.detail-sidebar {
+  position: sticky;
+  top: 6rem;
+}
+.poster-wrapper {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.8);
+  aspect-ratio: 2/3;
+  background: var(--surface);
+}
+.main-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.main-poster--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.btn-primary-action {
+  background: var(--red);
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background 0.2s;
+}
+.btn-primary-action:hover {
+  background: #f40612;
+}
+.btn-secondary-action {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  border: 1px solid var(--border);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+.btn-secondary-action:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+.content-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.movie-title {
+  font-size: clamp(1.8rem, 4vw, 3.4rem);
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+.movie-tagline {
+  font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+  color: var(--gold);
+  font-style: italic;
+  font-weight: 300;
+  margin: -0.3rem 0 0;
+  overflow-wrap: break-word;
+}
+.metadata-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+.meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  color: #fff;
+  white-space: nowrap;
+}
+.meta-badge i {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.rating-tmdb {
+  background: rgba(245, 197, 24, 0.1);
+  border-color: rgba(245, 197, 24, 0.25);
+  color: var(--gold);
+  font-weight: 600;
+}
+.rating-tmdb i {
+  color: var(--gold);
+}
+.rating-remov {
+  background: rgba(255, 42, 42, 0.15);
+  border-color: rgba(255, 0, 0, 0.3);
+  color: var(--red);
+  font-weight: 600;
+}
+.rating-remov i {
+  color: var(--red);
+}
+.genres-list {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.genre-tag {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.2rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: #ddd;
+  white-space: nowrap;
+}
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.5rem 0;
+}
+.remov-info-section {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+.remov-stat-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+.remov-stat-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+.remov-stat-card i {
+  font-size: 1.25rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.stat-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.stat-count {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.stat-name {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.remov-stat-card.view i {
+  background: rgba(115, 164, 255, 0.15);
+  color: #73a4ff;
+}
+.remov-stat-card.like i {
+  background: rgba(255, 42, 116, 0.15);
+  color: var(--neon-pink);
+}
+.remov-stat-card.review i {
+  background: rgba(46, 213, 115, 0.15);
+  color: #2ed573;
+}
+.remov-stat-card.watchlist i {
+  background: rgba(245, 197, 24, 0.15);
+  color: var(--gold);
+}
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.section-title i {
+  color: var(--red);
+  font-size: 0.95rem;
+}
+.overview-text {
+  font-size: 0.925rem;
+  line-height: 1.8;
+  color: #ccc;
+  margin: 0;
+  font-weight: 300;
+  overflow-wrap: break-word;
+}
+.grid-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 0.5rem 0;
+}
+.stat-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+.cast-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface2) transparent;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+}
+.cast-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 125px;
+  width: 125px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+.cast-card:hover {
+  transform: translateY(-3px);
+}
+.cast-avatar-wrap {
+  width: 100%;
+  aspect-ratio: 1/1.2;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.cast-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cast-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-size: 1.5rem;
+}
+.cast-info {
+  padding: 0.45rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.actor-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.actor-character {
+  font-size: 0.65rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.review-zone {
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.loading-state {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  color: var(--muted);
+  padding: 1rem;
+  text-align: center;
+}
+.spinner-icon {
+  font-size: 2rem;
+  color: var(--red);
+}
+
+/* ============================================================
+     RESPONSIVE BREAKPOINTS
+     Desktop (>1024px) = ค่าเริ่มต้นด้านบน
+     ============================================================ */
+
+/* ── Tablet landscape / small desktop: 821px - 1024px ── */
+@media (max-width: 1024px) {
   .detail-container {
-    position: relative;
-    z-index: 2;
-    max-width: 1120px;
-    margin: 0 auto;
-    padding: 7.5rem 1.75rem 6rem;
+    padding: 6.5rem 1.5rem 5rem;
   }
   .detail-grid {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 3.5rem;
-    align-items: flex-start;
+    grid-template-columns: 240px 1fr;
+    gap: 2.5rem;
   }
-  .poster-wrapper {
-    position: relative;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.8);
-    aspect-ratio: 2/3;
-    background: var(--surface);
-  }
-  .main-poster {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  .main-poster--empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--muted);
-  }
-  .action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-  }
-  .btn-primary-action {
-    background: var(--red);
-    color: #fff;
-    border: none;
-    font-weight: 600;
-    font-size: 0.875rem;
-    padding: 0.75rem;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: background 0.2s;
-  }
-  .btn-primary-action:hover {
-    background: #f40612;
-  }
-  .btn-secondary-action {
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
-    border: 1px solid var(--border);
-    font-weight: 500;
-    font-size: 0.875rem;
-    padding: 0.75rem;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition:
-      background 0.2s,
-      border-color 0.2s;
-  }
-  .btn-secondary-action:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-  .detail-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  .movie-title {
-    font-size: clamp(2.2rem, 4vw, 3.4rem);
-    font-weight: 700;
-    color: #fff;
-    margin: 0;
-    line-height: 1.15;
-  }
-  .movie-tagline {
-    font-size: 1.05rem;
-    color: var(--gold);
-    font-style: italic;
-    font-weight: 300;
-    margin: -0.5rem 0 0;
-  }
-  .metadata-row {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    margin-top: 0.25rem;
-  }
-  .meta-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 0.35rem 0.8rem;
-    border-radius: 6px;
-    color: #fff;
-  }
-  .meta-badge i {
-    font-size: 0.75rem;
-    color: var(--muted);
-  }
-  .rating-tmdb {
-    background: rgba(245, 197, 24, 0.1);
-    border-color: rgba(245, 197, 24, 0.25);
-    color: var(--gold);
-    font-weight: 600;
-  }
-  .rating-tmdb i {
-    color: var(--gold);
-  }
-  .rating-remov {
-    background: rgba(255, 42, 42, 0.15);
-    border-color: rgba(255, 0, 0, 0.3);
-    color: var(--red);
-    font-weight: 600;
-  }
-  .rating-remov i {
-    color: var(--red);
-  }
-  .genres-list {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-  .genre-tag {
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 0.2rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    color: #ddd;
-  }
-  .section-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 0.5rem 0;
+  .detail-backdrop {
+    height: 460px;
   }
   .remov-info-section {
-    display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    margin: 0.5rem 0;
-  }
-  .remov-stat-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 0.75rem 1rem;
-    display: flex;
-    align-items: center;
     gap: 0.85rem;
-    transition:
-      transform 0.2s,
-      background 0.2s;
-  }
-  .remov-stat-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    transform: translateY(-2px);
-  }
-  .remov-stat-card i {
-    font-size: 1.25rem;
-    padding: 0.5rem;
-    border-radius: 8px;
-  }
-  .stat-details {
-    display: flex;
-    flex-direction: column;
-  }
-  .stat-count {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #fff;
-  }
-  .stat-name {
-    font-size: 0.68rem;
-    color: var(--muted);
-  }
-  .remov-stat-card.view i {
-    background: rgba(115, 164, 255, 0.15);
-    color: #73a4ff;
-  }
-  .remov-stat-card.like i {
-    background: rgba(255, 42, 116, 0.15);
-    color: var(--neon-pink);
-  }
-  .remov-stat-card.review i {
-    background: rgba(46, 213, 115, 0.15);
-    color: #2ed573;
-  }
-  .remov-stat-card.watchlist i {
-    background: rgba(245, 197, 24, 0.15);
-    color: var(--gold);
-  }
-  .info-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-  .section-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #fff;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .section-title i {
-    color: var(--red);
-    font-size: 0.95rem;
-  }
-  .overview-text {
-    font-size: 0.925rem;
-    line-height: 1.8;
-    color: #ccc;
-    margin: 0;
-    font-weight: 300;
-  }
-  .grid-stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1rem;
-    margin: 0.5rem 0;
-  }
-  .stat-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.8rem 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  .stat-label {
-    font-size: 0.7rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .stat-value {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #fff;
-  }
-  .cast-scroll {
-    display: flex;
-    gap: 1rem;
-    overflow-x: auto;
-    padding-bottom: 1rem;
-    scrollbar-width: thin;
-    scrollbar-color: var(--surface2) transparent;
   }
   .cast-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    min-width: 125px;
-    width: 125px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.2s;
+    min-width: 115px;
+    width: 115px;
   }
-  .cast-card:hover {
-    transform: translateY(-3px);
+}
+
+/* ── Tablet portrait / large phone landscape: 641px - 820px ── */
+@media (max-width: 820px) {
+  .detail-backdrop {
+    height: 380px;
   }
-  .cast-avatar-wrap {
-    width: 100%;
-    aspect-ratio: 1/1.2;
-    background: var(--surface2);
-    overflow: hidden;
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
   }
-  .cast-avatar {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .cast-avatar-empty {
-    display: flex;
+  .detail-sidebar {
+    position: static;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 1.5rem;
     align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--muted);
-    font-size: 1.5rem;
   }
-  .cast-info {
-    padding: 0.45rem 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+  .action-buttons {
+    margin-top: 0;
+  }
+  .btn-primary-action,
+  .btn-secondary-action {
+    font-size: 0.82rem;
+    padding: 0.65rem;
+  }
+  .remov-info-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  .grid-stats {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .btn-back {
+    top: 1.25rem;
+    left: 1.25rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8rem;
+  }
+  .detail-container {
+    padding: 5.5rem 1.5rem 4rem;
+  }
+  .movie-title {
+    font-size: clamp(1.7rem, 5vw, 2.6rem);
+  }
+  .section-title {
+    font-size: 1.02rem;
+  }
+  .overview-text {
+    font-size: 0.88rem;
+  }
+  .cast-card {
+    min-width: 108px;
+    width: 108px;
+  }
+}
+
+/* ── Phone (portrait): 481px - 640px ── */
+@media (max-width: 640px) {
+  .detail-backdrop {
+    height: 320px;
+  }
+  .detail-container {
+    padding: 5rem 1.1rem 3.5rem;
+  }
+  .detail-grid {
+    gap: 1.5rem;
+  }
+  .detail-sidebar {
+    grid-template-columns: 150px 1fr;
+    gap: 1rem;
+  }
+  .btn-back {
+    top: 1rem;
+    left: 1rem;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.78rem;
+  }
+  .btn-back span {
+    display: none; /* เหลือแค่ไอคอนบนจอแคบมาก */
+  }
+  .content-header {
+    gap: 0.3rem;
+  }
+  .metadata-row {
+    gap: 0.45rem;
+  }
+  .meta-badge {
+    font-size: 0.72rem;
+    padding: 0.3rem 0.6rem;
+  }
+  .genre-tag {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.6rem;
+  }
+  .remov-info-section {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+  .remov-stat-card {
+    padding: 0.6rem 0.75rem;
+    gap: 0.6rem;
+    border-radius: 10px;
+  }
+  .remov-stat-card i {
+    font-size: 1rem;
+    padding: 0.4rem;
+  }
+  .stat-count {
+    font-size: 0.92rem;
+  }
+  .stat-name {
+    font-size: 0.62rem;
+  }
+  .section-title {
+    font-size: 0.98rem;
+  }
+  .overview-text {
+    font-size: 0.85rem;
+    line-height: 1.7;
+  }
+  .cast-card {
+    min-width: 98px;
+    width: 98px;
   }
   .actor-name {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #fff;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.7rem;
   }
   .actor-character {
-    font-size: 0.65rem;
-    color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.6rem;
+  }
+}
+
+/* ── Small phone: 361px - 480px ── */
+@media (max-width: 480px) {
+  .detail-backdrop {
+    height: 260px;
+  }
+  .detail-container {
+    padding: 4.5rem 0.9rem 3rem;
+  }
+  .detail-sidebar {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .poster-wrapper {
+    max-width: 190px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .action-buttons {
+    gap: 0.6rem;
+  }
+  .btn-primary-action,
+  .btn-secondary-action {
+    font-size: 0.8rem;
+    padding: 0.65rem;
+  }
+  .movie-title {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+    text-align: center;
+  }
+  .movie-tagline {
+    text-align: center;
+    font-size: 0.85rem;
+  }
+  .metadata-row,
+  .genres-list {
+    justify-content: center;
+  }
+  .remov-info-section {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  .grid-stats {
+    grid-template-columns: 1fr;
+  }
+  .stat-box {
+    padding: 0.7rem 0.85rem;
+  }
+  .section-title {
+    font-size: 0.92rem;
+  }
+  .section-title i {
+    font-size: 0.85rem;
+  }
+  .overview-text {
+    font-size: 0.82rem;
+  }
+  .cast-card {
+    min-width: 90px;
+    width: 90px;
+  }
+  .cast-scroll {
+    gap: 0.75rem;
   }
   .review-zone {
-    margin-top: 1rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--border);
+    margin-top: 0.75rem;
+    padding-top: 1.1rem;
   }
-  .loading-state {
-    position: fixed;
-    inset: 0;
-    background: var(--bg);
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    color: var(--muted);
+  .loading-state p {
+    font-size: 0.85rem;
   }
-  .spinner-icon {
-    font-size: 2rem;
-    color: var(--red);
-  }
+}
 
-  @media (max-width: 820px) {
-    .detail-grid {
-      grid-template-columns: 1fr;
-      gap: 2.5rem;
-    }
-    .detail-sidebar {
-      display: grid;
-      grid-template-columns: 180px 1fr;
-      gap: 1.5rem;
-      align-items: center;
-    }
-    .action-buttons {
-      margin-top: 0;
-    }
-    .remov-info-section {
-      grid-template-columns: repeat(2, 1fr);
-    }
-    .grid-stats {
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-    }
-    .btn-back {
-      top: 1.25rem;
-      left: 1.25rem;
-      padding: 0.45rem 0.9rem;
-    }
-    .detail-container {
-      padding-top: 5.5rem;
-    }
+/* ── Extra small phone: ≤360px ── */
+@media (max-width: 360px) {
+  .detail-backdrop {
+    height: 220px;
   }
+  .detail-container {
+    padding: 4rem 0.7rem 2.5rem;
+  }
+  .btn-back {
+    top: 0.85rem;
+    left: 0.85rem;
+    padding: 0.4rem;
+    border-radius: 50%;
+  }
+  .poster-wrapper {
+    max-width: 160px;
+  }
+  .btn-primary-action,
+  .btn-secondary-action {
+    font-size: 0.75rem;
+    padding: 0.58rem;
+    gap: 0.4rem;
+  }
+  .movie-title {
+    font-size: clamp(1.35rem, 7vw, 1.7rem);
+  }
+  .meta-badge {
+    font-size: 0.68rem;
+    padding: 0.28rem 0.55rem;
+  }
+  .remov-stat-card {
+    padding: 0.55rem 0.65rem;
+  }
+  .stat-count {
+    font-size: 0.85rem;
+  }
+  .overview-text {
+    font-size: 0.8rem;
+  }
+  .cast-card {
+    min-width: 82px;
+    width: 82px;
+  }
+  .actor-name {
+    font-size: 0.66rem;
+  }
+  .actor-character {
+    font-size: 0.56rem;
+  }
+}
 
-  @media (max-width: 480px) {
-    .detail-sidebar {
-      grid-template-columns: 1fr;
-    }
-    .poster-wrapper {
-      max-width: 200px;
-      margin: 0 auto;
-      width: 100%;
-    }
-    .remov-info-section {
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-    }
+/* ── Mobile landscape orientation (short viewport height) ── */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .detail-backdrop {
+    height: 220px;
   }
+  .detail-container {
+    padding-top: 3.5rem;
+  }
+  .btn-back {
+    top: 0.75rem;
+  }
+}
 </style>
