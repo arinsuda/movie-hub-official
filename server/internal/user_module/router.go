@@ -13,7 +13,7 @@ func RegisterRoutes(
 	statsSvc StatsProvider,
 	emailVerifier EmailVerificationSender,
 	passwordResetMailer PasswordResetMailer,
-) *Service { 
+) *Service {
 	mailer := NewSMTPMailer()
 	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer)
 	h := NewHandler(svc)
@@ -25,8 +25,7 @@ func RegisterRoutes(
 	users.Patch("/:userId/genres", h.UpdateFavoriteGenres)
 	users.Post("/:userId/email", h.RequestEmailChange)
 	users.Put("/:userId/email", h.VerifyEmailChange)
-	users.Patch("/:userId/email", h.UpdateEmail)
 	users.Patch("/:userId/password", h.ChangePassword)
 
-	return svc 
+	return svc
 }

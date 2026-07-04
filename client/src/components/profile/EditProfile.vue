@@ -93,37 +93,21 @@
             v-else-if="emailStep === 'idle'"
             type="button"
             class="email-action-btn"
-            @click="handleRequestOTP"
+            @click="handleStartChangeEmail"
           >
             <Pencil :size="12" /> Change Email
-          </button>
-          <button
-            v-else-if="emailStep === 'requesting'"
-            type="button"
-            class="email-action-btn"
-            disabled
-          >
-            <span class="btn-spinner" /> Sending…
-          </button>
-          <button
-            v-else-if="emailStep === 'otp'"
-            type="button"
-            class="email-action-btn email-action-btn--cancel"
-            @click="cancelEmailChange"
-          >
-            <X :size="12" /> Cancel
           </button>
           <template v-else-if="emailStep === 'input'">
             <button
               type="button"
               class="email-action-btn email-action-btn--confirm"
               :disabled="
-                !form.email || form.email === initialForm.email || emailSaving
+                !form.email || form.email === props.user?.email || emailSaving
               "
-              @click="handleUpdateEmail"
+              @click="handleRequestOTP"
             >
               <span v-if="emailSaving" class="btn-spinner" />
-              <template v-else><Mail :size="12" /> Save Email</template>
+              <template v-else><Mail :size="12" /> Send OTP</template>
             </button>
             <button
               type="button"
@@ -133,6 +117,14 @@
               <X :size="12" /> Cancel
             </button>
           </template>
+          <button
+            v-else-if="emailStep === 'otp'"
+            type="button"
+            class="email-action-btn email-action-btn--cancel"
+            @click="cancelEmailChange"
+          >
+            <X :size="12" /> Cancel
+          </button>
           <button
             v-else-if="emailStep === 'waiting'"
             type="button"
@@ -150,6 +142,8 @@
             <CheckCircle :size="13" /> Verified!
           </button>
         </div>
+
+        <!-- OTP sent to CURRENT email -->
         <transition name="otp-slide">
           <div v-if="emailStep === 'otp'" class="otp-box">
             <p class="otp-hint">
@@ -180,6 +174,8 @@
             <p v-if="otpError" class="otp-error">{{ otpError }}</p>
           </div>
         </transition>
+
+        <!-- waiting for click on link sent to NEW email -->
         <transition name="otp-slide">
           <div v-if="emailStep === 'waiting'" class="otp-box otp-box--waiting">
             <div class="waiting-row">
@@ -198,9 +194,11 @@
             </button>
           </div>
         </transition>
+
         <p v-if="emailStep === 'input'" class="email-hint">
-          <Info :size="11" /> Type your new email then save. A verification link
-          will be sent.
+          <Info :size="11" /> Enter your new email, then we'll send a 6-digit
+          code to your current email ({{ props.user?.email }}) to confirm it's
+          you.
         </p>
       </div>
       <!-- ─────────────────────────────────────────────────────── -->
@@ -436,7 +434,7 @@
     <ConfirmModal
       v-model="showEmailConfirmModal"
       list-type="email_change"
-      :item-name="props.user?.email ?? ''"
+      :item-name="form.email"
       @confirm="confirmRequestOTP"
       @cancel="showEmailConfirmModal = false"
     />
@@ -470,7 +468,13 @@
   const authStore = useAuthStore()
 
   // ── email step machine ────────────────────────────────────────────────
-  type EmailStep = "idle" | "requesting" | "otp" | "input" | "waiting" | "done"
+  // idle     -> nothing happening, showing current email
+  // input    -> user is typing the new email
+  // otp      -> OTP sent to CURRENT email, waiting for user to enter it
+  // waiting  -> OTP verified, email swapped on BE, verification link sent
+  //             to the NEW email, waiting for user to click it
+  // done     -> new email verified (detected via polling)
+  type EmailStep = "idle" | "input" | "otp" | "waiting" | "done"
   const emailStep = ref<EmailStep>("idle")
 
   const saving = ref(false)
@@ -631,53 +635,58 @@
     reader.readAsDataURL(file)
   }
 
+  // Step 1: user clicks "Change Email" -> unlock the field for a new address
+  function handleStartChangeEmail() {
+    emailStep.value = "input"
+    otpError.value = ""
+    form.email = ""
+  }
+
+  // Step 2: user typed the new email and clicks "Send OTP" -> confirm first
   function handleRequestOTP() {
-    if (!props.user?.id) return
+    if (!props.user?.id || !form.email) return
     showEmailConfirmModal.value = true
   }
 
+  // Step 3: confirmed -> POST /users/:id/email { new_email }
+  // BE stores pending new_email + OTP, and sends the OTP to the CURRENT email.
   async function confirmRequestOTP() {
     showEmailConfirmModal.value = false
-    if (!props.user?.id) return
-    emailStep.value = "requesting"
+    if (!props.user?.id || !form.email) return
+    emailSaving.value = true
     otpError.value = ""
     try {
-      await userApi.requestEmailChange(props.user.id)
+      await userApi.requestEmailChange(props.user.id, {
+        new_email: form.email,
+      })
       emailStep.value = "otp"
+      otpValue.value = ""
     } catch (err: any) {
       otpError.value = err?.response?.data?.error ?? "Failed to send OTP."
-      emailStep.value = "idle"
+    } finally {
+      emailSaving.value = false
     }
   }
 
+  // Step 4: user enters OTP -> PUT /users/:id/email { otp }
+  // BE verifies OTP, swaps email to the pending new_email, sets
+  // verified_email_at = null, then sends a verification link to the NEW email.
   async function handleVerifyOTP() {
     if (!props.user?.id || otpValue.value.length !== 6) return
     otpConfirming.value = true
     otpError.value = ""
     try {
-      await userApi.verifyEmailChange(props.user.id, otpValue.value)
-      emailStep.value = "input"
-      otpValue.value = ""
-      form.email = ""
+      const { data } = await userApi.verifyEmailChange(props.user.id, {
+        otp: otpValue.value,
+      })
+      form.email = data.user.email
+      await authStore.fetchMe()
+      emailStep.value = "waiting"
+      startPolling(data.user.email)
     } catch (err: any) {
       otpError.value = err?.response?.data?.error ?? "Invalid OTP."
     } finally {
       otpConfirming.value = false
-    }
-  }
-
-  async function handleUpdateEmail() {
-    if (!props.user?.id || !form.email) return
-    emailSaving.value = true
-    otpError.value = ""
-    try {
-      await userApi.updateEmail(props.user.id, form.email)
-      emailStep.value = "waiting"
-      startPolling(form.email)
-    } catch (err: any) {
-      otpError.value = err?.response?.data?.error ?? "Failed to update email."
-    } finally {
-      emailSaving.value = false
     }
   }
 
@@ -726,7 +735,7 @@
       if (avatarFile.value) payload.append("avatar", avatarFile.value)
       await userApi.updateProfile(props.user!.id, payload)
       await authStore.fetchMe()
-       emit("close")
+      emit("close")
     } catch (err) {
       console.error("Save profile failed:", err)
     } finally {

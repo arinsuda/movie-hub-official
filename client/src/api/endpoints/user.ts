@@ -1,5 +1,10 @@
 import api from "../index"
-import type { ChangePassword, UserProfile } from "@/types"
+import type {
+  ChangePassword,
+  UserProfile,
+  RequestEmailChangeRequest,
+  VerifyEmailChangeRequest,
+} from "@/types"
 
 export const userApi = {
   me: (userId: number) => api.get<{ user: UserProfile }>(`/users/${userId}`),
@@ -19,15 +24,12 @@ export const userApi = {
       favorite_genres: genres,
     }),
 
-  requestEmailChange: (userId: number) => api.post(`/users/${userId}/email`),
+  requestEmailChange: (userId: number, data: RequestEmailChangeRequest) =>
+    api.post<{ message: string }>(`/users/${userId}/email`, data),
 
-  verifyEmailChange: (userId: number, otp: string) =>
-    api.put<{ user: UserProfile }>(`/users/${userId}/email`, { otp }),
+  verifyEmailChange: (userId: number, data: VerifyEmailChangeRequest) =>
+    api.put<{ user: UserProfile }>(`/users/${userId}/email`, data),
 
-  updateEmail: (userId: number, newEmail: string) =>
-    api.patch(`/users/${userId}/email`, { new_email: newEmail }),
-
-  // รับ body เพื่อส่ง old/new/confirm password ไปด้วย
   changePassword: (userId: number, data: ChangePassword) =>
-    api.patch(`/users/${userId}/password`, data),
+    api.patch<{ message: string }>(`/users/${userId}/password`, data),
 }

@@ -128,45 +128,6 @@ func (s *Service) UpdateProfile(
 	return s.GetProfile(targetUserID, requesterID)
 }
 
-func (s *Service) UpdateEmail(targetUserID, requesterID uint, newEmail string) (*UserProfileResponse, error) {
-	if targetUserID != requesterID {
-		return nil, ErrForbidden
-	}
-
-	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
-	if !isValidEmail(newEmail) {
-		return nil, errors.New("invalid email format")
-	}
-
-	user, _, _, _, err := s.repo.FindByID(targetUserID)
-	if err != nil {
-		return nil, err
-	}
-	if strings.EqualFold(user.Email, newEmail) {
-		return nil, errors.New("new email must be different from current email")
-	}
-	taken, err := s.repo.IsEmailTaken(newEmail, targetUserID)
-	if err != nil {
-		return nil, err
-	}
-	if taken {
-		return nil, ErrEmailAlreadyInUse
-	}
-
-	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
-		"email":             newEmail,
-		"verified_email_at": nil,
-	}); err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		_ = s.emailVerifier.SendVerification(targetUserID, newEmail)
-	}()
-
-	return s.GetProfile(targetUserID, requesterID)
-}
-
 func (s *Service) DeleteUser(targetUserID, requesterID uint, requesterRole string) error {
 	if targetUserID != requesterID && requesterRole != "admin" {
 		return ErrForbidden
@@ -195,14 +156,31 @@ func (s *Service) UpdateFavoriteGenres(targetUserID, requesterID uint, genres []
 	return s.GetProfile(targetUserID, requesterID)
 }
 
-func (s *Service) RequestEmailChange(targetUserID, requesterID uint) error {
+func (s *Service) RequestEmailChange(targetUserID, requesterID uint, newEmail string) error {
 	if targetUserID != requesterID {
 		return ErrForbidden
+	}
+
+	newEmail = strings.TrimSpace(strings.ToLower(newEmail))
+	if !isValidEmail(newEmail) {
+		return ErrInvalidEmailFormat
 	}
 
 	user, _, _, _, err := s.repo.FindByID(targetUserID)
 	if err != nil {
 		return err
+	}
+
+	if strings.EqualFold(user.Email, newEmail) {
+		return ErrEmailSameAsCurrent
+	}
+
+	taken, err := s.repo.IsEmailTaken(newEmail, targetUserID)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return ErrEmailAlreadyInUse
 	}
 
 	otp, err := generateOTP()
@@ -217,9 +195,11 @@ func (s *Service) RequestEmailChange(targetUserID, requesterID uint) error {
 
 	changeReq := &EmailChangeRequest{
 		UserID:    targetUserID,
+		NewEmail:  newEmail,
 		OTPHash:   string(otpHash),
 		ExpiresAt: time.Now().Add(15 * time.Minute),
 	}
+
 	if err := s.repo.UpsertEmailChangeRequest(changeReq); err != nil {
 		return err
 	}
@@ -257,12 +237,32 @@ func (s *Service) VerifyEmailChange(
 		return nil, ErrOTPMaxAttempts
 	}
 
+	if strings.TrimSpace(req.NewEmail) == "" {
+		_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+		return nil, ErrPendingEmailMissing
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(req.OTPHash), []byte(otp)); err != nil {
 		_ = s.repo.IncrementOTPAttempt(req.ID)
 		return nil, ErrOTPInvalid
 	}
 
-	_ = s.repo.DeleteEmailChangeRequest(targetUserID)
+	if err := s.repo.UpdateProfile(targetUserID, map[string]any{
+		"email":             req.NewEmail,
+		"verified_email_at": nil,
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.DeleteEmailChangeRequest(targetUserID); err != nil {
+		return nil, err
+	}
+
+	if s.emailVerifier != nil {
+		defer func() {
+			_ = s.emailVerifier.SendVerification(targetUserID, req.NewEmail)
+		}()
+	}
 
 	return s.GetProfile(targetUserID, requesterID)
 }

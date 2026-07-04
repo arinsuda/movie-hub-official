@@ -76,26 +76,30 @@ func (h *Handler) UpdateProfile(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"user": profile})
 }
 
-func (h *Handler) UpdateEmail(c fiber.Ctx) error {
+func (h *Handler) RequestEmailChange(c fiber.Ctx) error {
 	targetID, err := parseUserID(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
 	}
+
 	claims := mw.GetClaims(c)
 
-	var req UpdateEmailRequest
+	var req RequestEmailChangeRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
 	}
-	if req.NewEmail == "" {
+
+	if strings.TrimSpace(req.NewEmail) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new_email is required"})
 	}
 
-	profile, err := h.svc.UpdateEmail(targetID, claims.UserID, req.NewEmail)
-	if err != nil {
+	if err := h.svc.RequestEmailChange(targetID, claims.UserID, req.NewEmail); err != nil {
 		return handleEmailChangeError(c, err)
 	}
-	return c.JSON(fiber.Map{"user": profile})
+
+	return c.JSON(fiber.Map{
+		"message": "OTP has been sent to your current email address",
+	})
 }
 
 func (h *Handler) DeleteUser(c fiber.Ctx) error {
@@ -132,23 +136,6 @@ func (h *Handler) UpdateFavoriteGenres(c fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"user": profile})
-}
-
-func (h *Handler) RequestEmailChange(c fiber.Ctx) error {
-	targetID, err := parseUserID(c)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
-	}
-
-	claims := mw.GetClaims(c)
-
-	if err := h.svc.RequestEmailChange(targetID, claims.UserID); err != nil {
-		return handleEmailChangeError(c, err)
-	}
-
-	return c.JSON(fiber.Map{
-		"message": "OTP has been sent to your current email address",
-	})
 }
 
 func (h *Handler) VerifyEmailChange(c fiber.Ctx) error {
@@ -230,6 +217,14 @@ func handleEmailChangeError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
 	case errors.Is(err, ErrForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+	case errors.Is(err, ErrInvalidEmailFormat):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid email format"})
+	case errors.Is(err, ErrEmailSameAsCurrent):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "new email must be different from current email"})
+	case errors.Is(err, ErrEmailAlreadyInUse):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "email already in use"})
+	case errors.Is(err, ErrPendingEmailMissing):
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "pending new email missing"})
 	case errors.Is(err, ErrOTPNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "no pending email change request"})
 	case errors.Is(err, ErrOTPExpired):
@@ -238,8 +233,6 @@ func handleEmailChangeError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "invalid otp"})
 	case errors.Is(err, ErrOTPMaxAttempts):
 		return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"error": "too many failed attempts, please request a new otp"})
-	case errors.Is(err, ErrEmailAlreadyInUse):
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "email already in use"})
 	default:
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

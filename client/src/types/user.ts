@@ -6,7 +6,7 @@ export interface UserProfile {
   display_name: string | null
   bio: string | null
   avatar_url: string | null
-  date_of_birth: string
+  date_of_birth: string | null
   gender: string
   favorite_genres: string | null
   review_count: number

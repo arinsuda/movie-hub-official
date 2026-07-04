@@ -44,14 +44,12 @@ type UserSummaryResponse struct {
 	AvatarURL   *string `json:"avatar_url"`
 }
 
-type RequestEmailChangeRequest struct{}
+type RequestEmailChangeRequest struct {
+	NewEmail string `json:"new_email"`
+}
 
 type VerifyEmailChangeRequest struct {
 	OTP string `json:"otp"`
-}
-
-type UpdateEmailRequest struct {
-	NewEmail string `json:"new_email"`
 }
 
 type ChangePasswordRequest struct {

@@ -15,6 +15,9 @@ var (
 	ErrOTPInvalid                 = errors.New("otp invalid")
 	ErrOTPMaxAttempts             = errors.New("otp max attempts exceeded")
 	ErrEmailAlreadyInUse          = errors.New("email already in use")
+	ErrInvalidEmailFormat         = errors.New("invalid email format")
+	ErrEmailSameAsCurrent         = errors.New("new email must be different from current email")
+	ErrPendingEmailMissing        = errors.New("pending new email missing")
 	ErrPasswordResetTokenNotFound = errors.New("password reset token not found")
 	ErrPasswordResetTokenExpired  = errors.New("password reset token expired")
 	ErrPasswordResetTokenInvalid  = errors.New("password reset token invalid")
@@ -122,6 +125,7 @@ func (r *repository) UpsertEmailChangeRequest(req *EmailChangeRequest) error {
 	return r.db.
 		Where(EmailChangeRequest{UserID: req.UserID}).
 		Assign(EmailChangeRequest{
+			NewEmail:     req.NewEmail,
 			OTPHash:      req.OTPHash,
 			ExpiresAt:    req.ExpiresAt,
 			AttemptCount: 0,
