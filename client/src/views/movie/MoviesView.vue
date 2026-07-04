@@ -128,6 +128,13 @@
 
       <div class="pagination" v-if="totalPages > 1">
         <button
+          class="page-btn page-nav"
+          :disabled="currentPage === 1"
+          @click="goToPage(currentPage - 1)"
+        >
+          <ChevronLeft :size="16" />
+        </button>
+        <button
           v-for="p in paginationPages"
           :key="p"
           class="page-btn"
@@ -140,25 +147,14 @@
         >
           {{ p }}
         </button>
-        <div class="page-size-wrap" ref="pageSizeRef">
-          <button
-            class="page-size-trigger"
-            @click="pageSizeOpen = !pageSizeOpen"
-          >
-            {{ pageSize }} <ChevronDown :size="12" />
-          </button>
-          <div class="page-size-dropdown" v-if="pageSizeOpen">
-            <button
-              v-for="s in [20, 50, 100]"
-              :key="s"
-              class="page-size-opt"
-              :class="{ active: pageSize === s }"
-              @click="changeSize(s)"
-            >
-              {{ s }}
-            </button>
-          </div>
-        </div>
+        
+        <button
+          class="page-btn page-nav"
+          :disabled="currentPage === Math.min(totalPages, 500)"
+          @click="goToPage(currentPage + 1)"
+        >
+          <ChevronRight :size="16" />
+        </button>
       </div>
     </div>
     <div class="loading-overlay" v-if="isLoading"><div class="spinner" /></div>
@@ -179,6 +175,8 @@ import {
   ArrowUpDown,
   ChevronDown,
   Film,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import {
   resolveTrailer,
@@ -207,7 +205,6 @@ const sortBy = ref("default");
 const selectedGenre = ref<number | null>(null);
 const searchQuery = ref((route.query.q as string) ?? "");
 const currentPage = ref(1);
-const pageSize = ref(20);
 const hoveredId = ref<number | null>(null);
 const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>();
 const cardTrailers = new Map<number, ResolvedTrailer | null>();
@@ -217,10 +214,8 @@ const SHOW_DELAY = 200;
 const genres = ref<Genre[]>([]);
 const genreOpen = ref(false);
 const sortOpen = ref(false);
-const pageSizeOpen = ref(false);
 const genreRef = ref<HTMLElement | null>(null);
 const sortRef = ref<HTMLElement | null>(null);
-const pageSizeRef = ref<HTMLElement | null>(null);
 
 const isSearchMode = computed(() => !!searchQuery.value.trim());
 const queryKey = computed(() => [
@@ -307,17 +302,11 @@ function goToPage(p: number) {
   currentPage.value = p;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-function changeSize(s: number) {
-  pageSize.value = s;
-  pageSizeOpen.value = false;
-  currentPage.value = 1;
-}
+
 function onClickOutside(e: MouseEvent) {
   const t = e.target as Node;
   if (genreRef.value && !genreRef.value.contains(t)) genreOpen.value = false;
   if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false;
-  if (pageSizeRef.value && !pageSizeRef.value.contains(t))
-    pageSizeOpen.value = false;
 }
 
 function getState(movieId: number) {
@@ -667,54 +656,7 @@ onUnmounted(() => {
 .page-btn--ellipsis {
   cursor: default;
 }
-.page-size-wrap {
-  position: relative;
-  margin-left: 8px;
-}
-.page-size-trigger {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 58px;
-  height: 36px;
-  padding: 0 0.75rem;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  color: #a3a3a3;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-.page-size-dropdown {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  right: 0;
-  background: #1f1f1f;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  overflow: hidden;
-  min-width: 70px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-}
-.page-size-opt {
-  display: block;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: none;
-  border: none;
-  color: #a3a3a3;
-  font-size: 0.875rem;
-  cursor: pointer;
-  text-align: center;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-.page-size-opt:hover,
-.page-size-opt.active {
-  background: rgba(229, 9, 20, 0.15);
-  color: #fff;
-}
+
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -736,5 +678,14 @@ onUnmounted(() => {
   to {
     transform: rotate(360deg);
   }
+}
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 </style>
