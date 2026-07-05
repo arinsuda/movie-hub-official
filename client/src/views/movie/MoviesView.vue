@@ -90,7 +90,7 @@
           v-for="(show, i) in movies"
           :key="show.id"
           class="poster-wrap"
-          @mouseenter="onCardEnter(show.id, show)"
+          @mouseenter="onCardEnter(show)"
           @mouseleave="onCardLeave(show.id)"
         >
           <RouterLink :to="`/movies/${show.id}`" class="poster-card">
@@ -110,12 +110,16 @@
             >
               <PopupCard
                 :movie="show"
-                :trailer="getTrailer(show.id)"
+                :media-type="'movie'"
+                :current-trailer="getState(show.id).currentTrailer.value"
+                :trailer-unavailable="
+                  getState(show.id).trailerUnavailable.value
+                "
                 :is-iframe-mounted="getState(show.id).isIframeMounted.value"
                 :is-iframe-loaded="getState(show.id).isIframeLoaded.value"
                 :show-skeleton="getState(show.id).showSkeleton.value"
                 :show-fallback="getState(show.id).showFallback.value"
-                @iframe-load="getState(show.id).onIframeLoad()"
+                :attach-player="getState(show.id).attachPlayer"
               />
             </div>
           </Transition>
@@ -147,7 +151,7 @@
         >
           {{ p }}
         </button>
-        
+
         <button
           class="page-btn page-nav"
           :disabled="currentPage === Math.min(totalPages, 500)"
@@ -178,21 +182,19 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-vue-next";
-import {
-  resolveTrailer,
-  useTrailerPreview,
-  type ResolvedTrailer,
-} from "@/composables/useTrailerPreview";
 import PopupCard from "@/components/movie/PopupCard.vue";
+import { useHoverPreviewGrid } from "@/composables/useHoverPreviewGrid";
 
 const route = useRoute();
 
 type TabKey = "popular" | "now_playing" | "top_rated";
+
 const tabs: { key: TabKey; label: string }[] = [
   { key: "popular", label: "Popular" },
   { key: "now_playing", label: "Now Playing" },
   { key: "top_rated", label: "Top Rated" },
 ];
+
 const sortOptions = [
   { key: "default", label: "Default" },
   { key: "rating", label: "Rating" },
@@ -200,17 +202,22 @@ const sortOptions = [
   { key: "popular", label: "Popularity" },
 ];
 
+const {
+  hoveredId,
+  getState,
+  getTrailer,
+  onCardEnter,
+  onCardLeave,
+  onPopupEnter,
+  onPopupLeave,
+  getPopupPos,
+} = useHoverPreviewGrid({ columns: 5 });
+
 const activeTab = ref<TabKey>("popular");
 const sortBy = ref("default");
 const selectedGenre = ref<number | null>(null);
 const searchQuery = ref((route.query.q as string) ?? "");
 const currentPage = ref(1);
-const hoveredId = ref<number | null>(null);
-const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>();
-const cardTrailers = new Map<number, ResolvedTrailer | null>();
-let insidePopup = false;
-let showTimer: ReturnType<typeof setTimeout> | null = null;
-const SHOW_DELAY = 200;
 const genres = ref<Genre[]>([]);
 const genreOpen = ref(false);
 const sortOpen = ref(false);
@@ -272,12 +279,6 @@ const paginationPages = computed(() => {
   return [...new Set(p)];
 });
 
-function getPopupPos(i: number) {
-  const col = i % 5;
-  if (col === 0) return "popup--right";
-  if (col === 4) return "popup--left";
-  return "popup--center";
-}
 function switchTab(key: TabKey) {
   activeTab.value = key;
   currentPage.value = 1;
@@ -309,66 +310,6 @@ function onClickOutside(e: MouseEvent) {
   if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false;
 }
 
-function getState(movieId: number) {
-  if (!cardStates.has(movieId)) {
-    cardStates.set(movieId, useTrailerPreview({ mountDelay: 500 }));
-  }
-  return cardStates.get(movieId)!;
-}
-
-function getTrailer(movieId: number): ResolvedTrailer | null {
-  return cardTrailers.get(movieId) ?? null;
-}
-
-async function fetchAndCacheTrailer(movie: Movie) {
-  if (cardTrailers.has(movie.id)) return;
-  cardTrailers.set(movie.id, null);
-  try {
-    const res = await movieApi.getVideos(movie.id);
-    const videos = res.data?.results ?? [];
-    const trailer = resolveTrailer(videos);
-    cardTrailers.set(movie.id, trailer);
-    if (hoveredId.value === movie.id && trailer) {
-      getState(movie.id).scheduleMount();
-    }
-  } catch {
-    cardTrailers.set(movie.id, null);
-  }
-}
-
-function onCardEnter(movieId: number, movie: Movie) {
-  clearTimeout(showTimer ?? undefined);
-  insidePopup = false;
-  fetchAndCacheTrailer(movie);
-  showTimer = setTimeout(() => {
-    hoveredId.value = movieId;
-    const trailer = getTrailer(movieId);
-    if (trailer) getState(movieId).scheduleMount();
-  }, SHOW_DELAY);
-}
-
-function onCardLeave(movieId: number) {
-  clearTimeout(showTimer ?? undefined);
-  setTimeout(() => {
-    if (!insidePopup) closeCard(movieId);
-  }, 80);
-}
-
-function onPopupEnter() {
-  insidePopup = true;
-}
-
-function onPopupLeave(movieId: number) {
-  insidePopup = false;
-  closeCard(movieId);
-}
-
-function closeCard(movieId: number) {
-  if (hoveredId.value !== movieId) return;
-  hoveredId.value = null;
-  cardStates.get(movieId)?.unmount();
-}
-
 watch(
   () => route.query.q,
   (q) => {
@@ -383,9 +324,6 @@ onMounted(async () => {
 });
 onUnmounted(() => {
   document.removeEventListener("click", onClickOutside);
-  clearTimeout(showTimer ?? undefined);
-  cardStates.forEach((s) => s.unmount());
-  cardStates.clear();
 });
 </script>
 

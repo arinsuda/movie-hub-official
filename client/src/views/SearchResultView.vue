@@ -58,53 +58,85 @@
       <!-- ── Results Grid ── -->
       <template v-else>
         <div class="media-grid" v-if="filteredResults.length">
-          <RouterLink
-            v-for="item in filteredResults"
+          <div
+            v-for="(item, i) in filteredResults"
             :key="`${item.mediaType}-${item.id}`"
-            :to="
-              item.mediaType === 'movie'
-                ? `/movies/${item.id}`
-                : `/tv/${item.id}`
-            "
-            class="media-card"
+            class="media-card-wrap"
+            @mouseenter="onCardEnter(item)"
+            @mouseleave="onCardLeave(item.id)"
           >
-            <div class="media-poster">
-              <img
-                v-if="item.posterPath"
-                :src="`https://image.tmdb.org/t/p/w342${item.posterPath}`"
-                :alt="item.title"
-                loading="lazy"
-              />
-              <div v-else class="media-poster--empty">
-                <i class="pi pi-image"></i>
+            <RouterLink
+              :to="
+                item.mediaType === 'movie'
+                  ? `/movies/${item.id}`
+                  : `/tv/${item.id}`
+              "
+              class="media-card"
+            >
+              <div class="media-poster">
+                <img
+                  v-if="item.posterPath"
+                  :src="getTmdbImageUrlOrPlaceholder(item.posterPath)"
+                  :alt="item.title"
+                  loading="lazy"
+                />
+                <div v-else class="media-poster--empty">
+                  <i class="pi pi-image"></i>
+                </div>
+
+                <span class="media-type-badge" :class="item.mediaType">
+                  <i
+                    :class="
+                      item.mediaType === 'movie'
+                        ? 'pi pi-video'
+                        : 'pi pi-desktop'
+                    "
+                  ></i>
+                  {{ item.mediaType === "movie" ? "หนัง" : "ซีรีส์" }}
+                </span>
+
+                <span class="media-rating" v-if="item.voteAverage > 0">
+                  <i class="pi pi-star-fill"></i>
+                  {{ item.voteAverage.toFixed(1) }}
+                </span>
+
+                <div class="media-overlay">
+                  <span class="overlay-play"
+                    ><i class="pi pi-play-circle"></i
+                  ></span>
+                </div>
               </div>
 
-              <span class="media-type-badge" :class="item.mediaType">
-                <i
-                  :class="
-                    item.mediaType === 'movie' ? 'pi pi-video' : 'pi pi-desktop'
+              <div class="media-info">
+                <span class="media-title">{{ item.title }}</span>
+                <span class="media-year" v-if="item.year">{{ item.year }}</span>
+              </div>
+            </RouterLink>
+
+            <Transition name="popup">
+              <div
+                v-if="hoveredId === item.id"
+                class="hover-popup"
+                :class="getPopupPos(i)"
+                @mouseenter="onPopupEnter"
+                @mouseleave="onPopupLeave(item.id)"
+              >
+                <PopupCard
+                  :movie="item.raw"
+                  :media-type="'movie'"
+                  :current-trailer="getState(item.id).currentTrailer.value"
+                  :trailer-unavailable="
+                    getState(item.id).trailerUnavailable.value
                   "
-                ></i>
-                {{ item.mediaType === "movie" ? "หนัง" : "ซีรีส์" }}
-              </span>
-
-              <span class="media-rating" v-if="item.voteAverage > 0">
-                <i class="pi pi-star-fill"></i>
-                {{ item.voteAverage.toFixed(1) }}
-              </span>
-
-              <div class="media-overlay">
-                <span class="overlay-play"
-                  ><i class="pi pi-play-circle"></i
-                ></span>
+                  :is-iframe-mounted="getState(item.id).isIframeMounted.value"
+                  :is-iframe-loaded="getState(item.id).isIframeLoaded.value"
+                  :show-skeleton="getState(item.id).showSkeleton.value"
+                  :show-fallback="getState(item.id).showFallback.value"
+                  :attach-player="getState(item.id).attachPlayer"
+                />
               </div>
-            </div>
-
-            <div class="media-info">
-              <span class="media-title">{{ item.title }}</span>
-              <span class="media-year" v-if="item.year">{{ item.year }}</span>
-            </div>
-          </RouterLink>
+            </Transition>
+          </div>
         </div>
 
         <!-- ── Empty State + Suggestions ── -->
@@ -121,57 +153,89 @@
               อาจถูกใจคุณ
             </h3>
             <div class="media-grid">
-              <RouterLink
-                v-for="item in suggestions"
+              <div
+                v-for="(item, i) in suggestions"
                 :key="`sugg-${item.mediaType}-${item.id}`"
-                :to="
-                  item.mediaType === 'movie'
-                    ? `/movies/${item.id}`
-                    : `/tv/${item.id}`
-                "
-                class="media-card"
+                class="media-card-wrap"
+                @mouseenter="onCardEnter(item)"
+                @mouseleave="onCardLeave(item.id)"
               >
-                <div class="media-poster">
-                  <img
-                    v-if="item.posterPath"
-                    :src="`https://image.tmdb.org/t/p/w342${item.posterPath}`"
-                    :alt="item.title"
-                    loading="lazy"
-                  />
-                  <div v-else class="media-poster--empty">
-                    <i class="pi pi-image"></i>
+                <RouterLink
+                  :to="
+                    item.mediaType === 'movie'
+                      ? `/movies/${item.id}`
+                      : `/tv/${item.id}`
+                  "
+                  class="media-card"
+                >
+                  <div class="media-poster">
+                    <img
+                      v-if="item.posterPath"
+                      :src="getTmdbImageUrlOrPlaceholder(item.posterPath)"
+                      :alt="item.title"
+                      loading="lazy"
+                    />
+                    <div v-else class="media-poster--empty">
+                      <i class="pi pi-image"></i>
+                    </div>
+
+                    <span class="media-type-badge" :class="item.mediaType">
+                      <i
+                        :class="
+                          item.mediaType === 'movie'
+                            ? 'pi pi-video'
+                            : 'pi pi-desktop'
+                        "
+                      ></i>
+                      {{ item.mediaType === "movie" ? "หนัง" : "ซีรีส์" }}
+                    </span>
+
+                    <span class="media-rating" v-if="item.voteAverage > 0">
+                      <i class="pi pi-star-fill"></i>
+                      {{ item.voteAverage.toFixed(1) }}
+                    </span>
+
+                    <div class="media-overlay">
+                      <span class="overlay-play"
+                        ><i class="pi pi-play-circle"></i
+                      ></span>
+                    </div>
                   </div>
 
-                  <span class="media-type-badge" :class="item.mediaType">
-                    <i
-                      :class="
-                        item.mediaType === 'movie'
-                          ? 'pi pi-video'
-                          : 'pi pi-desktop'
+                  <div class="media-info">
+                    <span class="media-title">{{ item.title }}</span>
+                    <span class="media-year" v-if="item.year">{{
+                      item.year
+                    }}</span>
+                  </div>
+                </RouterLink>
+
+                <Transition name="popup">
+                  <div
+                    v-if="hoveredId === item.id"
+                    class="hover-popup"
+                    :class="getPopupPos(i)"
+                    @mouseenter="onPopupEnter"
+                    @mouseleave="onPopupLeave(item.id)"
+                  >
+                    <PopupCard
+                      :movie="item.raw"
+                      :media-type="item.mediaType"
+                      :current-trailer="getState(item.id).currentTrailer.value"
+                      :trailer-unavailable="
+                        getState(item.id).trailerUnavailable.value
                       "
-                    ></i>
-                    {{ item.mediaType === "movie" ? "หนัง" : "ซีรีส์" }}
-                  </span>
-
-                  <span class="media-rating" v-if="item.voteAverage > 0">
-                    <i class="pi pi-star-fill"></i>
-                    {{ item.voteAverage.toFixed(1) }}
-                  </span>
-
-                  <div class="media-overlay">
-                    <span class="overlay-play"
-                      ><i class="pi pi-play-circle"></i
-                    ></span>
+                      :is-iframe-mounted="
+                        getState(item.id).isIframeMounted.value
+                      "
+                      :is-iframe-loaded="getState(item.id).isIframeLoaded.value"
+                      :show-skeleton="getState(item.id).showSkeleton.value"
+                      :show-fallback="getState(item.id).showFallback.value"
+                      :attach-player="getState(item.id).attachPlayer"
+                    />
                   </div>
-                </div>
-
-                <div class="media-info">
-                  <span class="media-title">{{ item.title }}</span>
-                  <span class="media-year" v-if="item.year">{{
-                    item.year
-                  }}</span>
-                </div>
-              </RouterLink>
+                </Transition>
+              </div>
             </div>
           </div>
         </div>
@@ -184,6 +248,10 @@
 import { ref, computed, watch, onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { movieApi } from "@/api/api";
+import { getTmdbImageUrlOrPlaceholder } from "@/utils/image";
+import PopupCard from "@/components/movie/PopupCard.vue";
+import { useHoverPreviewGrid } from "@/composables/useHoverPreviewGrid";
+import type { Movie, TVSeries } from "@/types";
 
 type MediaType = "movie" | "tv";
 
@@ -194,17 +262,15 @@ interface SearchItem {
   posterPath: string | null;
   voteAverage: number;
   year: string;
+  raw: Movie | TVSeries;
 }
 
 const route = useRoute();
-
 const queryText = computed(() => (route.query.q as string) || "");
-
 const isLoading = ref(false);
 const rawResults = ref<SearchItem[]>([]);
 const suggestions = ref<SearchItem[]>([]);
 const activeFilter = ref<"all" | "movie" | "tv">("all");
-
 const hasResults = computed(() => rawResults.value.length > 0);
 
 const movieCount = computed(
@@ -219,6 +285,17 @@ const filteredResults = computed(() => {
   return rawResults.value.filter((i) => i.mediaType === activeFilter.value);
 });
 
+const {
+  hoveredId,
+  getState,
+  getTrailer,
+  onCardEnter,
+  onCardLeave,
+  onPopupEnter,
+  onPopupLeave,
+  getPopupPos,
+} = useHoverPreviewGrid({ columns: 5 });
+
 function normalizeMovie(m: any): SearchItem {
   return {
     id: m.id,
@@ -227,6 +304,7 @@ function normalizeMovie(m: any): SearchItem {
     posterPath: m.poster_path || null,
     voteAverage: m.vote_average || 0,
     year: m.release_date ? m.release_date.split("-")[0] : "",
+    raw: m,
   };
 }
 
@@ -238,10 +316,10 @@ function normalizeSeries(s: any): SearchItem {
     posterPath: s.poster_path || null,
     voteAverage: s.vote_average || 0,
     year: s.first_air_date ? s.first_air_date.split("-")[0] : "",
+    raw: s,
   };
 }
 
-// เรียงตามคะแนนมาก → น้อย เพื่อให้ผลลัพธ์ที่น่าสนใจขึ้นก่อน
 function sortByRelevance(items: SearchItem[]): SearchItem[] {
   return [...items].sort((a, b) => b.voteAverage - a.voteAverage);
 }
@@ -274,7 +352,6 @@ async function performSearch(query: string) {
 
     rawResults.value = sortByRelevance([...movies, ...series]);
 
-    // ไม่พบผลลัพธ์เลย → โหลดรายการยอดนิยมมาแนะนำแทน
     if (rawResults.value.length === 0) {
       await loadSuggestions();
     }
@@ -302,7 +379,6 @@ async function loadSuggestions() {
         ? popSeries.value.data.results.slice(0, 10).map(normalizeSeries)
         : [];
 
-    // สลับหนัง/ซีรีส์ ให้ผลลัพธ์แนะนำดูหลากหลาย
     const merged: SearchItem[] = [];
     const maxLen = Math.max(movies.length, series.length);
 
@@ -745,5 +821,46 @@ onMounted(() => {
   .media-year {
     font-size: 0.65rem;
   }
+}
+
+.media-card-wrap {
+  position: relative;
+}
+
+.hover-popup {
+  position: absolute;
+  top: 0;
+  z-index: 50;
+  width: 280px;
+  background: #1c1c1c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+.popup--right {
+  left: calc(100% + 8px);
+}
+.popup--left {
+  right: calc(100% + 8px);
+}
+.popup--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.popup-enter-active {
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.popup-leave-active {
+  transition: opacity 0.1s;
+}
+.popup-enter-from {
+  opacity: 0;
+  transform: translateY(6px) scale(0.97);
+}
+.popup-leave-to {
+  opacity: 0;
 }
 </style>
