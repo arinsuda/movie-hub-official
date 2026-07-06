@@ -19,7 +19,7 @@
             <Tag :size="14" />
             {{
               selectedGenre
-                ? genres.find(g => g.id === selectedGenre)?.name
+                ? genres.find((g) => g.id === selectedGenre)?.name
                 : "All Genres"
             }}
             <ChevronDown
@@ -50,7 +50,7 @@
         <div class="filter-select" ref="sortRef">
           <button class="filter-trigger" @click="sortOpen = !sortOpen">
             <ArrowUpDown :size="14" />
-            {{ sortOptions.find(s => s.key === sortBy)?.label }}
+            {{ sortOptions.find((s) => s.key === sortBy)?.label }}
             <ChevronDown
               :size="13"
               :class="{ 'rotate-180': sortOpen }"
@@ -90,16 +90,12 @@
           v-for="(show, i) in movies"
           :key="show.id"
           class="poster-wrap"
-          @mouseenter="onCardEnter(show.id, show)"
+          @mouseenter="onCardEnter(show)"
           @mouseleave="onCardLeave(show.id)"
         >
           <RouterLink :to="`/movies/${show.id}`" class="poster-card">
             <img
-              :src="
-                show.poster_path
-                  ? `https://image.tmdb.org/t/p/w342${show.poster_path}`
-                  : '/placeholder.jpg'
-              "
+              :src="getTmdbImageUrlOrPlaceholder(show.poster_path)"
               :alt="show.original_title"
               loading="lazy"
             />
@@ -114,12 +110,16 @@
             >
               <PopupCard
                 :movie="show"
-                :trailer="getTrailer(show.id)"
+                :media-type="'movie'"
+                :current-trailer="getState(show.id).currentTrailer.value"
+                :trailer-unavailable="
+                  getState(show.id).trailerUnavailable.value
+                "
                 :is-iframe-mounted="getState(show.id).isIframeMounted.value"
                 :is-iframe-loaded="getState(show.id).isIframeLoaded.value"
                 :show-skeleton="getState(show.id).showSkeleton.value"
                 :show-fallback="getState(show.id).showFallback.value"
-                @iframe-load="getState(show.id).onIframeLoad()"
+                :attach-player="getState(show.id).attachPlayer"
               />
             </div>
           </Transition>
@@ -131,6 +131,13 @@
       </div>
 
       <div class="pagination" v-if="totalPages > 1">
+        <button
+          class="page-btn page-nav"
+          :disabled="currentPage === 1"
+          @click="goToPage(currentPage - 1)"
+        >
+          <ChevronLeft :size="16" />
+        </button>
         <button
           v-for="p in paginationPages"
           :key="p"
@@ -144,25 +151,14 @@
         >
           {{ p }}
         </button>
-        <div class="page-size-wrap" ref="pageSizeRef">
-          <button
-            class="page-size-trigger"
-            @click="pageSizeOpen = !pageSizeOpen"
-          >
-            {{ pageSize }} <ChevronDown :size="12" />
-          </button>
-          <div class="page-size-dropdown" v-if="pageSizeOpen">
-            <button
-              v-for="s in [20, 50, 100]"
-              :key="s"
-              class="page-size-opt"
-              :class="{ active: pageSize === s }"
-              @click="changeSize(s)"
-            >
-              {{ s }}
-            </button>
-          </div>
-        </div>
+
+        <button
+          class="page-btn page-nav"
+          :disabled="currentPage === Math.min(totalPages, 500)"
+          @click="goToPage(currentPage + 1)"
+        >
+          <ChevronRight :size="16" />
+        </button>
       </div>
     </div>
     <div class="loading-overlay" v-if="isLoading"><div class="spinner" /></div>
@@ -170,574 +166,464 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted, watch } from "vue"
-  import { useRoute } from "vue-router"
-  import { useQuery } from "@tanstack/vue-query"
-  import { movieApi } from "@/api/api"
-  import type { Movie, Genre } from "@/types"
-  import {
-    Search,
-    X,
-    Tag,
-    ArrowUpDown,
-    ChevronDown,
-    Film,
-  } from "lucide-vue-next"
-  import {
-    resolveTrailer,
-    useTrailerPreview,
-    type ResolvedTrailer,
-  } from "@/composables/useTrailerPreview"
-  import PopupCard from "@/components/movie/PopupCard.vue"
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useRoute } from "vue-router";
+import { useQuery } from "@tanstack/vue-query";
+import { movieApi } from "@/api/api";
+import type { Movie, Genre } from "@/types";
+import { getTmdbImageUrlOrPlaceholder } from "@/utils/image";
+import {
+  Search,
+  X,
+  Tag,
+  ArrowUpDown,
+  ChevronDown,
+  Film,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-vue-next";
+import PopupCard from "@/components/movie/PopupCard.vue";
+import { useHoverPreviewGrid } from "@/composables/useHoverPreviewGrid";
 
-  const route = useRoute()
+const route = useRoute();
 
-  type TabKey = "popular" | "now_playing" | "top_rated"
-  const tabs: { key: TabKey; label: string }[] = [
-    { key: "popular", label: "Popular" },
-    { key: "now_playing", label: "Now Playing" },
-    { key: "top_rated", label: "Top Rated" },
-  ]
-  const sortOptions = [
-    { key: "default", label: "Default" },
-    { key: "rating", label: "Rating" },
-    { key: "date", label: "First Air Date" },
-    { key: "popular", label: "Popularity" },
-  ]
+type TabKey = "popular" | "now_playing" | "top_rated";
 
-  const activeTab = ref<TabKey>("popular")
-  const sortBy = ref("default")
-  const selectedGenre = ref<number | null>(null)
-  const searchQuery = ref((route.query.q as string) ?? "")
-  const currentPage = ref(1)
-  const pageSize = ref(20)
-  const hoveredId = ref<number | null>(null)
-  const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>()
-  const cardTrailers = new Map<number, ResolvedTrailer | null>()
-  let insidePopup = false
-  let showTimer: ReturnType<typeof setTimeout> | null = null
-  const SHOW_DELAY = 200
-  const genres = ref<Genre[]>([])
-  const genreOpen = ref(false)
-  const sortOpen = ref(false)
-  const pageSizeOpen = ref(false)
-  const genreRef = ref<HTMLElement | null>(null)
-  const sortRef = ref<HTMLElement | null>(null)
-  const pageSizeRef = ref<HTMLElement | null>(null)
+const tabs: { key: TabKey; label: string }[] = [
+  { key: "popular", label: "Popular" },
+  { key: "now_playing", label: "Now Playing" },
+  { key: "top_rated", label: "Top Rated" },
+];
 
-  const isSearchMode = computed(() => !!searchQuery.value.trim())
-  const queryKey = computed(() => [
-    "movies",
-    activeTab.value,
-    currentPage.value,
-    searchQuery.value,
-  ])
+const sortOptions = [
+  { key: "default", label: "Default" },
+  { key: "rating", label: "Rating" },
+  { key: "date", label: "First Air Date" },
+  { key: "popular", label: "Popularity" },
+];
 
-  const { data, isLoading } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      if (isSearchMode.value)
-        return movieApi
-          .search(searchQuery.value.trim(), currentPage.value)
-          .then(r => r.data)
-      const fn = {
-        popular: () => movieApi.getPopular(currentPage.value),
-        now_playing: () => movieApi.getNowPlaying(currentPage.value),
-        top_rated: () => movieApi.getTopRated(currentPage.value),
-      }[activeTab.value]
-      return fn().then(r => r.data)
-    },
-  })
+const {
+  hoveredId,
+  getState,
+  getTrailer,
+  onCardEnter,
+  onCardLeave,
+  onPopupEnter,
+  onPopupLeave,
+  getPopupPos,
+} = useHoverPreviewGrid({ columns: 5 });
 
-  const rawMovies = computed<Movie[]>(() => data.value?.results ?? [])
-  const totalPages = computed(() => data.value?.total_pages ?? 1)
+const activeTab = ref<TabKey>("popular");
+const sortBy = ref("default");
+const selectedGenre = ref<number | null>(null);
+const searchQuery = ref((route.query.q as string) ?? "");
+const currentPage = ref(1);
+const genres = ref<Genre[]>([]);
+const genreOpen = ref(false);
+const sortOpen = ref(false);
+const genreRef = ref<HTMLElement | null>(null);
+const sortRef = ref<HTMLElement | null>(null);
 
-  const movies = computed(() => {
-    let list = [...rawMovies.value]
-    if (selectedGenre.value)
-      list = list.filter(s => s.genre_ids?.includes(selectedGenre.value!))
-    if (sortBy.value === "rating")
-      list.sort((a, b) => b.vote_average - a.vote_average)
-    if (sortBy.value === "date")
-      list.sort((a, b) =>
-        (b.release_date ?? "").localeCompare(a.release_date ?? ""),
-      )
-    if (sortBy.value === "popular")
-      list.sort((a, b) => b.popularity - a.popularity)
-    return list
-  })
+const isSearchMode = computed(() => !!searchQuery.value.trim());
+const queryKey = computed(() => [
+  "movies",
+  activeTab.value,
+  currentPage.value,
+  searchQuery.value,
+]);
 
-  const paginationPages = computed(() => {
-    const total = Math.min(totalPages.value, 500)
-    const cur = currentPage.value
-    const p: (number | string)[] = []
-    if (cur > 2) p.push(1)
-    if (cur > 3) p.push("...")
-    for (let i = Math.max(1, cur - 1); i <= Math.min(total, cur + 1); i++)
-      p.push(i)
-    if (cur < total - 2) p.push("...")
-    if (cur < total - 1) p.push(total)
-    return [...new Set(p)]
-  })
+const { data, isLoading } = useQuery({
+  queryKey,
+  queryFn: async () => {
+    if (isSearchMode.value)
+      return movieApi
+        .search(searchQuery.value.trim(), currentPage.value)
+        .then((r) => r.data);
+    const fn = {
+      popular: () => movieApi.getPopular(currentPage.value),
+      now_playing: () => movieApi.getNowPlaying(currentPage.value),
+      top_rated: () => movieApi.getTopRated(currentPage.value),
+    }[activeTab.value];
+    return fn().then((r) => r.data);
+  },
+});
 
-  function getPopupPos(i: number) {
-    const col = i % 5
-    if (col === 0) return "popup--right"
-    if (col === 4) return "popup--left"
-    return "popup--center"
-  }
-  function switchTab(key: TabKey) {
-    activeTab.value = key
-    currentPage.value = 1
-    searchQuery.value = ""
-  }
-  function doSearch() {
-    currentPage.value = 1
-  }
-  function clearSearch() {
-    searchQuery.value = ""
-    currentPage.value = 1
-  }
-  function selectGenre(id: number | null) {
-    selectedGenre.value = id
-    genreOpen.value = false
-  }
-  function selectSort(key: string) {
-    sortBy.value = key
-    sortOpen.value = false
-  }
-  function goToPage(p: number) {
-    currentPage.value = p
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
-  function changeSize(s: number) {
-    pageSize.value = s
-    pageSizeOpen.value = false
-    currentPage.value = 1
-  }
-  function onClickOutside(e: MouseEvent) {
-    const t = e.target as Node
-    if (genreRef.value && !genreRef.value.contains(t)) genreOpen.value = false
-    if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false
-    if (pageSizeRef.value && !pageSizeRef.value.contains(t))
-      pageSizeOpen.value = false
-  }
+const rawMovies = computed<Movie[]>(() => data.value?.results ?? []);
+const totalPages = computed(() => data.value?.total_pages ?? 1);
 
-  function getState(movieId: number) {
-    if (!cardStates.has(movieId)) {
-      cardStates.set(movieId, useTrailerPreview({ mountDelay: 500 }))
-    }
-    return cardStates.get(movieId)!
-  }
+const movies = computed(() => {
+  let list = [...rawMovies.value];
+  if (selectedGenre.value)
+    list = list.filter((s) => s.genre_ids?.includes(selectedGenre.value!));
+  if (sortBy.value === "rating")
+    list.sort((a, b) => b.vote_average - a.vote_average);
+  if (sortBy.value === "date")
+    list.sort((a, b) =>
+      (b.release_date ?? "").localeCompare(a.release_date ?? ""),
+    );
+  if (sortBy.value === "popular")
+    list.sort((a, b) => b.popularity - a.popularity);
+  return list;
+});
 
-  function getTrailer(movieId: number): ResolvedTrailer | null {
-    return cardTrailers.get(movieId) ?? null
-  }
+const paginationPages = computed(() => {
+  const total = Math.min(totalPages.value, 500);
+  const cur = currentPage.value;
+  const p: (number | string)[] = [];
+  if (cur > 2) p.push(1);
+  if (cur > 3) p.push("...");
+  for (let i = Math.max(1, cur - 1); i <= Math.min(total, cur + 1); i++)
+    p.push(i);
+  if (cur < total - 2) p.push("...");
+  if (cur < total - 1) p.push(total);
+  return [...new Set(p)];
+});
 
-  async function fetchAndCacheTrailer(movie: Movie) {
-    if (cardTrailers.has(movie.id)) return
-    cardTrailers.set(movie.id, null)
-    try {
-      const res = await movieApi.getVideos(movie.id)
-      const videos = res.data?.results ?? []
-      const trailer = resolveTrailer(videos)
-      cardTrailers.set(movie.id, trailer)
-      if (hoveredId.value === movie.id && trailer) {
-        getState(movie.id).scheduleMount()
-      }
-    } catch {
-      cardTrailers.set(movie.id, null)
-    }
-  }
+function switchTab(key: TabKey) {
+  activeTab.value = key;
+  currentPage.value = 1;
+  searchQuery.value = "";
+}
+function doSearch() {
+  currentPage.value = 1;
+}
+function clearSearch() {
+  searchQuery.value = "";
+  currentPage.value = 1;
+}
+function selectGenre(id: number | null) {
+  selectedGenre.value = id;
+  genreOpen.value = false;
+}
+function selectSort(key: string) {
+  sortBy.value = key;
+  sortOpen.value = false;
+}
+function goToPage(p: number) {
+  currentPage.value = p;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
-  function onCardEnter(movieId: number, movie: Movie) {
-    clearTimeout(showTimer ?? undefined)
-    insidePopup = false
-    fetchAndCacheTrailer(movie)
-    showTimer = setTimeout(() => {
-      hoveredId.value = movieId
-      const trailer = getTrailer(movieId)
-      if (trailer) getState(movieId).scheduleMount()
-    }, SHOW_DELAY)
-  }
+function onClickOutside(e: MouseEvent) {
+  const t = e.target as Node;
+  if (genreRef.value && !genreRef.value.contains(t)) genreOpen.value = false;
+  if (sortRef.value && !sortRef.value.contains(t)) sortOpen.value = false;
+}
 
-  function onCardLeave(movieId: number) {
-    clearTimeout(showTimer ?? undefined)
-    setTimeout(() => {
-      if (!insidePopup) closeCard(movieId)
-    }, 80)
-  }
-
-  function onPopupEnter() {
-    insidePopup = true
-  }
-
-  function onPopupLeave(movieId: number) {
-    insidePopup = false
-    closeCard(movieId)
-  }
-
-  function closeCard(movieId: number) {
-    if (hoveredId.value !== movieId) return
-    hoveredId.value = null
-    cardStates.get(movieId)?.unmount()
-  }
-
-  watch(
-    () => route.query.q,
-    q => {
-      searchQuery.value = (q as string) ?? ""
-      currentPage.value = 1
-    },
-  )
-  onMounted(async () => {
-    document.addEventListener("click", onClickOutside)
-    const res = await movieApi.getGenres()
-    genres.value = res.data.genres
-  })
-  onUnmounted(() => {
-    document.removeEventListener("click", onClickOutside)
-    clearTimeout(showTimer ?? undefined)
-    cardStates.forEach(s => s.unmount())
-    cardStates.clear()
-  })
+watch(
+  () => route.query.q,
+  (q) => {
+    searchQuery.value = (q as string) ?? "";
+    currentPage.value = 1;
+  },
+);
+onMounted(async () => {
+  document.addEventListener("click", onClickOutside);
+  const res = await movieApi.getGenres();
+  genres.value = res.data.genres;
+});
+onUnmounted(() => {
+  document.removeEventListener("click", onClickOutside);
+});
 </script>
 
 <style scoped>
-  .list-page {
-    background: #141414;
-    min-height: 100vh;
+.list-page {
+  background: #141414;
+  min-height: 100vh;
+}
+.page-header {
+  padding: 5.5rem 1.5rem 0;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.page-title {
+  font-family: "Noto Sans Thai", "Arial Black", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #fff;
+  margin: 0 0 1.25rem;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1rem;
+}
+.tab-btn {
+  padding: 0.4rem 1rem;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #a3a3a3;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab-btn:hover {
+  color: #fff;
+  border-color: #444;
+}
+.tab-btn.active {
+  background: #e50914;
+  border-color: #e50914;
+  color: #fff;
+}
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.filter-select {
+  position: relative;
+}
+.filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.875rem;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #ccc;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  white-space: nowrap;
+}
+.filter-trigger:hover {
+  border-color: #555;
+  color: #fff;
+}
+.chevron {
+  transition: transform 0.2s;
+}
+.rotate-180 {
+  transform: rotate(180deg);
+}
+.filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 0.35rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  z-index: 30;
+}
+.filter-option {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.75rem;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border-radius: 6px;
+  text-align: left;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.filter-option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+.filter-option.active {
+  color: #e50914;
+  font-weight: 600;
+}
+.search-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  flex: 1;
+  max-width: 320px;
+}
+.search-inline:focus-within {
+  border-color: #555;
+}
+.search-ic {
+  color: #666;
+  flex-shrink: 0;
+}
+.search-input {
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.875rem;
+  width: 100%;
+}
+.search-input::placeholder {
+  color: #555;
+}
+.search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  padding: 0;
+}
+.search-clear:hover {
+  color: #ccc;
+}
+.content-area {
+  padding: 0 1.5rem 3rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.movie-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.poster-wrap {
+  position: relative;
+}
+.poster-card {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.poster-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.poster-card img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  display: block;
+}
+.hover-popup {
+  position: absolute;
+  top: 0;
+  z-index: 50;
+  width: 280px;
+  background: #1c1c1c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+.popup--right {
+  left: calc(100% + 8px);
+}
+.popup--left {
+  right: calc(100% + 8px);
+}
+.popup--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.popup-enter-active {
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.popup-leave-active {
+  transition: opacity 0.1s;
+}
+.popup-enter-from {
+  opacity: 0;
+  transform: translateY(6px) scale(0.97);
+}
+.popup-leave-to {
+  opacity: 0;
+}
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 5rem 0;
+  color: #555;
+}
+.empty-icon {
+  opacity: 0.4;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 0.5rem;
+  background: #1f1f1f;
+  border: 1px solid #2a2a2a;
+  color: #a3a3a3;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.page-btn:hover:not(:disabled):not(.page-btn--ellipsis) {
+  background: #2a2a2a;
+  color: #fff;
+}
+.page-btn--active {
+  background: #e50914;
+  border-color: #e50914;
+  color: #fff;
+}
+.page-btn--ellipsis {
+  cursor: default;
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #e50914;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  .page-header {
-    padding: 5.5rem 1.5rem 0;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  .page-title {
-    font-family: "Noto Sans Thai", "Arial Black", sans-serif;
-    font-size: 1.75rem;
-    font-weight: 900;
-    letter-spacing: 2px;
-    color: #fff;
-    margin: 0 0 1.25rem;
-  }
-  .tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 1rem;
-  }
-  .tab-btn {
-    padding: 0.4rem 1rem;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    border-radius: 9999px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #a3a3a3;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .tab-btn:hover {
-    color: #fff;
-    border-color: #444;
-  }
-  .tab-btn.active {
-    background: #e50914;
-    border-color: #e50914;
-    color: #fff;
-  }
-  .filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding-bottom: 1.25rem;
-    flex-wrap: wrap;
-  }
-  .filter-select {
-    position: relative;
-  }
-  .filter-trigger {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.875rem;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    color: #ccc;
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition: border-color 0.2s;
-    white-space: nowrap;
-  }
-  .filter-trigger:hover {
-    border-color: #555;
-    color: #fff;
-  }
-  .chevron {
-    transition: transform 0.2s;
-  }
-  .rotate-180 {
-    transform: rotate(180deg);
-  }
-  .filter-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    min-width: 160px;
-    max-height: 280px;
-    overflow-y: auto;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    padding: 0.35rem;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    z-index: 30;
-  }
-  .filter-option {
-    display: block;
-    width: 100%;
-    padding: 0.45rem 0.75rem;
-    background: none;
-    border: none;
-    color: #ccc;
-    font-size: 0.82rem;
-    cursor: pointer;
-    border-radius: 6px;
-    text-align: left;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  .filter-option:hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: #fff;
-  }
-  .filter-option.active {
-    color: #e50914;
-    font-weight: 600;
-  }
-  .search-inline {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    padding: 0.4rem 0.75rem;
-    flex: 1;
-    max-width: 320px;
-  }
-  .search-inline:focus-within {
-    border-color: #555;
-  }
-  .search-ic {
-    color: #666;
-    flex-shrink: 0;
-  }
-  .search-input {
-    background: none;
-    border: none;
-    outline: none;
-    color: #fff;
-    font-size: 0.875rem;
-    width: 100%;
-  }
-  .search-input::placeholder {
-    color: #555;
-  }
-  .search-clear {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #666;
-    display: flex;
-    padding: 0;
-  }
-  .search-clear:hover {
-    color: #ccc;
-  }
-  .content-area {
-    padding: 0 1.5rem 3rem;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  .movie-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 12px;
-    margin-bottom: 1.5rem;
-  }
-  .poster-wrap {
-    position: relative;
-  }
-  .poster-card {
-    display: block;
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: pointer;
-    transition:
-      transform 0.2s,
-      box-shadow 0.2s;
-  }
-  .poster-card:hover {
-    transform: scale(1.03);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-  }
-  .poster-card img {
-    width: 100%;
-    aspect-ratio: 2/3;
-    object-fit: cover;
-    display: block;
-  }
-  .hover-popup {
-    position: absolute;
-    top: 0;
-    z-index: 50;
-    width: 280px;
-    background: #1c1c1c;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
-  }
-  .popup--right {
-    left: calc(100% + 8px);
-  }
-  .popup--left {
-    right: calc(100% + 8px);
-  }
-  .popup--center {
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  .popup-enter-active {
-    transition:
-      opacity 0.15s,
-      transform 0.15s;
-  }
-  .popup-leave-active {
-    transition: opacity 0.1s;
-  }
-  .popup-enter-from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.97);
-  }
-  .popup-leave-to {
-    opacity: 0;
-  }
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 5rem 0;
-    color: #555;
-  }
-  .empty-icon {
-    opacity: 0.4;
-  }
-  .pagination {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-  .page-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 0.5rem;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    color: #a3a3a3;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.875rem;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  .page-btn:hover:not(:disabled):not(.page-btn--ellipsis) {
-    background: #2a2a2a;
-    color: #fff;
-  }
-  .page-btn--active {
-    background: #e50914;
-    border-color: #e50914;
-    color: #fff;
-  }
-  .page-btn--ellipsis {
-    cursor: default;
-  }
-  .page-size-wrap {
-    position: relative;
-    margin-left: 8px;
-  }
-  .page-size-trigger {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 58px;
-    height: 36px;
-    padding: 0 0.75rem;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    color: #a3a3a3;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.875rem;
-  }
-  .page-size-dropdown {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    right: 0;
-    background: #1f1f1f;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    overflow: hidden;
-    min-width: 70px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-  .page-size-opt {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    background: none;
-    border: none;
-    color: #a3a3a3;
-    font-size: 0.875rem;
-    cursor: pointer;
-    text-align: center;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  .page-size-opt:hover,
-  .page-size-opt.active {
-    background: rgba(229, 9, 20, 0.15);
-    color: #fff;
-  }
-  .loading-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(20, 20, 20, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 200;
-  }
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(255, 255, 255, 0.15);
-    border-top-color: #e50914;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+}
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 </style>

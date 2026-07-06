@@ -15,12 +15,12 @@ import (
 )
 
 type Service struct {
-	repo        *repository
-	db          *gorm.DB
-	minio       *storage.MinIOClient
-	expPort     stats.ExpAdder
-	achieveSvc  achievementsmodule.Service
-	notifSvc    *notification_module.Service
+	repo       *repository
+	db         *gorm.DB
+	minio      *storage.MinIOClient
+	expPort    stats.ExpAdder
+	achieveSvc achievementsmodule.Service
+	notifSvc   *notification_module.Service
 }
 
 func NewService(
@@ -78,8 +78,6 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	_, _ = s.achieveSvc.Track(userID, "review_count", int(reviewCount))
 
 	// ── Achievement: rating_one_star_count / rating_five_star_count ──
-	// rating เก็บเป็น 0.5-5 แต่ achievement ใช้แนวคิด 1-5 ดาว
-	// 1 ดาว = rating 1.0 (หรือ <= 1), 5 ดาว = rating 5.0
 	if req.Rating <= 1.0 {
 		var oneStarCount int64
 		s.db.Model(&Review{}).
@@ -104,7 +102,6 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 
 	// ── Notification: fan-out ให้ followers ──────────────────────
 	if req.IsPublic && s.notifSvc != nil {
-		// ดึง username ของ reviewer
 		if actor, err := s.getUserSummary(userID); err == nil {
 			title, _ := fetchMediaSummary(req.MediaID, req.MediaType)
 			_ = s.notifSvc.PushFollowingReviewed(
@@ -121,30 +118,34 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if err != nil {
 		return nil, err
 	}
-	return toReviewResponse(inserted, false, s.minio), nil
+	// review ที่เพิ่งสร้าง ยังไม่มีใคร like/helpful แน่นอน (รวมถึงตัวเอง)
+	return toReviewResponse(inserted, false, false, s.minio), nil
 }
 
-func (s *Service) GetUserReviews(userID, requesterID uint) ([]ReviewResponse, error) {
-	reviews, err := s.repo.FindReviewsByUser(userID)
+// GetUserReviews คืนรีวิวของ userID ตาม filter ที่กำหนด (visibility + date range)
+// ถ้า requesterID ไม่ใช่เจ้าของ (userID) จะบังคับเห็นเฉพาะ public เท่านั้น
+// ไม่ว่า filter.Visibility จะขอ "private" หรือ "all" มาก็ตาม
+func (s *Service) GetUserReviews(userID, requesterID uint, filter ReviewFilter) ([]ReviewResponse, error) {
+	if userID != requesterID {
+		filter.Visibility = "public"
+	}
+
+	reviews, err := s.repo.FindReviewsByUser(userID, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]uint, 0, len(reviews))
-	for _, r := range reviews {
-		if userID != requesterID && !r.IsPublic {
-			continue
-		}
-		ids = append(ids, r.ID)
+	ids := make([]uint, len(reviews))
+	for i, r := range reviews {
+		ids[i] = r.ID
 	}
-	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
 
-	responses := make([]ReviewResponse, 0, len(reviews))
-	for _, r := range reviews {
-		if userID != requesterID && !r.IsPublic {
-			continue
-		}
-		responses = append(responses, *toReviewResponse(&r, likedMap[r.ID], s.minio))
+	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
+	helpfulMap, _ := s.repo.FindHelpfulIDs(ids, requesterID)
+
+	responses := make([]ReviewResponse, len(reviews))
+	for i, r := range reviews {
+		responses[i] = *toReviewResponse(&r, likedMap[r.ID], helpfulMap[r.ID], s.minio)
 	}
 	return responses, nil
 }
@@ -160,10 +161,11 @@ func (s *Service) GetMediaReviews(mediaID int, mediaType string, requesterID uin
 		ids[i] = r.ID
 	}
 	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
+	helpfulMap, _ := s.repo.FindHelpfulIDs(ids, requesterID)
 
 	responses := make([]ReviewResponse, len(reviews))
 	for i, r := range reviews {
-		responses[i] = *toReviewResponse(&r, likedMap[r.ID], s.minio)
+		responses[i] = *toReviewResponse(&r, likedMap[r.ID], helpfulMap[r.ID], s.minio)
 	}
 	return responses, nil
 }
@@ -180,7 +182,8 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 	updates := buildUpdateMap(req)
 	if len(updates) == 0 {
 		liked, _ := s.repo.IsLiked(reviewID, requesterID)
-		return toReviewResponse(review, liked, s.minio), nil
+		helpful, _ := s.repo.IsHelpful(reviewID, requesterID)
+		return toReviewResponse(review, liked, helpful, s.minio), nil
 	}
 
 	if err := s.repo.UpdateReview(reviewID, updates); err != nil {
@@ -192,7 +195,8 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 		return nil, err
 	}
 	liked, _ := s.repo.IsLiked(reviewID, requesterID)
-	return toReviewResponse(updated, liked, s.minio), nil
+	helpful, _ := s.repo.IsHelpful(reviewID, requesterID)
+	return toReviewResponse(updated, liked, helpful, s.minio), nil
 }
 
 func (s *Service) DeleteReview(reviewID, requesterID uint) error {
@@ -304,6 +308,59 @@ func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
 	return nil
 }
 
+// ── Helpful ───────────────────────────────────────────────────────
+// แนวคิดแบบ Stack Overflow: โหวตว่ารีวิวนี้ "มีประโยชน์" มากแค่ไหน
+// ไม่ผูกกับความชอบส่วนตัว (like) แยกกันชัดเจน
+
+func (s *Service) MarkHelpful(reviewID, requesterID uint) error {
+	review, err := s.repo.FindReviewByID(reviewID)
+	if err != nil {
+		return err
+	}
+	if !review.IsPublic && review.UserID != requesterID {
+		return ErrForbidden
+	}
+	// เจ้าของรีวิวโหวต helpful รีวิวตัวเองไม่ได้ (กันการปั่นตัวเลข)
+	if review.UserID == requesterID {
+		return ErrForbidden
+	}
+
+	if err := s.repo.CreateHelpful(reviewID, requesterID); err != nil {
+		return err
+	}
+
+	// ── Achievement: review_helpful_received_count (ฝั่งเจ้าของ review) ──
+	var helpfulReceivedCount int64
+	s.db.Model(&ReviewHelpful{}).
+		Joins("JOIN reviews ON reviews.id = review_helpfuls.review_id").
+		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
+		Count(&helpfulReceivedCount)
+	_, _ = s.achieveSvc.Track(review.UserID, "review_helpful_received_count", int(helpfulReceivedCount))
+
+	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
+	if s.notifSvc != nil {
+		if actor, err := s.getUserSummary(requesterID); err == nil {
+			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
+			_ = s.notifSvc.PushFollowingLikedReview(
+				context.Background(),
+				requesterID,
+				actor.Username,
+				reviewID,
+				title,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) UnmarkHelpful(reviewID, requesterID uint) error {
+	if _, err := s.repo.FindReviewByID(reviewID); err != nil {
+		return err
+	}
+	return s.repo.DeleteHelpful(reviewID, requesterID)
+}
+
 // ── Comment ───────────────────────────────────────────────────────
 
 func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentRequest) (*CommentResponse, error) {
@@ -410,7 +467,7 @@ func buildUpdateMap(req UpdateReviewRequest) map[string]any {
 	return updates
 }
 
-func toReviewResponse(r *Review, isLiked bool, minio *storage.MinIOClient) *ReviewResponse {
+func toReviewResponse(r *Review, isLiked, isHelpful bool, minio *storage.MinIOClient) *ReviewResponse {
 	if r == nil {
 		return nil
 	}
@@ -426,15 +483,17 @@ func toReviewResponse(r *Review, isLiked bool, minio *storage.MinIOClient) *Revi
 			Title:     title,
 			PosterURL: posterURL,
 		},
-		Rating:       r.Rating,
-		Body:         r.Body,
-		IsPublic:     r.IsPublic,
-		WatchedAt:    r.WatchedAt,
-		LikeCount:    r.LikeCount,
-		CommentCount: r.CommentCount,
-		IsLiked:      isLiked,
-		CreatedAt:    r.CreatedAt,
-		UpdatedAt:    r.UpdatedAt,
+		Rating:         r.Rating,
+		Body:           r.Body,
+		IsPublic:       r.IsPublic,
+		WatchedAt:      r.WatchedAt,
+		LikeCount:      r.LikeCount,
+		CommentCount:   r.CommentCount,
+		IsLiked:        isLiked,
+		HelpfulCount:   r.HelpfulCount,
+		IsHelpfulVoted: isHelpful,
+		CreatedAt:      r.CreatedAt,
+		UpdatedAt:      r.UpdatedAt,
 	}
 }
 

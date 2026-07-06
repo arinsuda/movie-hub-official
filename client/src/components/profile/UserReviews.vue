@@ -6,19 +6,97 @@
       <div class="rule" />
     </div>
 
-    <!-- Filters -->
-    <div class="filter-rail" role="tablist">
-      <button
-        v-for="f in filters"
-        :key="f.key"
-        class="filter-pill"
-        :class="{ 'filter-pill--active': activeFilter === f.key }"
-        :aria-selected="activeFilter === f.key"
-        role="tab"
-        @click="activeFilter = f.key"
-      >
-        {{ f.label }}
-      </button>
+    <!-- Unified filter toolbar -->
+    <div class="filter-toolbar">
+      <div class="filter-rail" role="tablist">
+        <button
+          v-for="f in filters"
+          :key="f.key"
+          class="filter-pill"
+          :class="{ 'filter-pill--active': activeFilter === f.key }"
+          :aria-selected="activeFilter === f.key"
+          role="tab"
+          @click="activeFilter = f.key"
+        >
+          {{ f.label }}
+        </button>
+      </div>
+
+      <div class="toolbar-right">
+        <!-- Visibility: compact icon-only segmented control -->
+        <div class="seg-control" role="tablist" aria-label="Visibility filter">
+          <button
+            v-for="v in visibilityOptions"
+            :key="v.key"
+            class="seg-btn"
+            :class="{ 'seg-btn--active': visibilityFilter === v.key }"
+            :aria-selected="visibilityFilter === v.key"
+            :aria-label="v.label"
+            :title="v.label"
+            role="tab"
+            @click="onVisibilityChange(v.key)"
+          >
+            <component :is="v.icon" :size="13" :stroke-width="2" />
+          </button>
+        </div>
+
+        <!-- Date: icon trigger + popover -->
+        <div class="date-popover-wrap" @click.stop>
+          <button
+            class="date-trigger"
+            :class="{ 'date-trigger--active': hasDateFilter }"
+            @click="isDatePopoverOpen = !isDatePopoverOpen"
+            aria-label="Filter by date"
+          >
+            <Calendar :size="13" :stroke-width="2" />
+            <span v-if="hasDateFilter" class="date-trigger-label">{{
+              dateSummaryLabel
+            }}</span>
+            <button
+              v-if="hasDateFilter"
+              class="date-trigger-clear"
+              type="button"
+              aria-label="Clear date filter"
+              @click.stop="clearDateFilters"
+            >
+              <X :size="10" />
+            </button>
+          </button>
+
+          <Transition name="dropdown">
+            <div v-if="isDatePopoverOpen" class="date-popover">
+              <span class="date-popover-label">ช่วงวันที่</span>
+              <div class="date-filters">
+                <input
+                  v-model="dateFrom"
+                  type="date"
+                  class="date-input"
+                  :max="dateTo || undefined"
+                  aria-label="From date"
+                  @change="onDateRangeChange"
+                />
+                <span class="date-sep">–</span>
+                <input
+                  v-model="dateTo"
+                  type="date"
+                  class="date-input"
+                  :min="dateFrom || undefined"
+                  aria-label="To date"
+                  @change="onDateRangeChange"
+                />
+              </div>
+              <span class="date-popover-label">หรือเลือกเดือน</span>
+              <input
+                v-model="monthFilter"
+                type="month"
+                class="date-input date-input--full"
+                aria-label="Month / Year"
+                @change="onMonthFilterChange"
+              />
+            </div>
+          </Transition>
+        </div>
+      </div>
     </div>
 
     <!-- States -->
@@ -78,12 +156,51 @@
               </div>
             </div>
           </div>
-          <time class="review-date">{{ review.createdAt }}</time>
+
+          <div class="meta-row">
+            <time class="review-date">{{ review.createdAt }}</time>
+            <Lock
+              v-if="!review.is_public"
+              class="private-icon"
+              :size="10"
+              :stroke-width="2.2"
+              aria-label="Private"
+            />
+            <span v-if="review.watchedLabel" class="watched-pill">
+              <Calendar :size="10" :stroke-width="2" />
+              ดูเมื่อ {{ review.watchedLabel }}
+            </span>
+          </div>
+
           <p class="review-content">{{ review.content }}</p>
+
           <div v-if="review.tags?.length" class="tag-row">
             <span v-for="tag in review.tags" :key="tag" class="tag">{{
               tag
             }}</span>
+          </div>
+
+          <div class="stats-row">
+            <span
+              class="stat-item"
+              :class="{ 'stat-item--active': review.isLiked }"
+            >
+              <Heart
+                :size="11"
+                :fill="review.isLiked ? 'currentColor' : 'none'"
+              />
+              {{ review.likeCount }}
+            </span>
+            <span
+              class="stat-item"
+              :class="{ 'stat-item--active': review.isHelpfulVoted }"
+            >
+              <ThumbsUp
+                :size="11"
+                :fill="review.isHelpfulVoted ? 'currentColor' : 'none'"
+              />
+              {{ review.helpfulCount }} คนว่ามีประโยชน์
+            </span>
           </div>
         </div>
 
@@ -99,6 +216,10 @@
           </button>
           <Transition name="dropdown">
             <div v-if="openMenuId === review.id" class="dropdown">
+              <div v-if="review.isEdited" class="dropdown-info">
+                <Pencil :size="10" :stroke-width="2" />
+                <span>แก้ไขล่าสุด {{ review.updatedLabel }}</span>
+              </div>
               <button class="dropdown-item" @click="openEdit(review)">
                 <Pencil :size="12" /> Edit
               </button>
@@ -133,454 +254,821 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, onUnmounted, ref } from "vue"
-  import { Star, Film, Pencil, Trash2, MoreHorizontal } from "lucide-vue-next"
-  import { reviewApi } from "@/api/api"
-  import { useRouter } from "vue-router"
-  import type { ReviewResponse } from "@/types"
-  import EditReview from "./components/EditReview.vue"
-  import DeleteReview from "./components/DeleteReview.vue"
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import {
+  Star,
+  Film,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+  Heart,
+  ThumbsUp,
+  Calendar,
+  Lock,
+  Globe2,
+  Layers,
+  X,
+} from "lucide-vue-next";
+import { reviewApi } from "@/api/api";
+import type { GetUserReviewsParams } from "@/api/endpoints/social";
+import { useRouter } from "vue-router";
+import type { ReviewResponse } from "@/types";
+import EditReview from "./components/EditReview.vue";
+import DeleteReview from "./components/DeleteReview.vue";
 
-  const router = useRouter()
+const router = useRouter();
 
-  const props = defineProps<{ userId: number }>()
+const props = defineProps<{ userId: number }>();
 
-  const loading = ref(false)
-  type FilterKey = "all" | "high" | "low"
-  const activeFilter = ref<FilterKey>("all")
-  const filters: { key: FilterKey; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "high", label: "High Rated" },
-    { key: "low", label: "Critical" },
-  ]
+const loading = ref(false);
 
-  const reviews = ref<ReviewResponse[]>([])
-  const openMenuId = ref<number | null>(null)
-  const editTarget = ref<ReviewResponse | null>(null)
-  const deleteTarget = ref<ReviewResponse | null>(null)
+// ── Rating filter (client-side) ──────────────────────────────────
+type FilterKey = "all" | "high" | "low";
+const activeFilter = ref<FilterKey>("all");
+const filters: { key: FilterKey; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "high", label: "High Rated" },
+  { key: "low", label: "Critical" },
+];
 
-  function goToDetail(mediaId: number, mediaType: string) {
-    router.push({
-      name: mediaType === "tv" ? "tv-detail" : "movie-detail",
-      params: { id: mediaId },
-    })
+// ── Visibility filter (server-side, icon-only segmented control) ──
+type VisibilityKey = "all" | "public" | "private";
+const visibilityOptions: {
+  key: VisibilityKey;
+  label: string;
+  icon: typeof Layers;
+}[] = [
+  { key: "all", label: "ทั้งหมด", icon: Layers },
+  { key: "public", label: "Public", icon: Globe2 },
+  { key: "private", label: "Private", icon: Lock },
+];
+const visibilityFilter = ref<VisibilityKey>("all");
+
+function onVisibilityChange(key: VisibilityKey) {
+  visibilityFilter.value = key;
+  fetchReviews();
+}
+
+// ── Date filter (server-side, tucked into a popover) ──────────────
+const dateFrom = ref<string>(""); // "YYYY-MM-DD"
+const dateTo = ref<string>(""); // "YYYY-MM-DD"
+const monthFilter = ref<string>(""); // "YYYY-MM" จาก <input type="month">
+const isDatePopoverOpen = ref(false);
+
+const hasDateFilter = computed(
+  () => !!(dateFrom.value || dateTo.value || monthFilter.value),
+);
+
+const dateSummaryLabel = computed(() => {
+  if (monthFilter.value) {
+    const [year, month] = monthFilter.value.split("-").map(Number) as [
+      number,
+      number,
+    ];
+    return new Date(year, month - 1).toLocaleDateString("th-TH", {
+      month: "short",
+      year: "numeric",
+    });
   }
+  if (dateFrom.value && dateTo.value) return "ช่วงวันที่";
+  if (dateFrom.value) return "ตั้งแต่...";
+  if (dateTo.value) return "ถึง...";
+  return "";
+});
 
-  function toggleMenu(id: number) {
-    openMenuId.value = openMenuId.value === id ? null : id
+function onMonthFilterChange() {
+  // เลือกเดือน/ปีแล้ว ล้าง date range แบบ manual ทิ้ง กันตีกัน
+  if (monthFilter.value) {
+    dateFrom.value = "";
+    dateTo.value = "";
   }
-  function closeMenu() {
-    openMenuId.value = null
-  }
-  function openEdit(review: ReviewResponse) {
-    closeMenu()
-    editTarget.value = review
-  }
-  function openDelete(review: ReviewResponse) {
-    closeMenu()
-    deleteTarget.value = review
-  }
-  function onReviewSaved(updated: ReviewResponse) {
-    const idx = reviews.value.findIndex(r => r.id === updated.id)
-    if (idx !== -1) reviews.value[idx] = updated
-    editTarget.value = null
-  }
-  function onReviewDeleted(id: number) {
-    reviews.value = reviews.value.filter(r => r.id !== id)
-    deleteTarget.value = null
-  }
+  fetchReviews();
+}
 
-  onMounted(() => document.addEventListener("click", closeMenu))
-  onUnmounted(() => document.removeEventListener("click", closeMenu))
+function onDateRangeChange() {
+  // แก้ date range เอง ล้าง month filter ทิ้ง
+  if (dateFrom.value || dateTo.value) {
+    monthFilter.value = "";
+  }
+  fetchReviews();
+}
 
-  const filteredReviews = computed(() => {
-    if (activeFilter.value === "high")
-      return reviews.value.filter(r => r.rating >= 4)
-    if (activeFilter.value === "low")
-      return reviews.value.filter(r => r.rating < 4)
-    return reviews.value
-  })
+function clearDateFilters() {
+  dateFrom.value = "";
+  dateTo.value = "";
+  monthFilter.value = "";
+  isDatePopoverOpen.value = false;
+  fetchReviews();
+}
 
-  const displayReviews = computed(() =>
-    filteredReviews.value.map(r => ({
-      ...r,
-      targetName: r.media.title || `#${r.media.id}`,
-      posterUrl: r.media.poster_url || null,
-      mediaId: r.media.id,
-      mediaType: r.media.media_type,
-      createdAt: new Date(r.created_at).toLocaleDateString("th-TH", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      }),
-      content: r.body,
-      tags: [] as string[],
-    })),
-  )
+const reviews = ref<ReviewResponse[]>([]);
+const openMenuId = ref<number | null>(null);
+const editTarget = ref<ReviewResponse | null>(null);
+const deleteTarget = ref<ReviewResponse | null>(null);
 
-  onMounted(async () => {
-    try {
-      loading.value = true
-      const res = await reviewApi.getUserReviews(props.userId)
-      reviews.value = res.data.reviews ?? []
-    } catch (err) {
-      console.error("Fetch reviews failed:", err)
-    } finally {
-      loading.value = false
+function goToDetail(mediaId: number, mediaType: string) {
+  router.push({
+    name: mediaType === "tv" ? "tv-detail" : "movie-detail",
+    params: { id: mediaId },
+  });
+}
+
+function toggleMenu(id: number) {
+  openMenuId.value = openMenuId.value === id ? null : id;
+}
+function closeMenu() {
+  openMenuId.value = null;
+}
+function closeDatePopover() {
+  isDatePopoverOpen.value = false;
+}
+function openEdit(review: ReviewResponse) {
+  closeMenu();
+  editTarget.value = review;
+}
+function openDelete(review: ReviewResponse) {
+  closeMenu();
+  deleteTarget.value = review;
+}
+function onReviewSaved(updated: ReviewResponse) {
+  const idx = reviews.value.findIndex((r) => r.id === updated.id);
+  if (idx !== -1) reviews.value[idx] = updated;
+  editTarget.value = null;
+}
+function onReviewDeleted(id: number) {
+  reviews.value = reviews.value.filter((r) => r.id !== id);
+  deleteTarget.value = null;
+}
+
+function handleOutsideClick() {
+  closeMenu();
+  closeDatePopover();
+}
+
+onMounted(() => document.addEventListener("click", handleOutsideClick));
+onUnmounted(() => document.removeEventListener("click", handleOutsideClick));
+
+const filteredReviews = computed(() => {
+  if (activeFilter.value === "high")
+    return reviews.value.filter((r) => r.rating >= 4);
+  if (activeFilter.value === "low")
+    return reviews.value.filter((r) => r.rating < 4);
+  return reviews.value;
+});
+
+/**
+ * ฟอร์แมตวันที่ดู (watched_at)
+ * ถ้าเวลาไม่ใช่ 00:00 จะโชว์เวลาด้วย ถ้าเป็น 00:00 (ไม่ได้ระบุเวลา) จะโชว์แค่วัน
+ * หมายเหตุ: ถ้าฝั่ง backend อยากแม่นยำ 100% ควรมี flag แยก เช่น
+ * `watched_at_has_time: boolean` เพราะ user ที่ดูตอนเที่ยงคืนตรงเป๊ะจะถูกตัดเวลาออกไปด้วย
+ * แต่สำหรับตอนนี้ heuristic นี้เพียงพอ
+ */
+function formatWatched(dateStr: string | null): string | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  return d.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    ...(hasTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+  });
+}
+
+function formatUpdatedAt(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString("th-TH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const displayReviews = computed(() =>
+  filteredReviews.value.map((r) => ({
+    ...r,
+    targetName: r.media.title || `#${r.media.id}`,
+    posterUrl: r.media.poster_url || null,
+    mediaId: r.media.id,
+    mediaType: r.media.media_type,
+    createdAt: new Date(r.created_at).toLocaleDateString("th-TH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    content: r.body,
+    tags: [] as string[],
+    watchedLabel: formatWatched(r.watched_at ?? null),
+    likeCount: r.like_count ?? 0,
+    helpfulCount: r.helpful_count ?? 0,
+    isLiked: r.is_liked ?? false,
+    isHelpfulVoted: r.is_helpful_voted ?? false,
+    isEdited: r.updated_at !== r.created_at,
+    updatedLabel: formatUpdatedAt(r.updated_at),
+  })),
+);
+
+// ดึงรีวิวจาก backend ตาม filter ปัจจุบัน (visibility + date range/month)
+async function fetchReviews() {
+  try {
+    loading.value = true;
+
+    const params: GetUserReviewsParams = {};
+
+    if (visibilityFilter.value !== "all") {
+      params.visibility = visibilityFilter.value;
     }
-  })
+
+    if (monthFilter.value) {
+      const [year, month] = monthFilter.value.split("-").map(Number) as [
+        number,
+        number,
+      ];
+      params.year = year;
+      params.month = month;
+    } else {
+      if (dateFrom.value) params.date_from = dateFrom.value;
+      if (dateTo.value) params.date_to = dateTo.value;
+    }
+
+    const res = await reviewApi.getUserReviews(props.userId, params);
+    reviews.value = res.data.reviews ?? [];
+  } catch (err) {
+    console.error("Fetch reviews failed:", err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(fetchReviews);
 </script>
 
 <style scoped>
-  .reviews-root {
-    --c-card: #161616;
-    --c-border: rgba(255, 255, 255, 0.06);
-    --c-border-h: rgba(255, 255, 255, 0.12);
-    --c-red: #e1251b;
-    --c-text: #f0f0f0;
-    --c-sub: #8a8a8e;
-    --c-muted: #3a3a3c;
-    --c-star: #fbbf24;
-    --font:
-      "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
-      sans-serif;
-    --ease: cubic-bezier(0.16, 1, 0.3, 1);
-    font-family: var(--font);
-    color: var(--c-text);
-  }
+.reviews-root {
+  --c-card: #161616;
+  --c-border: rgba(255, 255, 255, 0.06);
+  --c-border-h: rgba(255, 255, 255, 0.12);
+  --c-red: #e1251b;
+  --c-text: #f0f0f0;
+  --c-sub: #8a8a8e;
+  --c-muted: #3a3a3c;
+  --c-star: #fbbf24;
+  --c-green: #34c759;
+  --font:
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui,
+    sans-serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font);
+  color: var(--c-text);
+}
 
-  .section-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-  .eyebrow {
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--c-muted);
-    white-space: nowrap;
-  }
-  .count-chip {
-    font-size: 0.65rem;
-    font-weight: 700;
-    background: var(--c-red);
-    color: #fff;
-    padding: 2px 7px;
-    border-radius: 4px;
-  }
-  .rule {
-    flex: 1;
-    height: 1px;
-    background: var(--c-border);
-  }
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.eyebrow {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  white-space: nowrap;
+}
+.count-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--c-red);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.rule {
+  flex: 1;
+  height: 1px;
+  background: var(--c-border);
+}
 
-  /* Filters */
-  .filter-rail {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 24px;
-  }
-  .filter-pill {
-    font-family: var(--font);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--c-sub);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--c-border);
-    padding: 6px 14px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.2s var(--ease);
-  }
-  .filter-pill:hover {
-    color: var(--c-text);
-    border-color: var(--c-border-h);
-  }
-  .filter-pill--active {
-    color: #000;
-    background: #fff;
-    border-color: #fff;
-  }
-  .filter-pill--active:hover {
-    color: #000;
-  }
+/* ── Unified filter toolbar ───────────────────────────────────── */
+.filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--c-border);
+}
 
-  /* States */
-  .state-loading {
-    padding: 48px 0;
-    display: flex;
-    justify-content: center;
-  }
-  .loader-bar {
-    width: 100px;
-    height: 2px;
-    background: var(--c-border);
-    border-radius: 2px;
-    overflow: hidden;
-    position: relative;
-  }
-  .loader-fill {
-    height: 100%;
-    width: 40%;
-    background: #fff;
-    position: absolute;
-    animation: sweep 1.4s infinite ease-in-out;
-  }
-  @keyframes sweep {
-    0% {
-      left: -40%;
-    }
-    100% {
-      left: 100%;
-    }
-  }
+.filter-rail {
+  display: flex;
+  gap: 6px;
+}
+.filter-pill {
+  font-family: var(--font);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--c-sub);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--c-border);
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.filter-pill:hover {
+  color: var(--c-text);
+  border-color: var(--c-border-h);
+}
+.filter-pill--active {
+  color: #000;
+  background: #fff;
+  border-color: #fff;
+}
+.filter-pill--active:hover {
+  color: #000;
+}
 
-  .state-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 56px 0;
-    color: var(--c-muted);
-  }
-  .state-empty p {
-    font-size: 0.82rem;
-    margin: 0;
-    color: var(--c-sub);
-  }
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
-  /* List */
-  .reviews-list {
-    display: flex;
-    flex-direction: column;
-  }
+/* Visibility: icon-only segmented control */
+.seg-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+}
+.seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--c-sub);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+.seg-btn:hover {
+  color: var(--c-text);
+}
+.seg-btn--active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
 
-  .review-card {
-    display: grid;
-    grid-template-columns: 56px 1fr auto;
-    gap: 0 16px;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--c-border);
-    align-items: start;
-    position: relative;
-    animation: cardIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
-    transition: background 0.15s;
-  }
-  .review-card:last-child {
-    border-bottom: none;
-  }
-  .review-card:hover {
-    background: rgba(255, 255, 255, 0.015);
-    padding-left: 8px;
-    padding-right: 8px;
-    margin: 0 -8px;
-    border-radius: 10px;
-  }
+/* Date filter trigger + popover */
+.date-popover-wrap {
+  position: relative;
+}
+.date-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--c-border);
+  color: var(--c-sub);
+  font-family: var(--font);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+.date-trigger:hover {
+  color: var(--c-text);
+  border-color: var(--c-border-h);
+}
+.date-trigger--active {
+  color: var(--c-text);
+  background: rgba(225, 37, 27, 0.1);
+  border-color: rgba(225, 37, 27, 0.3);
+}
+.date-trigger-label {
+  white-space: nowrap;
+}
+.date-trigger-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: 2px;
+}
+.date-trigger-clear:hover {
+  background: rgba(255, 69, 58, 0.25);
+  color: #ff453a;
+}
 
-  @keyframes cardIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+.date-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #1e1e1e;
+  border: 1px solid var(--c-border-h);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  transform-origin: top right;
+}
+.date-popover-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+.date-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.date-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font);
+  font-size: 0.7rem;
+  color: var(--c-text);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 5px 6px;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.date-input:hover,
+.date-input:focus {
+  border-color: var(--c-border-h);
+  outline: none;
+}
+.date-input--full {
+  width: 100%;
+}
+.date-sep {
+  color: var(--c-muted);
+  font-size: 0.7rem;
+}
 
-  .poster {
-    width: 56px;
-    height: 80px;
-    background: var(--c-card);
-    border: 1px solid var(--c-border);
-    border-radius: 8px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    cursor: pointer;
+/* States */
+.state-loading {
+  padding: 48px 0;
+  display: flex;
+  justify-content: center;
+}
+.loader-bar {
+  width: 100px;
+  height: 2px;
+  background: var(--c-border);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.loader-fill {
+  height: 100%;
+  width: 40%;
+  background: #fff;
+  position: absolute;
+  animation: sweep 1.4s infinite ease-in-out;
+}
+@keyframes sweep {
+  0% {
+    left: -40%;
   }
-  .poster-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+  100% {
+    left: 100%;
   }
-  .poster-fallback {
-    color: var(--c-muted);
-  }
+}
 
-  .review-body {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
+.state-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 0;
+  color: var(--c-muted);
+}
+.state-empty p {
+  font-size: 0.82rem;
+  margin: 0;
+  color: var(--c-sub);
+}
 
-  .title-rating-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .review-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #fff;
-    margin: 0;
-    line-height: 1.3;
-    cursor: pointer;
-    transition: color 0.15s;
-  }
-  .review-title:hover {
-    color: var(--c-red);
-  }
+/* List */
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+}
 
-  .inline-rating {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-shrink: 0;
-  }
-  .inline-rating-num {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: var(--c-star);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-  }
-  .stars {
-    display: flex;
-    gap: 2px;
-  }
-  .star-on {
-    color: var(--c-star);
-    fill: var(--c-star);
-  }
-  .star-off {
-    color: var(--c-muted);
-  }
+.review-card {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 0 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--c-border);
+  align-items: start;
+  position: relative;
+  animation: cardIn 0.4s var(--ease) calc(var(--i) * 50ms) both;
+  transition: background 0.15s;
+}
+.review-card:last-child {
+  border-bottom: none;
+}
+.review-card:hover {
+  background: rgba(255, 255, 255, 0.015);
+  padding-left: 8px;
+  padding-right: 8px;
+  margin: 0 -8px;
+  border-radius: 10px;
+}
 
-  .review-date {
-    font-size: 0.68rem;
-    color: var(--c-sub);
-  }
-  .review-content {
-    font-size: 0.8rem;
-    color: rgba(240, 240, 240, 0.72);
-    line-height: 1.58;
-    margin: 2px 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .tag-row {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-  }
-  .tag {
-    font-size: 0.6rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    color: var(--c-sub);
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--c-border);
-    padding: 2px 7px;
-    border-radius: 4px;
-  }
-
-  /* Menu */
-  .menu-wrap {
-    position: relative;
-    align-self: start;
-  }
-  .menu-trigger {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--c-sub);
-    cursor: pointer;
-    transition: all 0.15s var(--ease);
-  }
-  .menu-trigger:hover,
-  .menu-trigger--open {
-    color: var(--c-text);
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--c-border-h);
-  }
-
-  .dropdown {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 120px;
-    background: #1e1e1e;
-    border: 1px solid var(--c-border-h);
-    border-radius: 8px;
-    padding: 4px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-    z-index: 50;
-    transform-origin: top right;
-  }
-  .dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 7px 10px;
-    border-radius: 5px;
-    font-family: var(--font);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--c-sub);
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.12s;
-  }
-  .dropdown-item:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .dropdown-item--del:hover {
-    color: #ff453a;
-    background: rgba(255, 69, 58, 0.08);
-  }
-
-  .dropdown-enter-active {
-    transition:
-      opacity 0.15s var(--ease),
-      transform 0.15s var(--ease);
-  }
-  .dropdown-leave-active {
-    transition:
-      opacity 0.1s ease,
-      transform 0.1s ease;
-  }
-  .dropdown-enter-from,
-  .dropdown-leave-to {
+@keyframes cardIn {
+  from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: translateY(10px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-  @media (max-width: 520px) {
-    .review-card {
-      grid-template-columns: 56px 1fr auto;
-    }
-    .title-rating-row {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-    }
+.poster {
+  width: 56px;
+  height: 80px;
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.poster-fallback {
+  color: var(--c-muted);
+}
+
+.review-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.title-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.review-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.review-title:hover {
+  color: var(--c-red);
+}
+
+.inline-rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.inline-rating-num {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--c-star);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.stars {
+  display: flex;
+  gap: 2px;
+}
+.star-on {
+  color: var(--c-star);
+  fill: var(--c-star);
+}
+.star-off {
+  color: var(--c-muted);
+}
+
+/* Meta row: created date + private icon + watched date */
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.review-date {
+  font-size: 0.68rem;
+  color: var(--c-sub);
+}
+.private-icon {
+  color: var(--c-sub);
+  flex-shrink: 0;
+}
+.watched-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--c-sub);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--c-border);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+.review-content {
+  font-size: 0.8rem;
+  color: rgba(240, 240, 240, 0.72);
+  line-height: 1.58;
+  margin: 2px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tag-row {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--c-sub);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--c-border);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* Stats row: likes + helpful */
+.stats-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 2px;
+}
+.stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--c-sub);
+}
+.stat-item--active {
+  color: var(--c-red);
+}
+
+/* Menu */
+.menu-wrap {
+  position: relative;
+  align-self: start;
+}
+.menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--c-sub);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+.menu-trigger:hover,
+.menu-trigger--open {
+  color: var(--c-text);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--c-border-h);
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
+  background: #1e1e1e;
+  border: 1px solid var(--c-border-h);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  transform-origin: top right;
+}
+.dropdown-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--c-sub);
+  white-space: nowrap;
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 5px;
+  font-family: var(--font);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--c-sub);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s;
+}
+.dropdown-item:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+.dropdown-item--del:hover {
+  color: #ff453a;
+  background: rgba(255, 69, 58, 0.08);
+}
+
+.dropdown-enter-active {
+  transition:
+    opacity 0.15s var(--ease),
+    transform 0.15s var(--ease);
+}
+.dropdown-leave-active {
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease;
+}
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+@media (max-width: 520px) {
+  .review-card {
+    grid-template-columns: 56px 1fr auto;
   }
+  .title-rating-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .filter-toolbar {
+    flex-wrap: wrap;
+  }
+  .date-popover {
+    right: auto;
+    left: 0;
+  }
+}
 </style>

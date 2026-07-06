@@ -3,6 +3,7 @@ package review_module
 import (
 	"errors"
 	"strconv"
+	"time"
 
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
@@ -39,6 +40,13 @@ func (h *Handler) CreateReview(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"review": review})
 }
 
+// GetUserReviews handles GET /users/:userId/reviews
+//
+// Query params รองรับ:
+//   - visibility: "all" (default) | "public" | "private"
+//   - date_from, date_to: "YYYY-MM-DD" — กรองตามวันที่เขียนรีวิว (created_at)
+//   - year, month: กรองแบบรายเดือน/รายปี (ลำดับความสำคัญสูงกว่า date_from/date_to)
+//     ถ้าส่งแค่ year → กรองทั้งปี, ถ้าส่ง year+month → กรองเฉพาะเดือนนั้น
 func (h *Handler) GetUserReviews(c fiber.Ctx) error {
 	userID, err := parseUserID(c)
 	if err != nil {
@@ -46,7 +54,12 @@ func (h *Handler) GetUserReviews(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	reviews, err := h.svc.GetUserReviews(userID, claims.UserID)
+	filter, err := parseReviewFilter(c)
+	if err != nil {
+		return badRequest(c, err.Error())
+	}
+
+	reviews, err := h.svc.GetUserReviews(userID, claims.UserID, filter)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -238,7 +251,98 @@ func (h *Handler) DeleteComment(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// ── Helpful ───────────────────────────────────────────────────────
+
+func (h *Handler) MarkHelpful(c fiber.Ctx) error {
+	reviewID, err := parseReviewID(c)
+	if err != nil {
+		return badRequest(c, "invalid review id")
+	}
+	claims := mw.GetClaims(c)
+
+	if err := h.svc.MarkHelpful(reviewID, claims.UserID); err != nil {
+		return handleError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *Handler) UnmarkHelpful(c fiber.Ctx) error {
+	reviewID, err := parseReviewID(c)
+	if err != nil {
+		return badRequest(c, "invalid review id")
+	}
+	claims := mw.GetClaims(c)
+
+	if err := h.svc.UnmarkHelpful(reviewID, claims.UserID); err != nil {
+		return handleError(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
+
+// parseReviewFilter อ่าน query params ของ GET /users/:userId/reviews
+// แล้วแปลงเป็น ReviewFilter สำหรับใช้ query ใน repository
+func parseReviewFilter(c fiber.Ctx) (ReviewFilter, error) {
+	filter := ReviewFilter{Visibility: "all"}
+
+	if v := c.Query("visibility"); v != "" {
+		switch v {
+		case "all", "public", "private":
+			filter.Visibility = v
+		default:
+			return filter, errors.New("visibility must be 'all', 'public', or 'private'")
+		}
+	}
+
+	// year (+month ถ้ามี) มีความสำคัญกว่า date_from/date_to แบบ manual
+	if yearStr := c.Query("year"); yearStr != "" {
+		year, err := strconv.Atoi(yearStr)
+		if err != nil || year < 1 {
+			return filter, errors.New("invalid year")
+		}
+
+		month := 0
+		if monthStr := c.Query("month"); monthStr != "" {
+			month, err = strconv.Atoi(monthStr)
+			if err != nil || month < 1 || month > 12 {
+				return filter, errors.New("invalid month, must be 1-12")
+			}
+		}
+
+		if month > 0 {
+			from := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.Local)
+			to := from.AddDate(0, 1, 0).Add(-time.Nanosecond)
+			filter.DateFrom = &from
+			filter.DateTo = &to
+		} else {
+			from := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
+			to := from.AddDate(1, 0, 0).Add(-time.Nanosecond)
+			filter.DateFrom = &from
+			filter.DateTo = &to
+		}
+		return filter, nil
+	}
+
+	if v := c.Query("date_from"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err != nil {
+			return filter, errors.New("date_from must be YYYY-MM-DD")
+		}
+		filter.DateFrom = &t
+	}
+	if v := c.Query("date_to"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err != nil {
+			return filter, errors.New("date_to must be YYYY-MM-DD")
+		}
+		// รวมทั้งวันนั้นด้วย → set เวลาเป็นท้ายวัน
+		end := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 0, time.Local)
+		filter.DateTo = &end
+	}
+
+	return filter, nil
+}
 
 // routeToMediaType แปลง URL segment → media_type value ใน DB
 //
@@ -308,6 +412,10 @@ func handleError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "already liked"})
 	case errors.Is(err, ErrNotLiked):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not liked"})
+	case errors.Is(err, ErrAlreadyMarkedHelpful):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "already marked helpful"})
+	case errors.Is(err, ErrNotMarkedHelpful):
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "not marked helpful"})
 	case errors.Is(err, ErrInvalidWatchedAt):
 		return badRequest(c, "invalid watched_at format, use YYYY-MM-DD")
 	case errors.Is(err, ErrInvalidRating):

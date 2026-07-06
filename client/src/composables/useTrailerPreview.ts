@@ -1,8 +1,5 @@
-// client/src/composables/useTrailerPreview.ts
 import { ref, computed } from "vue";
 import type { Video } from "@/types";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TrailerPriority = "trailer" | "teaser" | "clip" | "other";
 
@@ -20,8 +17,6 @@ export interface PopupPosition {
   width: number;
   transformOrigin: "top left" | "top center" | "top right";
 }
-
-// ─── resolveTrailer ───────────────────────────────────────────────────────────
 
 const TYPE_SCORE: Record<string, number> = {
   Trailer: 0,
@@ -41,27 +36,32 @@ const PRIORITY_MAP: Record<string, TrailerPriority> = {
 function buildEmbedUrl(key: string): string {
   const p = new URLSearchParams({
     autoplay: "1",
-    mute: "1",
+    mute: "0",
     controls: "0",
     playsinline: "1",
     rel: "0",
     loop: "1",
-    playlist: key, // required for loop to function
+    playlist: key,
     modestbranding: "1",
-    iv_load_policy: "3", // hide video annotations
+    iv_load_policy: "3",
     disablekb: "1",
     fs: "0",
+    enablejsapi: "1",
   });
   return `https://www.youtube.com/embed/${key}?${p.toString()}`;
 }
 
-export function resolveTrailer(
+/**
+ * คืน "รายการ" trailer ที่เรียงลำดับความเหมาะสมไว้แล้ว (ดีที่สุดก่อน)
+ * ใช้แทน resolveTrailer เดิมเมื่อจะรองรับ retry เมื่อ key แรกเล่นไม่ได้
+ */
+export function resolveTrailerCandidates(
   videos: Video[] | undefined | null,
-): ResolvedTrailer | null {
-  if (!videos?.length) return null;
+): ResolvedTrailer[] {
+  if (!videos?.length) return [];
 
   const yt = videos.filter((v) => v.site === "YouTube");
-  if (!yt.length) return null;
+  if (!yt.length) return [];
 
   const sorted = [...yt].sort((a, b) => {
     if (a.official !== b.official) return a.official ? -1 : 1;
@@ -70,19 +70,56 @@ export function resolveTrailer(
     return aS - bS;
   });
 
-  const best = sorted[0];
-  if (!best) return null; // ✅ guard สำหรับ TypeScript
-
-  return {
-    key: best.key,
-    name: best.name,
-    type: best.type,
-    priority: PRIORITY_MAP[best.type] ?? "other",
-    embedUrl: buildEmbedUrl(best.key),
-  };
+  const seen = new Set<string>();
+  const candidates: ResolvedTrailer[] = [];
+  for (const v of sorted) {
+    if (seen.has(v.key)) continue;
+    seen.add(v.key);
+    candidates.push({
+      key: v.key,
+      name: v.name,
+      type: v.type,
+      priority: PRIORITY_MAP[v.type] ?? "other",
+      embedUrl: buildEmbedUrl(v.key),
+    });
+  }
+  return candidates;
 }
 
-// ─── useTrailerPreview ────────────────────────────────────────────────────────
+/** @deprecated ใช้ resolveTrailerCandidates แทน เก็บไว้ให้ของเดิมที่ยังเรียกอยู่ไม่พัง */
+export function resolveTrailer(
+  videos: Video[] | undefined | null,
+): ResolvedTrailer | null {
+  return resolveTrailerCandidates(videos)[0] ?? null;
+}
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let ytApiPromise: Promise<void> | null = null;
+
+function loadYoutubeApi(): Promise<void> {
+  if (window.YT?.Player) return Promise.resolve();
+  if (ytApiPromise) return ytApiPromise;
+
+  ytApiPromise = new Promise((resolve) => {
+    const prevCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      prevCallback?.();
+      resolve();
+    };
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+  });
+  return ytApiPromise;
+}
 
 interface Options {
   /** How long after hover before iframe is injected into DOM (default: 500ms) */
@@ -95,9 +132,26 @@ export function useTrailerPreview(options: Options = {}) {
   const isIframeMounted = ref(false);
   const isIframeLoaded = ref(false);
 
+  const trailerCandidates = ref<ResolvedTrailer[]>([]);
+  const candidateIndex = ref(0);
+  const trailerUnavailable = ref(false);
+
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let ytPlayer: any = null;
+
+  const currentTrailer = computed<ResolvedTrailer | null>(
+    () => trailerCandidates.value[candidateIndex.value] ?? null,
+  );
+
+  /** ตั้ง candidate list ใหม่ (เรียกครั้งเดียวตอน fetch videos สำเร็จ) */
+  function setCandidates(candidates: ResolvedTrailer[]) {
+    trailerCandidates.value = candidates;
+    candidateIndex.value = 0;
+    trailerUnavailable.value = candidates.length === 0;
+  }
 
   function scheduleMount() {
+    if (!currentTrailer.value) return;
     cancelMount();
     timer = setTimeout(() => {
       isIframeMounted.value = true;
@@ -111,8 +165,16 @@ export function useTrailerPreview(options: Options = {}) {
     }
   }
 
+  function destroyPlayer() {
+    try {
+      ytPlayer?.destroy?.();
+    } catch {}
+    ytPlayer = null;
+  }
+
   function unmount() {
     cancelMount();
+    destroyPlayer();
     isIframeMounted.value = false;
     isIframeLoaded.value = false;
   }
@@ -121,28 +183,83 @@ export function useTrailerPreview(options: Options = {}) {
     isIframeLoaded.value = true;
   }
 
-  // Derived state for template convenience
+  /**
+   * เรียกใน onMounted ของ element ที่จะฝัง player (div ที่มี :id="elementId")
+   * แทนการใช้ <iframe :src="..."> ตรงๆ เพราะต้องดัก onError จริงจาก YouTube
+   */
+  function attachPlayer(elementId: string) {
+    const trailer = currentTrailer.value;
+    if (!trailer) return;
+
+    loadYoutubeApi().then(() => {
+      if (!isIframeMounted.value || currentTrailer.value?.key !== trailer.key)
+        return;
+
+      ytPlayer = new window.YT.Player(elementId, {
+        videoId: trailer.key,
+        playerVars: {
+          autoplay: 1,
+          mute: 0,
+          controls: 0,
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          disablekb: 1,
+          fs: 0,
+        },
+        events: {
+          onReady: () => {
+            onIframeLoad();
+          },
+          onError: (e: any) => {
+            onPlayerError(e?.data);
+          },
+        },
+      });
+    });
+  }
+
+  /** ลอง candidate ตัวถัดไปเมื่อวิดีโอปัจจุบันเล่นไม่ได้จริง */
+  function onPlayerError(_code?: number) {
+    destroyPlayer();
+    isIframeLoaded.value = false;
+    isIframeMounted.value = false;
+    candidateIndex.value++;
+
+    if (candidateIndex.value >= trailerCandidates.value.length) {
+      trailerUnavailable.value = true;
+      return;
+    }
+
+    isIframeMounted.value = true;
+  }
+
   const showSkeleton = computed(
     () => isIframeMounted.value && !isIframeLoaded.value,
   );
-  const showFallback = computed(() => !isIframeMounted.value);
+  const showFallback = computed(
+    () => !isIframeMounted.value || trailerUnavailable.value,
+  );
 
   return {
     isIframeMounted,
     isIframeLoaded,
     showSkeleton,
     showFallback,
+    currentTrailer,
+    trailerUnavailable,
+    setCandidates,
     scheduleMount,
     cancelMount,
     unmount,
     onIframeLoad,
+    attachPlayer,
+    onPlayerError,
   };
 }
 
-// ─── usePopupPosition ─────────────────────────────────────────────────────────
-
-const POPUP_WIDTH = 300; // px — match .hover-popup width in HomeView
-const POPUP_OFFSET_Y = -8; // shift popup up slightly relative to card top
+const POPUP_WIDTH = 300;
+const POPUP_OFFSET_Y = -8;
 
 export function usePopupPosition() {
   const position = ref<PopupPosition | null>(null);
