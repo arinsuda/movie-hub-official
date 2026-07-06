@@ -29,12 +29,16 @@
       </div>
 
       <template v-else>
-        <button
+        <div
           v-for="n in store.notifications"
           :key="n.id"
           class="noti-item"
           :class="{ 'noti-item--unread': !n.is_read }"
+          role="button"
+          tabindex="0"
           @click="handleClick(n)"
+          @keydown.enter="handleClick(n)"
+          @keydown.space.prevent="handleClick(n)"
         >
           <div class="noti-item-icon" :class="`noti-item-icon--${n.type}`">
             <UserPlus v-if="n.type === 'follow'" :size="16" />
@@ -64,7 +68,7 @@
           >
             <X :size="13" />
           </button>
-        </button>
+        </div>
 
         <div v-if="store.loadingMore" class="noti-state noti-state--inline">
           <Loader2 :size="15" class="spin" />
@@ -269,6 +273,10 @@
   }
   .noti-item:hover {
     background: rgba(255, 255, 255, 0.05);
+  }
+  .noti-item:focus-visible {
+    outline: 2px solid rgba(229, 9, 20, 0.6);
+    outline-offset: -2px;
   }
   .noti-item--unread {
     background: rgba(229, 9, 20, 0.05);
