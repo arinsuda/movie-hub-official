@@ -17,13 +17,29 @@ import type {
 } from "@/types";
 
 // ── Review ─────────────────────────────────────────────────────────
+
+export type ReviewVisibilityFilter = "all" | "public" | "private";
+
+export interface GetUserReviewsParams {
+  page?: number;
+  limit?: number;
+  /** "all" (default) | "public" | "private" — private ใช้ได้เฉพาะเจ้าของโปรไฟล์ */
+  visibility?: ReviewVisibilityFilter;
+  /** กรองตามวันที่เขียนรีวิว (created_at), format "YYYY-MM-DD" */
+  date_from?: string;
+  date_to?: string;
+  /** กรองแบบรายเดือน/รายปี — ถ้าส่งมา จะมีผลเหนือ date_from/date_to */
+  year?: number;
+  month?: number;
+}
+
 export const reviewApi = {
   createReview: (userId: number, data: CreateReviewRequest) =>
     api.post<{ review: ReviewResponse }>(`/users/${userId}/reviews`, data),
 
-  getUserReviews: (userId: number, page = 1, limit = 20) =>
+  getUserReviews: (userId: number, params: GetUserReviewsParams = {}) =>
     api.get<{ reviews: ReviewResponse[] }>(`/users/${userId}/reviews`, {
-      params: { page, limit },
+      params: { page: 1, limit: 20, ...params },
     }),
 
   getMediaReviews: (

@@ -3,6 +3,7 @@ package review_module
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -21,6 +22,15 @@ var (
 	ErrInvalidMediaID       = errors.New("invalid media_id")
 )
 
+// ReviewFilter ใช้กับ GET /users/:userId/reviews
+// Visibility: "all" (default) | "public" | "private"
+// DateFrom / DateTo: กรองตาม created_at (วันที่ user เขียนรีวิว), inclusive ทั้งสองด้าน
+type ReviewFilter struct {
+	Visibility string
+	DateFrom   *time.Time
+	DateTo     *time.Time
+}
+
 type repository struct {
 	db *gorm.DB
 }
@@ -36,13 +46,25 @@ func (r *repository) CreateReview(review *Review) error {
 	return r.db.Create(review).Error
 }
 
-func (r *repository) FindReviewsByUser(userID uint) ([]Review, error) {
+func (r *repository) FindReviewsByUser(userID uint, filter ReviewFilter) ([]Review, error) {
+	q := r.db.Preload("User").Where("user_id = ?", userID)
+
+	switch filter.Visibility {
+	case "public":
+		q = q.Where("is_public = ?", true)
+	case "private":
+		q = q.Where("is_public = ?", false)
+	}
+
+	if filter.DateFrom != nil {
+		q = q.Where("created_at >= ?", *filter.DateFrom)
+	}
+	if filter.DateTo != nil {
+		q = q.Where("created_at <= ?", *filter.DateTo)
+	}
+
 	var reviews []Review
-	// เติม Preload("User") เข้าไปตรงนี้
-	err := r.db.Preload("User").
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&reviews).Error
+	err := q.Order("created_at DESC").Find(&reviews).Error
 	return reviews, err
 }
 

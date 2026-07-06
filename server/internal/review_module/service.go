@@ -122,28 +122,30 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	return toReviewResponse(inserted, false, false, s.minio), nil
 }
 
-func (s *Service) GetUserReviews(userID, requesterID uint) ([]ReviewResponse, error) {
-	reviews, err := s.repo.FindReviewsByUser(userID)
+// GetUserReviews คืนรีวิวของ userID ตาม filter ที่กำหนด (visibility + date range)
+// ถ้า requesterID ไม่ใช่เจ้าของ (userID) จะบังคับเห็นเฉพาะ public เท่านั้น
+// ไม่ว่า filter.Visibility จะขอ "private" หรือ "all" มาก็ตาม
+func (s *Service) GetUserReviews(userID, requesterID uint, filter ReviewFilter) ([]ReviewResponse, error) {
+	if userID != requesterID {
+		filter.Visibility = "public"
+	}
+
+	reviews, err := s.repo.FindReviewsByUser(userID, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	visible := make([]Review, 0, len(reviews))
-	ids := make([]uint, 0, len(reviews))
-	for _, r := range reviews {
-		if userID != requesterID && !r.IsPublic {
-			continue
-		}
-		visible = append(visible, r)
-		ids = append(ids, r.ID)
+	ids := make([]uint, len(reviews))
+	for i, r := range reviews {
+		ids[i] = r.ID
 	}
 
 	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
 	helpfulMap, _ := s.repo.FindHelpfulIDs(ids, requesterID)
 
-	responses := make([]ReviewResponse, 0, len(visible))
-	for _, r := range visible {
-		responses = append(responses, *toReviewResponse(&r, likedMap[r.ID], helpfulMap[r.ID], s.minio))
+	responses := make([]ReviewResponse, len(reviews))
+	for i, r := range reviews {
+		responses[i] = *toReviewResponse(&r, likedMap[r.ID], helpfulMap[r.ID], s.minio)
 	}
 	return responses, nil
 }

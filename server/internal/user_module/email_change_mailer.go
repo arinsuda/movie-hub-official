@@ -53,88 +53,95 @@ func (m *smtpMailer) SendOTP(toEmail, otp string) error {
 	return nil
 }
 
+// buildOTPEmailBody: OTP แสดงด้วย CSS letter-spacing (ไม่แทรก &nbsp; ระหว่างตัวเลข)
+// เพื่อให้ user select/copy ได้ text สะอาด ตรงกับค่า otp เป๊ะๆ ไม่มี space แถมมา
 func buildOTPEmailBody(otp string) string {
-	// เว้นวรรคระหว่างตัวเลขให้ดูเป็นรหัสที่อ่านง่ายและดูมีระดับ
-	spaced := strings.Join(strings.Split(otp, ""), " ")
-
 	return fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:48px 16px;">
+<body style="margin:0;padding:0;background:#050505;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#050505;padding:56px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="480" cellpadding="0" cellspacing="0"
-               style="max-width:480px;width:100%%;background:linear-gradient(160deg,#1a1a1a 0%%,#141414 100%%);
-                      border-radius:16px;overflow:hidden;border:1px solid #2a2a2a;
-                      box-shadow:0 20px 60px rgba(229,9,20,0.15);">
+        <table role="presentation" width="440" cellpadding="0" cellspacing="0" style="max-width:440px;width:100%%;">
+
+          <!-- Wordmark -->
           <tr>
-            <td style="background:linear-gradient(90deg,#e50914,#b0060f);padding:28px 32px;">
-              <h1 style="margin:0;color:#fff;font-size:22px;letter-spacing:1px;">🎬 REMOV</h1>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-size:18px;font-weight:700;letter-spacing:4px;color:#ffffff;">REMOV</span>
+              <div style="width:32px;height:2px;background:#e50914;margin:12px auto 0 auto;"></div>
             </td>
           </tr>
+
+          <!-- Card -->
           <tr>
-            <td style="padding:40px 36px 8px 36px;">
-              <p style="margin:0 0 4px 0;color:#8a8a8a;font-size:13px;letter-spacing:2px;text-transform:uppercase;">
-                ยืนยันตัวตน
-              </p>
-              <h2 style="margin:0 0 16px 0;color:#fff;font-size:24px;line-height:1.4;">
-                คำขอเปลี่ยนอีเมล
-              </h2>
-              <p style="margin:0 0 28px 0;color:#b3b3b3;font-size:15px;line-height:1.7;">
-                เราได้รับคำขอเปลี่ยนอีเมลของบัญชี REMOV ของคุณ
-                กรุณากรอกรหัส OTP ด้านล่างเพื่อยืนยันการเปลี่ยนแปลง
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 36px;">
-              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0"
-                     style="background:#0f0f0f;border:1px dashed #e50914;border-radius:12px;">
+            <td style="background:#0f0f0f;border:1px solid #1c1c1c;border-radius:4px;">
+              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td align="center" style="padding:28px 16px;">
-                    <span style="display:inline-block;font-size:38px;font-weight:700;letter-spacing:10px;
-                                 color:#ffffff;font-family:'Courier New',monospace;">
-                      %s
-                    </span>
+                  <td style="padding:44px 40px 4px 40px;" align="center">
+                    <p style="margin:0 0 12px 0;color:#e50914;font-size:11px;font-weight:700;letter-spacing:2.5px;
+                              text-transform:uppercase;">
+                      คำขอเปลี่ยนอีเมล
+                    </p>
+                    <p style="margin:0 0 28px 0;color:#8f8f8f;font-size:14px;line-height:1.8;max-width:300px;">
+                      กรอกรหัสยืนยันด้านล่างเพื่อดำเนินการเปลี่ยนอีเมลของบัญชีคุณ
+                    </p>
                   </td>
                 </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px 36px 8px 36px;">
-              <p style="margin:0;color:#8a8a8a;font-size:13px;line-height:1.6;">
-                ⏱️ รหัสนี้จะหมดอายุใน <strong style="color:#e5e5e5;">15 นาที</strong>
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:20px 36px 36px 36px;">
-              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0"
-                     style="background:#1f1a1a;border-left:3px solid #e50914;border-radius:6px;">
+
+                <!-- OTP code: copy-friendly, ระยะห่างทำด้วย letter-spacing ล้วน text สะอาด -->
                 <tr>
-                  <td style="padding:14px 16px;">
-                    <p style="margin:0;color:#c9a3a3;font-size:12.5px;line-height:1.6;">
-                      หากคุณไม่ได้ทำรายการนี้ กรุณาเพิกเฉยต่ออีเมลฉบับนี้
-                      และพิจารณาตรวจสอบความปลอดภัยของบัญชีคุณ
+                  <td align="center" style="padding:0 40px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0"
+                           style="background:#050505;border:1px solid #e50914;border-radius:6px;">
+                      <tr>
+                        <td style="padding:20px 32px;">
+                          <span style="font-size:30px;font-weight:700;letter-spacing:10px;color:#ffffff;
+                                       font-family:'Courier New',monospace;user-select:all;">%s</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td align="center" style="padding:14px 40px 4px 40px;">
+                    <p style="margin:0;color:#4a4a4a;font-size:11px;line-height:1.6;">
+                      แตะ/คลิกที่รหัสด้านบนค้างไว้เพื่อเลือกทั้งหมด แล้วคัดลอกได้ทันที
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:16px 40px 40px 40px;">
+                    <p style="margin:0;color:#666666;font-size:12px;">
+                      รหัสมีอายุการใช้งาน 15 นาที
                     </p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
+
+          <!-- Footnote -->
           <tr>
-            <td style="padding:20px 36px 32px 36px;border-top:1px solid #232323;">
-              <p style="margin:0;color:#5c5c5c;font-size:11.5px;text-align:center;">
-                © REMOV — อีเมลนี้ถูกส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+            <td style="padding:24px 8px 0 8px;">
+              <p style="margin:0;color:#555555;font-size:11.5px;line-height:1.7;text-align:center;">
+                หากคุณไม่ได้เป็นผู้ทำรายการนี้ กรุณาเพิกเฉยต่ออีเมลฉบับนี้
               </p>
             </td>
           </tr>
+          <tr>
+            <td align="center" style="padding:28px 0 0 0;">
+              <p style="margin:0;color:#3a3a3a;font-size:10.5px;letter-spacing:0.5px;">
+                REMOV — ระบบส่งอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
+              </p>
+            </td>
+          </tr>
+
         </table>
       </td>
     </tr>
   </table>
 </body>
-</html>`, spaced)
+</html>`, otp)
 }
