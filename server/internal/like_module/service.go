@@ -32,7 +32,6 @@ func (s *Service) Like(userID uint, mediaID int, mediaType movie_module.MediaTyp
 		return err
 	}
 
-	// ── Achievement: like_count ───────────────────────────────────
 	var count int64
 	s.db.Model(&MediaLike{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).

@@ -15,12 +15,6 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// GetMediaAnalytics handles:
-//
-//	GET /analytics/:mediaType/:mediaId
-//
-// :mediaType = "movies" | "series"
-// ไม่ต้อง auth เพราะเป็น public aggregate
 func (h *Handler) GetMediaAnalytics(c fiber.Ctx) error {
 	mediaID, err := strconv.Atoi(c.Params("mediaId"))
 	if err != nil || mediaID <= 0 {
@@ -39,11 +33,6 @@ func (h *Handler) GetMediaAnalytics(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"analytics": result})
 }
 
-// GetTrending handles:
-//
-//	GET /analytics/:mediaType/trending
-//
-// คืน top 20 media ที่ trending ในหมวดนั้น
 func (h *Handler) GetTrending(c fiber.Ctx) error {
 	mt := routeToMediaType(c.Params("mediaType"))
 	if mt == "" {
@@ -57,12 +46,6 @@ func (h *Handler) GetTrending(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"trending": items})
 }
 
-// ── helpers ───────────────────────────────────────────────────────
-
-// routeToMediaType แปลง URL segment → media_type value ใน DB
-//
-//	"movies" → "movie"
-//	"series" → "tv"
 func routeToMediaType(route string) string {
 	switch route {
 	case "movies":

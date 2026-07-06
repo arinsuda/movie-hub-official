@@ -122,7 +122,6 @@ func (h *Handler) ForgotPassword(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email is required"})
 	}
 
-	// return 200 เสมอ ป้องกัน user enumeration
 	_ = h.svc.ForgotPassword(req.Email)
 
 	return c.JSON(MessageResponse{Message: "if an account with that email exists, a password reset link has been sent"})

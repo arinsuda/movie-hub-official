@@ -74,35 +74,27 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 	switch req.ListType {
 
 	case movie_module.ListWatched:
-		// ── EXP ──────────────────────────────────────────────────
+
 		_ = s.expPort.AddExperience(userID, stats.ExpPerWatched)
 
-		// ── Achievement: watched_count ────────────────────────────
 		var watchedCount int64
 		s.db.Model(&LibraryItem{}).
 			Where("user_id = ? AND list_type = 'watched' AND deleted_at IS NULL", userID).
 			Count(&watchedCount)
 		_, _ = s.achieveSvc.Track(userID, "watched_count", int(watchedCount))
 
-		// ── Achievement: library_total_count ─────────────────────
 		s.trackLibraryTotal(userID)
 
-		// ── Notification: fan-out watchlist ke followers ──────────
-		// ใช้ NotifFollowingAddedWatched (ต้องเพิ่ม type ใน notification_module)
-		// ตอนนี้ skip — ส่วนใหญ่ไม่ fan-out watched เพราะ spam
-
 	case movie_module.ListWatchlist:
-		// ── Achievement: watchlist_count ──────────────────────────
+
 		var watchlistCount int64
 		s.db.Model(&LibraryItem{}).
 			Where("user_id = ? AND list_type = 'watchlist' AND deleted_at IS NULL", userID).
 			Count(&watchlistCount)
 		_, _ = s.achieveSvc.Track(userID, "watchlist_count", int(watchlistCount))
 
-		// ── Achievement: library_total_count ─────────────────────
 		s.trackLibraryTotal(userID)
 
-		// ── Notification: fan-out ให้ followers ───────────────────
 		if s.notifSvc != nil {
 			if actor, err := s.getUserSummary(userID); err == nil {
 				title, _ := s.fetchTitle(req.MediaID, req.MediaType)
@@ -205,9 +197,6 @@ func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_modul
 	return &MediaStatusResponse{MediaID: mediaID, MediaType: mediaType, InLists: inLists}, nil
 }
 
-// ── Internal Helpers ──────────────────────────────────────────────
-
-// trackLibraryTotal นับ library รวมทุก list_type แล้ว track achievement
 func (s *Service) trackLibraryTotal(userID uint) {
 	var total int64
 	s.db.Model(&LibraryItem{}).
@@ -235,8 +224,6 @@ func (s *Service) fetchTitle(mediaID int, mediaType movie_module.MediaType) (str
 	}
 	return "", nil
 }
-
-// ── Existing Helpers (unchanged) ─────────────────────────────────
 
 func validateAddItemRequest(req AddItemRequest) error {
 	if req.MediaType != movie_module.MediaMovie && req.MediaType != movie_module.MediaSeries {

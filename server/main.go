@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/database"
@@ -42,7 +45,25 @@ func main() {
 	})
 
 	m := mailer.New(cfg.SMTP)
-	router.Register(app, database.DB, cfg, m)
+	notifHub := router.Register(app, database.DB, cfg, m)
+
+	// ── Socket.IO server แยกพอร์ต ─────────────────────────────
+	// รันแยกจาก Fiber เพราะ fasthttp adapter ของ Fiber ไม่รองรับ
+	// WebSocket upgrade ของ engine.io ได้แบบสมบูรณ์
+	socketAddr := ":8081"
+	socketSrv := &http.Server{
+		Addr: socketAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			notifHub.Handler().ServeHTTP(w, r)
+		}),
+	}
+
+	go func() {
+		log.Printf("📡 Notification socket.io running on %s", socketAddr)
+		if err := socketSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("❌ Socket.io server error: %v", err)
+		}
+	}()
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -51,6 +72,13 @@ func main() {
 	go func() {
 		<-quit
 		log.Println("🛑 Shutting down server...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := socketSrv.Shutdown(ctx); err != nil {
+			log.Printf("❌ Socket.io shutdown error: %v", err)
+		}
+
 		if err := app.Shutdown(); err != nil {
 			log.Printf("❌ Shutdown error: %v", err)
 		}

@@ -133,8 +133,6 @@ func (h *Handler) GetMediaStatus(c fiber.Ctx) error {
 	return c.JSON(status)
 }
 
-// — helpers —
-
 func parseUserID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("userId"))
 	if err != nil || id <= 0 {

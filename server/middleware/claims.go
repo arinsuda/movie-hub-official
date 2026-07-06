@@ -26,7 +26,6 @@ func GetClaims(c fiber.Ctx) *Claims {
 	return claims
 }
 
-// ParseAccess ใช้ร่วมกันได้จาก package อื่น
 func ParseAccess(tokenStr, secret string) (*Claims, error) {
 	return parseToken(tokenStr, secret, AccessToken)
 }

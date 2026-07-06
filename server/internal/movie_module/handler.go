@@ -46,10 +46,8 @@ func (h *Handler) GetTopRated(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetUpcoming(c fiber.Ctx) error {
-	// 1. รับค่า page จาก query string ตามจริง (ถ้าไม่ส่งมาให้เป็นหน้า 1)
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	// 2. ยิงไปขอข้อมูลจาก TMDB ตรงๆ ตาม page นั้นๆ
 	result, err := tmdb.GetUpcoming(page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
@@ -58,7 +56,6 @@ func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 	today := time.Now().Truncate(24 * time.Hour)
 	var upcomingOnly []tmdb.Movie
 
-	// 3. กรองเอาเฉพาะเรื่องที่ "ยังไม่ฉาย" หรือ "ฉายวันนี้" จริงๆ (กันเรื่องฉายแล้วหลุดเข้ามา)
 	for _, movie := range result.Results {
 		if len(movie.ReleaseDate) < 10 {
 			continue
@@ -73,7 +70,6 @@ func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 		}
 	}
 
-	// 4. ส่งกลับไปใน Format เดิมของ TMDB เพื่อให้ Frontend เอาเลข page ไปเล่นต่อได้
 	return c.JSON(fiber.Map{
 		"page":          result.Page,
 		"results":       upcomingOnly,

@@ -26,8 +26,6 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// ── View Counter ──────────────────────────────────────────────────
-
 func (r *repository) UpsertStat(mediaID int, mediaType movie_module.MediaType) error {
 	stat := MediaStat{MediaID: mediaID, MediaType: mediaType}
 	return r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&stat).Error
@@ -56,8 +54,6 @@ func (r *repository) GetViewCount(mediaID int, mediaType movie_module.MediaType)
 	}
 	return stat.ViewCount, err
 }
-
-// ── Like ──────────────────────────────────────────────────────────
 
 func (r *repository) CreateLike(userID uint, mediaID int, mediaType movie_module.MediaType) error {
 	like := like_module.MediaLike{
@@ -118,7 +114,6 @@ func (r *repository) IsLiked(userID uint, mediaID int, mediaType movie_module.Me
 func (r *repository) GetLikedAt(userID uint, mediaID int, mediaType movie_module.MediaType) (*time.Time, error) {
 	var like like_module.MediaLike
 
-	// ดึงเฉพาะ created_at มาเหมือนเดิม
 	tx := r.db.Select("created_at").
 		Where("user_id = ? AND media_id = ? AND media_type = ?", userID, mediaID, mediaType).
 		Limit(1).
@@ -128,15 +123,12 @@ func (r *repository) GetLikedAt(userID uint, mediaID int, mediaType movie_module
 		return nil, tx.Error
 	}
 
-	// 💡 เปลี่ยนมาเช็คจาก RowsAffected แทน! ถ้าเท่ากับ 0 แปลว่าหาไม่เจอจริงๆ
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
 
 	return &like.CreatedAt, nil
 }
-
-// ── Review Count ──────────────────────────────────────────────────
 
 func (r *repository) CountReviews(mediaID int, mediaType movie_module.MediaType) (int, error) {
 	var count int64
@@ -162,12 +154,8 @@ func (r *repository) GetAverageRating(mediaID int, mediaType movie_module.MediaT
 	return row, err
 }
 
-// ── Watchlist Count ───────────────────────────────────────────────
-// นับเฉพาะ list_type = 'watchlist' เท่านั้น
-// favorite และ watched ไม่นับรวม
 func (r *repository) CountWatchlist(mediaID int, mediaType movie_module.MediaType) (int, error) {
 	var count int64
-	// 💡 เพิ่มการแปลงสถานะด้วย string(mediaType) หรือตรวจสอบให้แน่ใจว่าค่าที่ส่งมาจาก Handler เป็น "movie" หรือ "tv" อย่างถูกต้อง
 	err := r.db.Model(&library_module.LibraryItem{}).
 		Where("media_id = ? AND media_type = ? AND list_type = ? AND deleted_at IS NULL",
 			mediaID, string(mediaType), string(movie_module.ListWatchlist)).
@@ -188,15 +176,12 @@ func (r *repository) GetWatchlistedAt(userID uint, mediaID int, mediaType movie_
 		return nil, tx.Error
 	}
 
-	// 💡 เช็คจาก RowsAffected เช่นเดียวกันครับ
 	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
 
 	return &item.CreatedAt, nil
 }
-
-// ── Helpers ───────────────────────────────────────────────────────
 
 func isDuplicateError(err error) bool {
 	msg := err.Error()

@@ -31,7 +31,6 @@ export const useNotificationStore = defineStore("notification", () => {
 
   let socketBound = false
 
-  // ── Fetch (REST) ─────────────────────────────────────────────
   async function fetchNotifications(page = 1) {
     if (page === 1) loading.value = true
     else loadingMore.value = true
@@ -72,7 +71,6 @@ export const useNotificationStore = defineStore("notification", () => {
     await fetchNotifications(1)
   }
 
-  // ── Mutations (optimistic, with rollback on failure) ───────────
   async function markAsRead(id: number) {
     const target = notifications.value.find(n => n.id === id)
     if (!target || target.is_read) return
@@ -111,7 +109,7 @@ export const useNotificationStore = defineStore("notification", () => {
     if (idx === -1) return
 
     const [removed] = notifications.value.splice(idx, 1)
-    if (!removed) return 
+    if (!removed) return
 
     if (!removed.is_read) {
       unreadCount.value = Math.max(0, unreadCount.value - 1)
@@ -143,9 +141,7 @@ export const useNotificationStore = defineStore("notification", () => {
     }
   }
 
-  // ── Realtime (Socket.IO) ────────────────────────────────────────
   function prependNotification(n: AppNotification) {
-    // กันเพิ่มซ้ำ เผื่อ reconnect แล้วได้ event เดิมซ้ำ
     if (notifications.value.some(x => x.id === n.id)) return
     notifications.value.unshift(n)
     if (!n.is_read) unreadCount.value++
@@ -183,8 +179,6 @@ export const useNotificationStore = defineStore("notification", () => {
 
     on<SocketNotificationNewPayload>("notification:new", payload => {
       prependNotification(payload)
-      // toast แจ้งเตือนสด ๆ — ใช้ window.$toast ตัวที่ ToastContainer.vue
-      // ผูกไว้ใน onMounted อยู่แล้ว ป้องกันไม่ต้อง import ข้าม component
       ;(window as any).$toast?.info?.(payload.message, payload.title)
     })
 
@@ -203,7 +197,6 @@ export const useNotificationStore = defineStore("notification", () => {
     socketBound = false
   }
 
-  // ── Panel UI state ───────────────────────────────────────────
   function togglePanel() {
     isPanelOpen.value = !isPanelOpen.value
     if (isPanelOpen.value && notifications.value.length === 0) {

@@ -21,8 +21,6 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// isPrivate เช็คว่า user นั้น private ไหม
-// return error ถ้า user ไม่มีอยู่หรือ inactive
 func (r *repository) isPrivate(userID uint) (bool, error) {
 	var isPrivate bool
 	err := r.db.
@@ -33,15 +31,11 @@ func (r *repository) isPrivate(userID uint) (bool, error) {
 	return isPrivate, err
 }
 
-// Follow สร้าง follow record
-// status = accepted ถ้า followee เป็น public
-// status = pending  ถ้า followee เป็น private
 func (r *repository) Follow(followerID, followeeID uint) (*UserFollow, error) {
 	if followerID == followeeID {
 		return nil, ErrForbidden
 	}
 
-	// เช็ค duplicate ก่อน (uniqueIndex จะ catch ได้อยู่แล้ว แต่ error message จะไม่ friendly)
 	var existing UserFollow
 	err := r.db.
 		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
@@ -74,7 +68,6 @@ func (r *repository) Follow(followerID, followeeID uint) (*UserFollow, error) {
 	return follow, nil
 }
 
-// Unfollow ลบ record ไม่ว่า status จะเป็นอะไร (cancel pending ได้ด้วย)
 func (r *repository) Unfollow(followerID, followeeID uint) error {
 	result := r.db.
 		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
@@ -88,8 +81,6 @@ func (r *repository) Unfollow(followerID, followeeID uint) error {
 	return nil
 }
 
-// AcceptFollow เปลี่ยน pending → accepted
-// followeeID = คนที่กด accept (เจ้าของ account)
 func (r *repository) AcceptFollow(followerID, followeeID uint) error {
 	result := r.db.
 		Model(&UserFollow{}).
@@ -105,8 +96,6 @@ func (r *repository) AcceptFollow(followerID, followeeID uint) error {
 	return nil
 }
 
-// RejectFollow ลบ pending request
-// followeeID = คนที่กด reject
 func (r *repository) RejectFollow(followerID, followeeID uint) error {
 	result := r.db.
 		Where("follower_id = ? AND followee_id = ? AND status = ?",
@@ -121,7 +110,6 @@ func (r *repository) RejectFollow(followerID, followeeID uint) error {
 	return nil
 }
 
-// listRow ใช้ scan ผล JOIN กับ users table
 type listRow struct {
 	ID          uint
 	Username    string
@@ -130,7 +118,6 @@ type listRow struct {
 	Status      string
 }
 
-// GetFollowers คืนรายชื่อคนที่ follow userID (accepted เท่านั้น)
 func (r *repository) GetFollowers(userID uint) ([]listRow, error) {
 	var rows []listRow
 	err := r.db.
@@ -143,7 +130,6 @@ func (r *repository) GetFollowers(userID uint) ([]listRow, error) {
 	return rows, err
 }
 
-// GetFollowing คืนรายชื่อคนที่ userID follow (accepted เท่านั้น)
 func (r *repository) GetFollowing(userID uint) ([]listRow, error) {
 	var rows []listRow
 	err := r.db.
@@ -156,7 +142,6 @@ func (r *repository) GetFollowing(userID uint) ([]listRow, error) {
 	return rows, err
 }
 
-// GetPendingRequests คืน pending requests ที่รอ userID approve
 func (r *repository) GetPendingRequests(userID uint) ([]listRow, error) {
 	var rows []listRow
 	err := r.db.

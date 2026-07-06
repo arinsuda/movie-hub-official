@@ -16,7 +16,6 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-// POST /users/:userId/follow
 func (h *Handler) Follow(c fiber.Ctx) error {
 	targetID, err := parseID(c, "userId")
 	if err != nil {
@@ -31,7 +30,6 @@ func (h *Handler) Follow(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(resp)
 }
 
-// DELETE /users/:userId/follow
 func (h *Handler) Unfollow(c fiber.Ctx) error {
 	targetID, err := parseID(c, "userId")
 	if err != nil {
@@ -45,7 +43,6 @@ func (h *Handler) Unfollow(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// GET /users/:userId/followers
 func (h *Handler) GetFollowers(c fiber.Ctx) error {
 	userID, err := parseID(c, "userId")
 	if err != nil {
@@ -59,7 +56,6 @@ func (h *Handler) GetFollowers(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"followers": list})
 }
 
-// GET /users/:userId/following
 func (h *Handler) GetFollowing(c fiber.Ctx) error {
 	userID, err := parseID(c, "userId")
 	if err != nil {
@@ -73,7 +69,6 @@ func (h *Handler) GetFollowing(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"following": list})
 }
 
-// GET /users/:userId/follow-requests  (เฉพาะเจ้าของ)
 func (h *Handler) GetPendingRequests(c fiber.Ctx) error {
 	userID, err := parseID(c, "userId")
 	if err != nil {
@@ -88,7 +83,6 @@ func (h *Handler) GetPendingRequests(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"requests": list})
 }
 
-// POST /users/:userId/follow-requests/:followerId/accept
 func (h *Handler) AcceptRequest(c fiber.Ctx) error {
 	followerID, err := parseID(c, "followerId")
 	if err != nil {
@@ -102,7 +96,6 @@ func (h *Handler) AcceptRequest(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// DELETE /users/:userId/follow-requests/:followerId
 func (h *Handler) RejectRequest(c fiber.Ctx) error {
 	followerID, err := parseID(c, "followerId")
 	if err != nil {
@@ -115,8 +108,6 @@ func (h *Handler) RejectRequest(c fiber.Ctx) error {
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
-
-// ── helpers ───────────────────────────────────────────────────────────────────
 
 func parseID(c fiber.Ctx, param string) (uint, error) {
 	id, err := strconv.Atoi(c.Params(param))

@@ -64,8 +64,6 @@ func (h *Handler) Unlike(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// — helpers —
-
 func parseUserID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("userId"))
 	if err != nil || id <= 0 {

@@ -146,7 +146,7 @@ func runSQLMigrations(db *gorm.DB) error {
 }
 
 func seedInitialData(db *gorm.DB) error {
-	// 1. Seed Roles
+
 	roles := []user_module.Role{
 		{RoleName: user_module.RoleAdmin},
 		{RoleName: user_module.RoleUser},
@@ -158,14 +158,13 @@ func seedInitialData(db *gorm.DB) error {
 	}
 	log.Println("✅ Roles seeded")
 
-	// 2. Seed Admin Account
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminUsername := os.Getenv("ADMIN_USERNAME")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 
 	if adminEmail != "" && adminPassword != "" {
 		var count int64
-		// เช็คว่ามี admin อยู่หรือยัง
+
 		db.Model(&user_module.User{}).Where("email = ?", adminEmail).Count(&count)
 
 		if count == 0 {
@@ -174,7 +173,6 @@ func seedInitialData(db *gorm.DB) error {
 				return err
 			}
 
-			// ดึง ID ของ Role Admin (สมมติว่า RoleAdmin คือ "admin")
 			var roleAdmin user_module.Role
 			db.Where("role_name = ?", user_module.RoleAdmin).First(&roleAdmin)
 
@@ -183,7 +181,6 @@ func seedInitialData(db *gorm.DB) error {
 				Email:    adminEmail,
 				Password: string(hashedPassword),
 				RoleID:   roleAdmin.ID,
-				// ถ้ามี field อื่นที่จำเป็น เช่น IsActive ให้ใส่เพิ่มที่นี่
 			}
 
 			if err := db.Create(adminUser).Error; err != nil {

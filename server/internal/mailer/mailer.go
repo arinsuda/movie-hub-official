@@ -42,8 +42,6 @@ func (m *Mailer) send(to, subject, htmlBody string) error {
 	return nil
 }
 
-// buildVerifyEmailBody: ปรับให้ใช้โครง card เดียวกับ email_change_mailer.go
-// (wordmark REMOV + เส้นแดงบาง, dark card #0f0f0f border #1c1c1c) เพื่อความสม่ำเสมอของทุกอีเมลในระบบ
 func buildVerifyEmailBody(username, verifyURL string) string {
 	return fmt.Sprintf(`
 <!DOCTYPE html>

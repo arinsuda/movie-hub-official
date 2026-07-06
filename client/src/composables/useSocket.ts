@@ -1,15 +1,11 @@
 import { io, type Socket } from "socket.io-client"
 import { ref } from "vue"
 
-// ปรับให้ตรงกับ backend ของคุณ — ถ้า BE รันคนละพอร์ต/โดเมนกับ REST API
-// ให้ตั้งค่า VITE_SOCKET_URL แยกไว้ใน .env
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_BASE_URL ||
   window.location.origin
 
-// เก็บ instance ไว้แบบ module-level (singleton) กันสร้างซ้ำเวลา component
-// หลายตัวเรียก useSocket() พร้อมกัน
 let socket: Socket | null = null
 const isConnected = ref(false)
 const isConnecting = ref(false)
@@ -21,15 +17,15 @@ export function useSocket() {
    * ถ้า backend ใช้ cookie/JWT อยู่แล้วผ่าน withCredentials ก็ยังส่ง userId
    * เป็น fallback ไว้เผื่อ server อยากใช้ยืนยันห้องอีกชั้น
    */
-  function connect(userId: number): Socket {
+  function connect(accessToken: string): Socket {
     if (socket?.connected || isConnecting.value) return socket as Socket
 
     isConnecting.value = true
 
     socket = io(SOCKET_URL, {
-      withCredentials: true, // ส่ง cookie (httpOnly session/JWT) ไปด้วย
+      withCredentials: true,
       transports: ["websocket", "polling"],
-      auth: { userId },
+      auth: { token: accessToken },
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1500,
@@ -39,10 +35,8 @@ export function useSocket() {
     socket.on("connect", () => {
       isConnected.value = true
       isConnecting.value = false
-      // ให้ server join socket นี้เข้าห้องส่วนตัวของ user
-      // (อีกทางคือให้ server อ่าน userId จาก auth handshake แล้ว join ให้เองเลยก็ได้
-      // ถ้าทำแบบนั้นตัด emit "join" ทิ้งได้)
-      socket?.emit("join", `user:${userId}`)
+
+      socket?.emit("join", `user:${accessToken}`)
     })
 
     socket.on("disconnect", reason => {

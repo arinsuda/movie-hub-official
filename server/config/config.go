@@ -10,12 +10,17 @@ import (
 type Config struct {
 	Port       string
 	AppBaseURL string
+	CORS       CORSConfig
 	DB         DBConfig
 	TMDB       TMDBConfig
 	JWT        JWTConfig
 	SMTP       SMTPConfig
 	Cookie     CookieConfig
 	MinIO      MinIOConfig
+}
+
+type CORSConfig struct {
+	AllowedOrigin string
 }
 
 type DBConfig struct {
@@ -66,6 +71,9 @@ func Load() (*Config, error) {
 	return &Config{
 		Port:       getEnv("PORT", "8080"),
 		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:8080"),
+		CORS: CORSConfig{
+			AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
+		},
 		DB: DBConfig{
 			Host:     requireEnv("POSTGRES_HOST"),
 			User:     requireEnv("POSTGRES_USER"),

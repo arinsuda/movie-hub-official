@@ -8,33 +8,32 @@ import (
 	"gorm.io/gorm"
 )
 
-// UserProvider interface สำหรับดึงข้อมูล user (ตัดการ import circular)
 type UserProvider interface {
 	FindByID(id uint) (*user_module.User, int, int, int, error)
-	FindFollowerIDs(userID uint) ([]uint, error) // ดึง id ของ followers ทั้งหมด
+	FindFollowerIDs(userID uint) ([]uint, error)
 }
 
 type Service struct {
 	repo         *repository
 	userProvider UserProvider
+	hub          *Hub
 }
 
-func NewService(db *gorm.DB, userProvider UserProvider) *Service {
+func NewService(db *gorm.DB, userProvider UserProvider, hub *Hub) *Service {
 	return &Service{
 		repo:         newRepository(db),
 		userProvider: userProvider,
+		hub:          hub,
 	}
 }
 
-// ─── Read Operations ──────────────────────────────────────────────────────────
-
 func (s *Service) ListNotifications(ctx context.Context, userID uint, q ListNotificationsQuery) (*NotificationListResponse, error) {
-	rows, total, err := s.repo.FindByUser(userID, q)
+	rows, total, err := s.repo.FindByUser(ctx, userID, q)
 	if err != nil {
 		return nil, err
 	}
 
-	unread, err := s.repo.CountUnread(userID)
+	unread, err := s.repo.CountUnread(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,11 +42,7 @@ func (s *Service) ListNotifications(ctx context.Context, userID uint, q ListNoti
 
 	responses := make([]NotificationResponse, 0, len(rows))
 	for _, n := range rows {
-		resp, err := s.toResponse(n)
-		if err != nil {
-			continue // skip ถ้า actor โดนลบ
-		}
-		responses = append(responses, resp)
+		responses = append(responses, s.toResponse(n))
 	}
 
 	return &NotificationListResponse{
@@ -60,60 +55,71 @@ func (s *Service) ListNotifications(ctx context.Context, userID uint, q ListNoti
 }
 
 func (s *Service) GetUnreadCount(ctx context.Context, userID uint) (int64, error) {
-	return s.repo.CountUnread(userID)
+	return s.repo.CountUnread(ctx, userID)
 }
 
-// ─── Mark / Delete ────────────────────────────────────────────────────────────
-
 func (s *Service) MarkRead(ctx context.Context, userID uint, req MarkReadRequest) error {
-	return s.repo.MarkRead(userID, req.IDs)
+	if err := s.repo.MarkRead(ctx, userID, req.IDs); err != nil {
+		return err
+	}
+	s.hub.EmitRead(userID, req.IDs)
+	if count, err := s.repo.CountUnread(ctx, userID); err == nil {
+		s.hub.EmitUnreadCount(userID, count)
+	}
+	return nil
 }
 
 func (s *Service) DeleteNotifications(ctx context.Context, userID uint, ids []uint) error {
-	return s.repo.DeleteByUser(userID, ids)
+	if err := s.repo.DeleteByUser(ctx, userID, ids); err != nil {
+		return err
+	}
+	s.hub.EmitDeleted(userID, ids)
+	return nil
 }
 
-// ─── Push helpers (เรียกจาก modules อื่น) ────────────────────────────────────
+func (s *Service) createAndEmit(ctx context.Context, ns []Notification) error {
+	if len(ns) == 0 {
+		return nil
+	}
+	if err := s.repo.CreateBatch(ctx, ns); err != nil {
+		return err
+	}
+	for _, n := range ns {
+		s.hub.EmitNew(n.UserID, s.toResponse(n))
+	}
+	return nil
+}
 
-// PushFollowedYou แจ้ง targetUser ว่ามีคน follow
 func (s *Service) PushFollowedYou(ctx context.Context, targetUserID, actorID uint, actorUsername string) error {
-	return s.repo.Create(&Notification{
+	n := Notification{
 		UserID:    targetUserID,
 		ActorID:   &actorID,
 		Type:      NotifFollowedYou,
 		TargetID:  &actorID,
 		TargetRef: ptr("user"),
 		Message:   fmt.Sprintf("%s started following you", actorUsername),
-	})
+	}
+	return s.createAndEmit(ctx, []Notification{n})
 }
 
-// PushMovieNowPlaying แจ้ง users ที่เพิ่มหนังใน watchlist ว่าหนังเข้าฉายแล้ว
-// userIDs = รายชื่อ users ที่ต้องการแจ้ง, movieID & movieTitle = ข้อมูลหนัง
 func (s *Service) PushMovieNowPlaying(ctx context.Context, userIDs []uint, movieID uint, movieTitle string) error {
-	if len(userIDs) == 0 {
-		return nil
-	}
-
 	ns := make([]Notification, 0, len(userIDs))
 	for _, uid := range userIDs {
 		ns = append(ns, Notification{
 			UserID:    uid,
-			ActorID:   nil, // system notification
+			ActorID:   nil,
 			Type:      NotifMovieNowPlaying,
 			TargetID:  &movieID,
 			TargetRef: ptr("movie"),
 			Message:   fmt.Sprintf(`"%s" is now playing — time to watch!`, movieTitle),
 		})
 	}
-	return s.repo.CreateBatch(ns)
+	return s.createAndEmit(ctx, ns)
 }
 
-// PushFollowingActivity fan-out notification ไปหา followers ของ actorID
-// เรียกได้จากหลาย event: review, like, watchlist
 func (s *Service) PushFollowingActivity(
 	ctx context.Context,
 	actorID uint,
-	actorUsername string,
 	notifType NotificationType,
 	targetID *uint,
 	targetRef *string,
@@ -122,9 +128,6 @@ func (s *Service) PushFollowingActivity(
 	followerIDs, err := s.userProvider.FindFollowerIDs(actorID)
 	if err != nil {
 		return err
-	}
-	if len(followerIDs) == 0 {
-		return nil
 	}
 
 	ns := make([]Notification, 0, len(followerIDs))
@@ -138,36 +141,34 @@ func (s *Service) PushFollowingActivity(
 			Message:   message,
 		})
 	}
-	return s.repo.CreateBatch(ns)
+	return s.createAndEmit(ctx, ns)
 }
 
-// PushFollowingReviewed shortcut สำหรับ review event
 func (s *Service) PushFollowingReviewed(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
-	rid := reviewID
 	ref := "review"
 	msg := fmt.Sprintf("%s reviewed %q", actorUsername, movieTitle)
-	return s.PushFollowingActivity(ctx, actorID, actorUsername, NotifFollowingReviewed, &rid, &ref, msg)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingReviewed, &reviewID, &ref, msg)
 }
 
-// PushFollowingLikedReview shortcut สำหรับ like event
 func (s *Service) PushFollowingLikedReview(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
-	rid := reviewID
 	ref := "review"
 	msg := fmt.Sprintf("%s liked a review of %q", actorUsername, movieTitle)
-	return s.PushFollowingActivity(ctx, actorID, actorUsername, NotifFollowingLikedReview, &rid, &ref, msg)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingLikedReview, &reviewID, &ref, msg)
 }
 
-// PushFollowingAddedWatchlist shortcut สำหรับ watchlist event
 func (s *Service) PushFollowingAddedWatchlist(ctx context.Context, actorID uint, actorUsername string, movieID uint, movieTitle string) error {
-	mid := movieID
 	ref := "movie"
 	msg := fmt.Sprintf("%s added %q to their watchlist", actorUsername, movieTitle)
-	return s.PushFollowingActivity(ctx, actorID, actorUsername, NotifFollowingAddedWatchlist, &mid, &ref, msg)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingAddedWatchlist, &movieID, &ref, msg)
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+func (s *Service) PushFollowingAddedWatched(ctx context.Context, actorID uint, actorUsername string, movieID uint, movieTitle string) error {
+	ref := "movie"
+	msg := fmt.Sprintf("%s marked %q as watched", actorUsername, movieTitle)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingAddedWatched, &movieID, &ref, msg)
+}
 
-func (s *Service) toResponse(n Notification) (NotificationResponse, error) {
+func (s *Service) toResponse(n Notification) NotificationResponse {
 	resp := NotificationResponse{
 		ID:        n.ID,
 		Type:      n.Type,
@@ -180,8 +181,7 @@ func (s *Service) toResponse(n Notification) (NotificationResponse, error) {
 	}
 
 	if n.ActorID != nil {
-		actor, _, _, _, err := s.userProvider.FindByID(*n.ActorID)
-		if err == nil {
+		if actor, _, _, _, err := s.userProvider.FindByID(*n.ActorID); err == nil {
 			resp.Actor = &ActorSummary{
 				ID:          actor.ID,
 				Username:    actor.Username,
@@ -191,7 +191,7 @@ func (s *Service) toResponse(n Notification) (NotificationResponse, error) {
 		}
 	}
 
-	return resp, nil
+	return resp
 }
 
 func ptr[T any](v T) *T { return &v }
