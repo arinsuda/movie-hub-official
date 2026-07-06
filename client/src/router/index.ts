@@ -21,13 +21,11 @@ const router = createRouter({
       path: "/login",
       name: "login",
       component: () => import("@/views/auth/LoginView.vue"),
-      meta: { guestOnly: true },
     },
     {
       path: "/register",
       name: "register",
       component: () => import("@/views/auth/RegisterView.vue"),
-      meta: { guestOnly: true },
     },
     {
       path: "/check-email",
@@ -43,13 +41,11 @@ const router = createRouter({
       path: "/forgot-password",
       name: "forgot-password",
       component: () => import("@/views/auth/ForgotPasswordView.vue"),
-      meta: { guestOnly: true },
     },
     {
       path: "/reset-password",
       name: "reset-password",
       component: () => import("@/views/auth/ResetPasswordView.vue"),
-      meta: { guestOnly: true },
     },
 
     // ── Onboarding (protected, no MainLayout/Navbar) ───────────
@@ -57,7 +53,6 @@ const router = createRouter({
       path: "/onboarding",
       name: "onboarding",
       component: () => import("@/views/onboarding/FavoriteGenreView.vue"),
-      meta: { requiresAuth: true },
     },
 
     // ── Main (protected, with MainLayout + Navbar) ─────────────
