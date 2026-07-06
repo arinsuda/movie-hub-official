@@ -17,7 +17,8 @@ export function useSocket() {
    * ถ้า backend ใช้ cookie/JWT อยู่แล้วผ่าน withCredentials ก็ยังส่ง userId
    * เป็น fallback ไว้เผื่อ server อยากใช้ยืนยันห้องอีกชั้น
    */
-  function connect(accessToken: string): Socket {
+  // useSocket.ts
+  function connect(): Socket {
     if (socket?.connected || isConnecting.value) return socket as Socket
 
     isConnecting.value = true
@@ -25,7 +26,6 @@ export function useSocket() {
     socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket", "polling"],
-      auth: { token: accessToken },
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1500,
@@ -35,22 +35,18 @@ export function useSocket() {
     socket.on("connect", () => {
       isConnected.value = true
       isConnecting.value = false
-
-      socket?.emit("join", `user:${accessToken}`)
+      // ไม่ต้อง emit join แล้ว — backend join ห้องให้อัตโนมัติจาก cookie
     })
 
     socket.on("disconnect", reason => {
       isConnected.value = false
-      if (import.meta.env.DEV) {
-        console.warn("[socket] disconnected:", reason)
-      }
+      if (import.meta.env.DEV) console.warn("[socket] disconnected:", reason)
     })
 
     socket.on("connect_error", err => {
       isConnecting.value = false
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV)
         console.error("[socket] connect_error:", err.message)
-      }
     })
 
     return socket

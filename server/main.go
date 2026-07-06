@@ -20,7 +20,7 @@ import (
 )
 
 func main() {
-	// Load .env (dev only — production ควรใช้ env จาก system โดยตรง)
+
 	if err := godotenv.Load("../.env"); err != nil {
 		log.Println("⚠️  No .env file found, falling back to system env")
 	}
@@ -47,9 +47,6 @@ func main() {
 	m := mailer.New(cfg.SMTP)
 	notifHub := router.Register(app, database.DB, cfg, m)
 
-	// ── Socket.IO server แยกพอร์ต ─────────────────────────────
-	// รันแยกจาก Fiber เพราะ fasthttp adapter ของ Fiber ไม่รองรับ
-	// WebSocket upgrade ของ engine.io ได้แบบสมบูรณ์
 	socketAddr := ":8081"
 	socketSrv := &http.Server{
 		Addr: socketAddr,
@@ -65,7 +62,6 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 

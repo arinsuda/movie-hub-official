@@ -1,6 +1,7 @@
 package notification_module
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -35,9 +36,14 @@ func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
 
 	io.On("connection", func(clients ...any) {
 		client := clients[0].(*socket.Socket)
+		log.Printf("DEBUG handshake headers: %+v", client.Handshake().Headers)
 
-		auth := client.Handshake().Auth
-		token, _ := auth["token"].(string)
+		token := extractAccessTokenFromRequest(client.Handshake().Headers)
+		if token == "" {
+			_ = client.Emit("error", "unauthorized")
+			client.Disconnect(true)
+			return
+		}
 
 		userID, err := verifier.VerifyToken(token)
 		if err != nil {
@@ -50,6 +56,40 @@ func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
 	})
 
 	return h
+}
+
+func extractAccessTokenFromRequest(headers types.IncomingHttpHeaders) string {
+	raw, ok := headers["Cookie"]
+	if !ok {
+		raw, ok = headers["cookie"]
+	}
+	if !ok {
+		return ""
+	}
+
+	var cookieHeader string
+	switch v := raw.(type) {
+	case string:
+		cookieHeader = v
+	case []string:
+		if len(v) == 0 {
+			return ""
+		}
+		cookieHeader = v[0]
+	default:
+		return ""
+	}
+
+	if cookieHeader == "" {
+		return ""
+	}
+
+	dummyReq := &http.Request{Header: http.Header{"Cookie": []string{cookieHeader}}}
+	cookie, err := dummyReq.Cookie("access_token")
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
 }
 
 func roomFor(userID uint) socket.Room {

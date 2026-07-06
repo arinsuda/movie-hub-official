@@ -86,7 +86,6 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted } from "vue"
   import { useRouter } from "vue-router"
   import {
     Bell,
@@ -152,20 +151,14 @@
       ;(el as any)._clickOutsideHandler = (e: MouseEvent) => {
         if (!el.contains(e.target as Node)) binding.value()
       }
-      document.addEventListener("click", (el as any)._clickOutsideHandler, true)
+
+      document.addEventListener("click", (el as any)._clickOutsideHandler)
     },
+
     unmounted(el: HTMLElement) {
-      document.removeEventListener(
-        "click",
-        (el as any)._clickOutsideHandler,
-        true,
-      )
+      document.removeEventListener("click", (el as any)._clickOutsideHandler)
     },
   }
-
-  onMounted(() => {
-    if (store.notifications.length === 0) store.fetchNotifications(1)
-  })
 </script>
 
 <style scoped>

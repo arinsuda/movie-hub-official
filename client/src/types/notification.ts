@@ -1,5 +1,3 @@
-
-
 export type NotificationType =
   | "follow"
   | "review_like"
@@ -46,9 +44,8 @@ export interface NotificationListResponse {
 export interface SocketNotificationNewPayload extends AppNotification {}
 
 export interface SocketNotificationReadPayload {
-  id: number
+  ids: number[]
 }
-
 export interface SocketNotificationDeletedPayload {
-  id: number
+  ids: number[]
 }

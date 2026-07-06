@@ -11,6 +11,12 @@ import type {
 } from "@/types/notification"
 
 export const useNotificationStore = defineStore("notification", () => {
+  const DEFAULT_PAGINATION: NotificationPaginationMeta = {
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 0,
+  }
   const notifications = ref<AppNotification[]>([])
   const unreadCount = ref(0)
   const loading = ref(false)
@@ -18,12 +24,7 @@ export const useNotificationStore = defineStore("notification", () => {
   const error = ref<string | null>(null)
   const isPanelOpen = ref(false)
 
-  const pagination = ref<NotificationPaginationMeta>({
-    page: 1,
-    limit: 20,
-    total: 0,
-    total_pages: 0,
-  })
+  const pagination = ref<NotificationPaginationMeta>({ ...DEFAULT_PAGINATION })
 
   const hasMore = computed(
     () => pagination.value.page < pagination.value.total_pages,
@@ -32,18 +33,33 @@ export const useNotificationStore = defineStore("notification", () => {
   let socketBound = false
 
   async function fetchNotifications(page = 1) {
+    if (loading.value || loadingMore.value) return
+
+    const limit = pagination.value?.limit ?? DEFAULT_PAGINATION.limit
+
     if (page === 1) loading.value = true
     else loadingMore.value = true
+
     error.value = null
 
     try {
-      const res = await notiApi.list({ page, limit: pagination.value.limit })
+      const res = await notiApi.list({ page, limit })
+
+      const nextNotifications = res.data.notifications ?? []
+
       notifications.value =
         page === 1
-          ? res.data.notifications
-          : [...notifications.value, ...res.data.notifications]
-      unreadCount.value = res.data.unread_count
-      pagination.value = res.data.pagination
+          ? nextNotifications
+          : [...notifications.value, ...nextNotifications]
+
+      unreadCount.value = res.data.unread_count ?? 0
+
+      pagination.value = {
+        ...DEFAULT_PAGINATION,
+        ...(res.data.pagination ?? {}),
+        page,
+        limit,
+      }
     } catch (err) {
       console.error("fetchNotifications failed:", err)
       error.value = "โหลดการแจ้งเตือนไม่สำเร็จ"
@@ -148,21 +164,25 @@ export const useNotificationStore = defineStore("notification", () => {
     pagination.value.total++
   }
 
-  function handleRemoteRead({ id }: SocketNotificationReadPayload) {
-    const target = notifications.value.find(n => n.id === id)
-    if (target && !target.is_read) {
-      target.is_read = true
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
-    }
+  function handleRemoteRead({ ids }: SocketNotificationReadPayload) {
+    ids.forEach(id => {
+      const target = notifications.value.find(n => n.id === id)
+      if (target && !target.is_read) {
+        target.is_read = true
+        unreadCount.value = Math.max(0, unreadCount.value - 1)
+      }
+    })
   }
 
-  function handleRemoteDelete({ id }: SocketNotificationDeletedPayload) {
-    const idx = notifications.value.findIndex(n => n.id === id)
-    if (idx === -1) return
-    const [removed] = notifications.value.splice(idx, 1)
-    if (removed && !removed.is_read) {
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
-    }
+  function handleRemoteDelete({ ids }: SocketNotificationDeletedPayload) {
+    ids.forEach(id => {
+      const idx = notifications.value.findIndex(n => n.id === id)
+      if (idx === -1) return
+      const [removed] = notifications.value.splice(idx, 1)
+      if (removed && !removed.is_read) {
+        unreadCount.value = Math.max(0, unreadCount.value - 1)
+      }
+    })
   }
 
   /**
@@ -172,10 +192,10 @@ export const useNotificationStore = defineStore("notification", () => {
    *  - "notification:read"    -> { id }  (เผื่อ mark read จากอุปกรณ์อื่น)
    *  - "notification:deleted" -> { id }
    */
-  function bindSocket(userId: number) {
+  function bindSocket() {
     if (socketBound) return
     const { connect, on } = useSocket()
-    connect(userId)
+    connect()
 
     on<SocketNotificationNewPayload>("notification:new", payload => {
       prependNotification(payload)
@@ -183,11 +203,18 @@ export const useNotificationStore = defineStore("notification", () => {
     })
 
     on<SocketNotificationReadPayload>("notification:read", handleRemoteRead)
+
     on<SocketNotificationDeletedPayload>(
       "notification:deleted",
       handleRemoteDelete,
     )
 
+    on<{ unread_count: number }>(
+      "notification:unread_count",
+      ({ unread_count }) => {
+        unreadCount.value = unread_count
+      },
+    )
     socketBound = true
   }
 
@@ -198,8 +225,16 @@ export const useNotificationStore = defineStore("notification", () => {
   }
 
   function togglePanel() {
-    isPanelOpen.value = !isPanelOpen.value
-    if (isPanelOpen.value && notifications.value.length === 0) {
+    const nextOpen = !isPanelOpen.value
+    isPanelOpen.value = nextOpen
+
+    if (!nextOpen) return
+
+    if (
+      notifications.value.length === 0 &&
+      !loading.value &&
+      !loadingMore.value
+    ) {
       fetchNotifications(1)
     }
   }
@@ -211,7 +246,7 @@ export const useNotificationStore = defineStore("notification", () => {
   function reset() {
     notifications.value = []
     unreadCount.value = 0
-    pagination.value = { page: 1, limit: 20, total: 0, total_pages: 0 }
+    pagination.value = { ...DEFAULT_PAGINATION }
     isPanelOpen.value = false
     unbindSocket()
   }

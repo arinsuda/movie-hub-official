@@ -110,7 +110,7 @@
           <button
             class="icon-btn"
             :class="{ 'has-unread': notificationStore.unreadCount > 0 }"
-            @click="notificationStore.togglePanel()"
+            @click.stop="toggleNotificationPanel"
           >
             <Bell :size="18" />
             <span v-if="notificationStore.unreadCount > 0" class="bell-badge">{{
@@ -364,6 +364,12 @@
     }
   }
 
+  function toggleNotificationPanel() {
+    userMenuOpen.value = false
+    mobileMenuOpen.value = false
+    notificationStore.togglePanel()
+  }
+
   async function fetchSuggestions(query: string) {
     if (!query.trim()) {
       suggestions.value = []
@@ -487,7 +493,7 @@
     userId => {
       if (userId) {
         notificationStore.fetchUnreadCount()
-        notificationStore.bindSocket(userId)
+        notificationStore.bindSocket()
       } else {
         notificationStore.reset()
       }
