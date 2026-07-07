@@ -304,7 +304,6 @@ func (h *Handler) GetRecommended(c fiber.Ctx) error {
 		return h.GetPopular(c)
 	}
 
-	// ดึงหลาย page แล้วรวมกัน เพื่อให้ได้หนังมากพอ
 	var allResults []tmdb.Movie
 
 	for page := 1; page <= 3; page++ {
@@ -331,3 +330,44 @@ func (h *Handler) GetRecommended(c fiber.Ctx) error {
 		"total_results": len(allResults),
 	})
 }
+
+func (h *Handler) SearchActor(c fiber.Ctx) error {
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "กรุณาระบุคำค้นหา"})
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+
+	result, err := tmdb.SearchPerson(query, page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ค้นหานักแสดงไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetMoviesByActor(c fiber.Ctx) error {
+	personID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	result, err := tmdb.GetPersonMovieCredits(personID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลผลงานไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetSeriesByActor(c fiber.Ctx) error {
+	personID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	result, err := tmdb.GetPersonTVCredits(personID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลผลงานไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+ 

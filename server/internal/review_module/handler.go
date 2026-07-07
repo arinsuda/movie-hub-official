@@ -350,9 +350,9 @@ func parseReviewFilter(c fiber.Ctx) (ReviewFilter, error) {
 //	"series" → "tv"
 func routeToMediaType(route string) string {
 	switch route {
-	case "movies":
+	case "movies", "movie":
 		return "movie"
-	case "series":
+	case "series", "tv":
 		return "tv"
 	default:
 		return ""

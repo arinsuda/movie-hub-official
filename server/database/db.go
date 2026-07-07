@@ -161,6 +161,7 @@ func seedInitialData(db *gorm.DB) error {
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	adminUsername := os.Getenv("ADMIN_USERNAME")
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
+	adminVerifiedEmailAt := time.Now().UTC()
 
 	if adminEmail != "" && adminPassword != "" {
 		var count int64
@@ -181,6 +182,7 @@ func seedInitialData(db *gorm.DB) error {
 				Email:    adminEmail,
 				Password: string(hashedPassword),
 				RoleID:   roleAdmin.ID,
+				VerifiedEmailAt: &adminVerifiedEmailAt,
 			}
 
 			if err := db.Create(adminUser).Error; err != nil {

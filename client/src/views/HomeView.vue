@@ -88,12 +88,15 @@
               >
                 <PopupCard
                   :movie="movie"
-                  :trailer="getTrailer(movie.id)"
+                  :current-trailer="getState(movie.id).currentTrailer.value"
+                  :trailer-unavailable="
+                    getState(movie.id).trailerUnavailable.value
+                  "
                   :is-iframe-mounted="getState(movie.id).isIframeMounted.value"
                   :is-iframe-loaded="getState(movie.id).isIframeLoaded.value"
                   :show-skeleton="getState(movie.id).showSkeleton.value"
                   :show-fallback="getState(movie.id).showFallback.value"
-                  @iframe-load="getState(movie.id).onIframeLoad()"
+                  :attach-player="getState(movie.id).attachPlayer"
                 />
               </div>
             </Transition>
@@ -124,7 +127,10 @@
             @mouseenter="onCardEnter(movie.id, i, 'now', $event)"
             @mouseleave="onCardLeave(movie.id, 'now')"
           >
-            <RouterLink :to="{ name: 'movie-detail', params: { id: movie.id } }" class="poster-card">
+            <RouterLink
+              :to="{ name: 'movie-detail', params: { id: movie.id } }"
+              class="poster-card"
+            >
               <img
                 v-if="movie.poster_path && !failedPosters.has(movie.id)"
                 :src="`https://image.tmdb.org/t/p/w342${movie.poster_path}`"
@@ -147,12 +153,15 @@
               >
                 <PopupCard
                   :movie="movie"
-                  :trailer="getTrailer(movie.id)"
+                  :current-trailer="getState(movie.id).currentTrailer.value"
+                  :trailer-unavailable="
+                    getState(movie.id).trailerUnavailable.value
+                  "
                   :is-iframe-mounted="getState(movie.id).isIframeMounted.value"
                   :is-iframe-loaded="getState(movie.id).isIframeLoaded.value"
                   :show-skeleton="getState(movie.id).showSkeleton.value"
                   :show-fallback="getState(movie.id).showFallback.value"
-                  @iframe-load="getState(movie.id).onIframeLoad()"
+                  :attach-player="getState(movie.id).attachPlayer"
                 />
               </div>
             </Transition>
@@ -185,7 +194,7 @@
   import type { Movie } from "@/types"
   import PopupCard from "@/components/movie/PopupCard.vue"
   import {
-    resolveTrailer,
+    resolveTrailerCandidates,
     useTrailerPreview,
     type ResolvedTrailer,
   } from "@/composables/useTrailerPreview"
@@ -226,7 +235,6 @@
 
   // ── Per-card trailer state store ──────────────────────────
   const cardStates = new Map<number, ReturnType<typeof useTrailerPreview>>()
-  const cardTrailers = new Map<number, ResolvedTrailer | null>()
   const videoCache = new Map<number, any[]>()
 
   let insidePopup = false
@@ -269,26 +277,22 @@
     return cardStates.get(movieId)!
   }
 
-  function getTrailer(movieId: number): ResolvedTrailer | null {
-    return cardTrailers.get(movieId) ?? null
-  }
-
   async function fetchAndCacheTrailer(movie: Movie) {
-    if (cardTrailers.has(movie.id)) return
-    cardTrailers.set(movie.id, null)
+    if (videoCache.has(movie.id)) return
+    videoCache.set(movie.id, [])
 
     try {
       const res = await movieApi.getVideos(movie.id)
       const videos = res.data?.results ?? []
       videoCache.set(movie.id, videos)
-      const trailer = resolveTrailer(videos)
-      cardTrailers.set(movie.id, trailer)
+      const candidates = resolveTrailerCandidates(videos)
+      getState(movie.id).setCandidates(candidates)
 
-      if (hoveredMovieId.value === movie.id && trailer) {
+      if (hoveredMovieId.value === movie.id && candidates.length > 0) {
         getState(movie.id).scheduleMount()
       }
     } catch {
-      cardTrailers.set(movie.id, null)
+      getState(movie.id).setCandidates([])
     }
   }
 
@@ -312,8 +316,7 @@
     showTimer = setTimeout(() => {
       hoveredMovieKey.value = `${section}-${movieId}`
 
-      const trailer = getTrailer(movieId)
-      if (trailer) {
+      if (getState(movieId).currentTrailer.value) {
         getState(movieId).scheduleMount()
       }
     }, SHOW_DELAY)

@@ -20,9 +20,9 @@ type PaginatedResult[T any] struct {
 
 type Media struct {
 	ID        int    `json:"id"`
-	MediaType string `json:"media_type"` 
-	Title     string `json:"title"`      
-	PosterURL string `json:"poster_url"` 
+	MediaType string `json:"media_type"`
+	Title     string `json:"title"`
+	PosterURL string `json:"poster_url"`
 }
 
 type Movie struct {
@@ -110,4 +110,22 @@ type TVSeriesDetail struct {
 	Homepage            string              `json:"homepage"`
 	Genres              []Genre             `json:"genres"`
 	ProductionCompanies []ProductionCompany `json:"production_companies"`
+}
+
+type Person struct {
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	ProfilePath  string  `json:"profile_path"`
+	KnownForDept string  `json:"known_for_department"`
+	Popularity   float32 `json:"popularity"`
+}
+
+type PersonMovieCredits struct {
+	Cast []Movie `json:"cast"`
+	Crew []Movie `json:"crew"`
+}
+
+type PersonTVCredits struct {
+	Cast []TVSeries `json:"cast"`
+	Crew []TVSeries `json:"crew"`
 }

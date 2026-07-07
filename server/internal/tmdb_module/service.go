@@ -218,7 +218,6 @@ func GetSeriesGenres() ([]Genre, error) {
 
 func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error) {
 	params := pageParams(page)
-	// ✅ เปลี่ยน , เป็น | เพื่อให้ TMDB ใช้ OR แทน AND
 	orGenres := strings.ReplaceAll(withGenres, ",", "|")
 	params.Set("with_genres", orGenres)
 	params.Set("sort_by", "popularity.desc")
@@ -226,6 +225,37 @@ func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error
 	var result PaginatedResult[Movie]
 	if err := get("/discover/movie", params, &result); err != nil {
 		return nil, fmt.Errorf("DiscoverMovies: %w", err)
+	}
+	return &result, nil
+}
+
+func SearchPerson(query string, page int) (*PaginatedResult[Person], error) {
+	params := pageParams(page)
+	params.Set("query", query)
+
+	var result PaginatedResult[Person]
+	if err := get("/search/person", params, &result); err != nil {
+		return nil, fmt.Errorf("SearchPerson(%q): %w", query, err)
+	}
+	return &result, nil
+}
+
+func GetPersonMovieCredits(personID int) (*PersonMovieCredits, error) {
+	var result PersonMovieCredits
+	path := fmt.Sprintf("/person/%d/movie_credits", personID)
+
+	if err := get(path, nil, &result); err != nil {
+		return nil, fmt.Errorf("GetPersonMovieCredits(%d): %w", personID, err)
+	}
+	return &result, nil
+}
+
+func GetPersonTVCredits(personID int) (*PersonTVCredits, error) {
+	var result PersonTVCredits
+	path := fmt.Sprintf("/person/%d/tv_credits", personID)
+
+	if err := get(path, nil, &result); err != nil {
+		return nil, fmt.Errorf("GetPersonTVCredits(%d): %w", personID, err)
 	}
 	return &result, nil
 }
