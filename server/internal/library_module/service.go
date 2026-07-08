@@ -81,7 +81,7 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 		s.db.Model(&LibraryItem{}).
 			Where("user_id = ? AND list_type = 'watched' AND deleted_at IS NULL", userID).
 			Count(&watchedCount)
-		_, _ = s.achieveSvc.Track(userID, "watched_count", int(watchedCount))
+		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "watched_count", int(watchedCount))
 
 		s.trackLibraryTotal(userID)
 
@@ -91,8 +91,7 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 		s.db.Model(&LibraryItem{}).
 			Where("user_id = ? AND list_type = 'watchlist' AND deleted_at IS NULL", userID).
 			Count(&watchlistCount)
-		_, _ = s.achieveSvc.Track(userID, "watchlist_count", int(watchlistCount))
-
+		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "watchlist_count", int(watchlistCount))
 		s.trackLibraryTotal(userID)
 
 		if s.notifSvc != nil {
@@ -202,7 +201,7 @@ func (s *Service) trackLibraryTotal(userID uint) {
 	s.db.Model(&LibraryItem{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&total)
-	_, _ = s.achieveSvc.Track(userID, "library_total_count", int(total))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "library_total", int(total))
 }
 
 func (s *Service) getUserSummary(userID uint) (*users.User, error) {

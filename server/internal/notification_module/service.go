@@ -58,6 +58,10 @@ func (s *Service) GetUnreadCount(ctx context.Context, userID uint) (int64, error
 	return s.repo.CountUnread(ctx, userID)
 }
 
+func (s *Service) GetUnreadCountByCategory(ctx context.Context, userID uint) ([]UnreadByCategoryResponse, error) {
+	return s.repo.CountUnreadByCategory(ctx, userID)
+}
+
 func (s *Service) MarkRead(ctx context.Context, userID uint, req MarkReadRequest) error {
 	if err := s.repo.MarkRead(ctx, userID, req.IDs); err != nil {
 		return err
@@ -80,6 +84,11 @@ func (s *Service) DeleteNotifications(ctx context.Context, userID uint, ids []ui
 func (s *Service) createAndEmit(ctx context.Context, ns []Notification) error {
 	if len(ns) == 0 {
 		return nil
+	}
+	for i := range ns {
+		if ns[i].Category == "" {
+			ns[i].Category = categoryByType[ns[i].Type]
+		}
 	}
 	if err := s.repo.CreateBatch(ctx, ns); err != nil {
 		return err
@@ -195,3 +204,83 @@ func (s *Service) toResponse(n Notification) NotificationResponse {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func (s *Service) PushReviewLiked(ctx context.Context, reviewOwnerID, actorID, reviewID uint, actorUsername, movieTitle string) error {
+	if reviewOwnerID == actorID {
+		return nil
+	}
+	ref := "review"
+	n := Notification{
+		UserID: reviewOwnerID, ActorID: &actorID, Type: NotifReviewLiked,
+		TargetID: &reviewID, TargetRef: &ref,
+		Message: fmt.Sprintf("%s liked your review of %q", actorUsername, movieTitle),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+func (s *Service) PushReviewMarkedHelpful(ctx context.Context, reviewOwnerID, actorID, reviewID uint, actorUsername, movieTitle string) error {
+	if reviewOwnerID == actorID {
+		return nil
+	}
+	ref := "review"
+	n := Notification{
+		UserID: reviewOwnerID, ActorID: &actorID, Type: NotifReviewMarkedHelpful,
+		TargetID: &reviewID, TargetRef: &ref,
+		Message: fmt.Sprintf("%s marked your review of %q as helpful", actorUsername, movieTitle),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+func (s *Service) PushReviewCommented(ctx context.Context, reviewOwnerID, actorID, reviewID uint, actorUsername, movieTitle string) error {
+	if reviewOwnerID == actorID {
+		return nil
+	}
+	ref := "review"
+	n := Notification{
+		UserID: reviewOwnerID, ActorID: &actorID, Type: NotifReviewCommented,
+		TargetID: &reviewID, TargetRef: &ref,
+		Message: fmt.Sprintf("%s commented on your review of %q", actorUsername, movieTitle),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+// ── Fan-out: แจ้ง follower ของคนทำ action (ของเดิม + เพิ่มใหม่ 2 ตัว) ──
+
+func (s *Service) PushFollowingMarkedHelpful(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
+	ref := "review"
+	msg := fmt.Sprintf("%s marked a review of %q as helpful", actorUsername, movieTitle)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingMarkedHelpful, &reviewID, &ref, msg)
+}
+
+func (s *Service) PushFollowingCommented(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
+	ref := "review"
+	msg := fmt.Sprintf("%s commented on a review of %q", actorUsername, movieTitle)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingCommented, &reviewID, &ref, msg)
+}
+
+// ── Achievement ────────────────────────────────────────────────
+
+func (s *Service) PushAchievementUnlocked(ctx context.Context, userID, achievementID uint, achievementName string, expGained int) error {
+	ref := "achievement"
+	n := Notification{
+		UserID: userID, Type: NotifAchievementUnlocked,
+		TargetID: &achievementID, TargetRef: &ref,
+		Message: fmt.Sprintf("Achievement unlocked: %s (+%d EXP)", achievementName, expGained),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+// ── System ─────────────────────────────────────────────────────
+
+func (s *Service) PushEmailVerified(ctx context.Context, userID uint) error {
+	n := Notification{UserID: userID, Type: NotifEmailVerified, Message: "Your email has been verified"}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+func (s *Service) PushPasswordChanged(ctx context.Context, userID uint) error {
+	n := Notification{
+		UserID: userID, Type: NotifPasswordChanged,
+		Message: "Your password was changed. If this wasn't you, please contact support immediately.",
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}

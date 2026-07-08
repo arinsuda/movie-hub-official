@@ -70,7 +70,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc)
 	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc)
 	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc)
-	like_module.RegisterRoutes(protected, db, achieveModule.Service)
+	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc)
 
 	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)

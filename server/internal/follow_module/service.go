@@ -5,6 +5,7 @@ import (
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/shared"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
@@ -98,13 +99,13 @@ func (s *Service) onFollowAccepted(followerID, followeeID uint) {
 	s.db.Model(&UserFollow{}).
 		Where("follower_id = ? AND status = ?", followerID, StatusAccepted).
 		Count(&followingCount)
-	_, _ = s.achieveSvc.Track(followerID, "following_count", int(followingCount))
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followerID, "following_count", int(followingCount)) // ตัด _, _ = ออก
 
 	var followerCount int64
 	s.db.Model(&UserFollow{}).
 		Where("followee_id = ? AND status = ?", followeeID, StatusAccepted).
 		Count(&followerCount)
-	_, _ = s.achieveSvc.Track(followeeID, "follower_count", int(followerCount))
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followeeID, "follower_count", int(followerCount)) // ตัด _, _ = ออก
 
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(followerID); err == nil {

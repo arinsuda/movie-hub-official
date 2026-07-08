@@ -40,6 +40,9 @@ func (r *repository) FindByUser(ctx context.Context, userID uint, q ListNotifica
 	if q.Type != "" {
 		db = db.Where("type = ?", q.Type)
 	}
+	if q.Category != "" {
+		db = db.Where("category = ?", q.Category) // NEW
+	}
 
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -47,13 +50,22 @@ func (r *repository) FindByUser(ctx context.Context, userID uint, q ListNotifica
 	}
 
 	var rows []Notification
-	err := db.
-		Order("created_at DESC").
-		Limit(pageSize).
-		Offset((page - 1) * pageSize).
+	err := db.Order("created_at DESC").
+		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&rows).Error
 
 	return rows, total, err
+}
+
+// NEW: unread count แยกรายหมวด สำหรับ badge บนแท็บ
+func (r *repository) CountUnreadByCategory(ctx context.Context, userID uint) ([]UnreadByCategoryResponse, error) {
+	var rows []UnreadByCategoryResponse
+	err := r.db.WithContext(ctx).Model(&Notification{}).
+		Select("category, COUNT(*) as count").
+		Where("user_id = ? AND is_read = false", userID).
+		Group("category").
+		Scan(&rows).Error
+	return rows, err
 }
 
 func (r *repository) CountUnread(ctx context.Context, userID uint) (int64, error) {

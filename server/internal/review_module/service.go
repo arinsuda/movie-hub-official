@@ -7,6 +7,7 @@ import (
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/shared"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
@@ -75,7 +76,7 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	s.db.Model(&Review{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&reviewCount)
-	_, _ = s.achieveSvc.Track(userID, "review_count", int(reviewCount))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "review_count", int(reviewCount))
 
 	// ── Achievement: rating_one_star_count / rating_five_star_count ──
 	if req.Rating <= 1.0 {
@@ -83,21 +84,21 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		s.db.Model(&Review{}).
 			Where("user_id = ? AND rating <= 1.0 AND deleted_at IS NULL", userID).
 			Count(&oneStarCount)
-		_, _ = s.achieveSvc.Track(userID, "rating_one_star_count", int(oneStarCount))
+		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "rating_one_star_count", int(oneStarCount))
 	}
 	if req.Rating == 5.0 {
 		var fiveStarCount int64
 		s.db.Model(&Review{}).
 			Where("user_id = ? AND rating = 5.0 AND deleted_at IS NULL", userID).
 			Count(&fiveStarCount)
-		_, _ = s.achieveSvc.Track(userID, "rating_five_star_count", int(fiveStarCount))
+		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "rating_five_star_count", int(fiveStarCount))
 	}
 	if req.Rating < 3.0 {
 		var lowRatingCount int64
 		s.db.Model(&Review{}).
 			Where("user_id = ? AND rating < 3.0 AND deleted_at IS NULL", userID).
 			Count(&lowRatingCount)
-		_, _ = s.achieveSvc.Track(userID, "low_rating_count", int(lowRatingCount))
+		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "low_rating_count", int(lowRatingCount))
 	}
 
 	// ── Notification: fan-out ให้ followers ──────────────────────
@@ -267,7 +268,7 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 	// ── Achievement: review_like_given_count (ฝั่งคนกด like) ────
 	var likeGivenCount int64
 	s.db.Model(&ReviewLike{}).Where("user_id = ?", requesterID).Count(&likeGivenCount)
-	_, _ = s.achieveSvc.Track(requesterID, "review_like_given_count", int(likeGivenCount))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, requesterID, "review_like_given_count", int(likeGivenCount))
 
 	// ── Achievement: review_like_received_count (ฝั่งเจ้าของ review) ──
 	var likeReceivedCount int64
@@ -275,19 +276,15 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 		Joins("JOIN reviews ON reviews.id = review_likes.review_id").
 		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
 		Count(&likeReceivedCount)
-	_, _ = s.achieveSvc.Track(review.UserID, "review_like_received_count", int(likeReceivedCount))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, review.UserID, "review_like_received_count", int(likeReceivedCount))
 
 	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
-	if s.notifSvc != nil && review.UserID != requesterID {
+	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(requesterID); err == nil {
 			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
-			_ = s.notifSvc.PushFollowingLikedReview(
-				context.Background(),
-				requesterID,
-				actor.Username,
-				reviewID,
-				title,
-			)
+			ctx := context.Background()
+			_ = s.notifSvc.PushReviewLiked(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
+			_ = s.notifSvc.PushFollowingLikedReview(ctx, requesterID, actor.Username, reviewID, title)       // fan-out
 		}
 	}
 
@@ -335,19 +332,16 @@ func (s *Service) MarkHelpful(reviewID, requesterID uint) error {
 		Joins("JOIN reviews ON reviews.id = review_helpfuls.review_id").
 		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
 		Count(&helpfulReceivedCount)
-	_, _ = s.achieveSvc.Track(review.UserID, "review_helpful_received_count", int(helpfulReceivedCount))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, review.UserID, "review_helpful_received_count", int(helpfulReceivedCount))
 
 	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(requesterID); err == nil {
 			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
-			_ = s.notifSvc.PushFollowingLikedReview(
-				context.Background(),
-				requesterID,
-				actor.Username,
-				reviewID,
-				title,
-			)
+			ctx := context.Background()
+			// เดิม bug: เรียก PushFollowingLikedReview ผิด แก้เป็นนี่
+			_ = s.notifSvc.PushReviewMarkedHelpful(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
+			_ = s.notifSvc.PushFollowingMarkedHelpful(ctx, requesterID, actor.Username, reviewID, title)             // fan-out
 		}
 	}
 
@@ -375,6 +369,15 @@ func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentReq
 	comment := &ReviewComment{ReviewID: reviewID, UserID: requesterID, Body: req.Body}
 	if err := s.repo.CreateComment(comment); err != nil {
 		return nil, err
+	}
+
+	if s.notifSvc != nil {
+		if actor, err := s.getUserSummary(requesterID); err == nil {
+			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
+			ctx := context.Background()
+			_ = s.notifSvc.PushReviewCommented(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
+			_ = s.notifSvc.PushFollowingCommented(ctx, requesterID, actor.Username, reviewID, title)             // fan-out
+		}
 	}
 	return toCommentResponse(comment), nil
 }

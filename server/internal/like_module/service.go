@@ -1,10 +1,12 @@
 package like_module
 
 import (
+	"context"
 	"errors"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	"github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	usermodule "github.com/arinsuda/movie-hub/internal/user_module"
@@ -17,13 +19,15 @@ type Service struct {
 	repo       *repository
 	db         *gorm.DB
 	achieveSvc achievementsmodule.Service
+	notifSvc   *notification_module.Service
 }
 
-func NewService(db *gorm.DB, achieve achievementsmodule.Service) *Service {
+func NewService(db *gorm.DB, achieve achievementsmodule.Service, notif *notification_module.Service) *Service {
 	return &Service{
 		repo:       newRepository(db),
 		db:         db,
 		achieveSvc: achieve,
+		notifSvc:   notif,
 	}
 }
 
@@ -36,7 +40,7 @@ func (s *Service) Like(userID uint, mediaID int, mediaType movie_module.MediaTyp
 	s.db.Model(&MediaLike{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&count)
-	_, _ = s.achieveSvc.Track(userID, "like_count", int(count))
+	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "like_count", int(count))
 
 	return nil
 }
@@ -95,3 +99,4 @@ func (s *Service) GetLikes(ownerID, requesterID uint) ([]LikeResponse, error) {
 
 	return responses, nil
 }
+
