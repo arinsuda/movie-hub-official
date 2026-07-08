@@ -10,6 +10,7 @@ import (
 
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/mailer"
+	"github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"golang.org/x/crypto/bcrypt"
@@ -17,12 +18,13 @@ import (
 )
 
 type Service struct {
-	repo    *repository
-	jwt     *jwtManager
-	mailer  *mailer.Mailer
-	minio   *storage.MinIOClient
-	cfg     *config.Config
-	userSvc UserPasswordService
+	repo     *repository
+	jwt      *jwtManager
+	mailer   *mailer.Mailer
+	minio    *storage.MinIOClient
+	cfg      *config.Config
+	userSvc  UserPasswordService
+	notifSvc *notification_module.Service
 }
 
 type UserPasswordService interface {
@@ -34,13 +36,14 @@ func (s *Service) SetUserService(userSvc UserPasswordService) {
 	s.userSvc = userSvc
 }
 
-func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer, mc *storage.MinIOClient) *Service {
+func NewService(db *gorm.DB, cfg *config.Config, m *mailer.Mailer, mc *storage.MinIOClient, notif *notification_module.Service) *Service {
 	return &Service{
-		repo:   newRepository(db),
-		jwt:    newJWTManager(cfg.JWT),
-		mailer: m,
-		minio:  mc,
-		cfg:    cfg,
+		repo:     newRepository(db),
+		jwt:      newJWTManager(cfg.JWT),
+		mailer:   m,
+		minio:    mc,
+		cfg:      cfg,
+		notifSvc: notif,
 	}
 }
 
@@ -116,6 +119,10 @@ func (s *Service) Login(req LoginRequest, userAgent, ip string) (*TokenPair, *us
 	pair, err := s.issueAndStoreTokens(user, userAgent, ip)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if isFirst, err := s.repo.MarkFirstLoginIfNeeded(user.ID); err == nil && isFirst && s.notifSvc != nil {
+		_ = s.notifSvc.PushWelcome(context.Background(), user.ID, user.Username)
 	}
 
 	return pair, user, nil

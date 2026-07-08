@@ -27,17 +27,24 @@ func NewService(db *gorm.DB, userProvider UserProvider, hub *Hub) *Service {
 	}
 }
 
+func (s *Service) PushWelcome(ctx context.Context, userID uint, username string) error {
+	n := Notification{
+		UserID:  userID,
+		Type:    NotifWelcome,
+		Message: fmt.Sprintf("ยินดีต้อนรับสู่ REMOV, %s! เริ่มสร้าง Portfolio สำหรับการดูภาพยนต์ ของคุณได้เลย", username),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
 func (s *Service) ListNotifications(ctx context.Context, userID uint, q ListNotificationsQuery) (*NotificationListResponse, error) {
 	rows, total, err := s.repo.FindByUser(ctx, userID, q)
 	if err != nil {
 		return nil, err
 	}
-
 	unread, err := s.repo.CountUnread(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-
 	page, pageSize := normalizePagination(q.Page, q.PageSize)
 
 	responses := make([]NotificationResponse, 0, len(rows))
@@ -45,12 +52,17 @@ func (s *Service) ListNotifications(ctx context.Context, userID uint, q ListNoti
 		responses = append(responses, s.toResponse(n))
 	}
 
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+
 	return &NotificationListResponse{
 		Notifications: responses,
 		UnreadCount:   unread,
-		Total:         total,
-		Page:          page,
-		PageSize:      pageSize,
+		Pagination: NotificationPaginationMeta{
+			Page: page, Limit: pageSize, Total: total, TotalPages: totalPages,
+		},
 	}, nil
 }
 
@@ -78,6 +90,14 @@ func (s *Service) DeleteNotifications(ctx context.Context, userID uint, ids []ui
 		return err
 	}
 	s.hub.EmitDeleted(userID, ids)
+	return nil
+}
+
+func (s *Service) DeleteAllNotifications(ctx context.Context, userID uint) error {
+	if err := s.repo.DeleteAllByUser(ctx, userID); err != nil {
+		return err
+	}
+	s.hub.EmitDeleted(userID, []uint{}) // array ว่าง = "ลบทั้งหมด" ให้อุปกรณ์อื่น sync
 	return nil
 }
 

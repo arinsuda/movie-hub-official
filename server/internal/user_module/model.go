@@ -45,6 +45,7 @@ type User struct {
 	FavoriteGenres  *string    `gorm:"type:text"`
 	IsPrivate       bool       `gorm:"default:false"`
 	IsActive        bool       `gorm:"default:true"`
+	FirstLoginAt    *time.Time `gorm:"default:null"`
 }
 
 type EmailVerification struct {

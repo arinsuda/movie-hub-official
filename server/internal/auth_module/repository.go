@@ -87,6 +87,17 @@ func (r *repository) DeleteAllRefreshTokens(userID uint) error {
 	return r.db.Where("user_id = ?", userID).Delete(&user_module.RefreshToken{}).Error
 }
 
+func (r *repository) MarkFirstLoginIfNeeded(userID uint) (bool, error) {
+	now := time.Now()
+	result := r.db.Model(&user_module.User{}).
+		Where("id = ? AND first_login_at IS NULL", userID).
+		Update("first_login_at", &now)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil 
+}
+
 var (
 	ErrUserNotFound     = errors.New("user not found")
 	ErrInvalidToken     = errors.New("invalid or expired token")
@@ -95,5 +106,5 @@ var (
 	ErrWrongPassword    = errors.New("incorrect password")
 	ErrEmailUnverified  = errors.New("email not verified")
 	ErrAlreadyVerified  = errors.New("email already verified")
-	ErrPasswordMismatch = errors.New("passwords do not match") 
+	ErrPasswordMismatch = errors.New("passwords do not match")
 )

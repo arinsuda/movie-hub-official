@@ -56,7 +56,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 
 	api := app.Group("/api")
 
-	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc)
+	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc, notifSvc)
 
 	protected := api.Group("/", mw.RequireAuth)
 

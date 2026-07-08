@@ -103,6 +103,10 @@ func (r *repository) DeleteByUser(ctx context.Context, userID uint, ids []uint) 
 	return nil
 }
 
+func (r *repository) DeleteAllByUser(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&Notification{}).Error
+}
+
 func normalizePagination(page, pageSize int) (int, int) {
 	if page < 1 {
 		page = 1

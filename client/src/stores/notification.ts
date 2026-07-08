@@ -2,12 +2,13 @@ import { defineStore } from "pinia"
 import { ref, computed } from "vue"
 import { notiApi } from "@/api/endpoints/notification"
 import { useSocket } from "@/composables/useSocket"
-import type {
-  AppNotification,
-  NotificationPaginationMeta,
-  SocketNotificationDeletedPayload,
-  SocketNotificationNewPayload,
-  SocketNotificationReadPayload,
+import {
+  getNotificationTitle,
+  type AppNotification,
+  type NotificationPaginationMeta,
+  type SocketNotificationDeletedPayload,
+  type SocketNotificationNewPayload,
+  type SocketNotificationReadPayload,
 } from "@/types/notification"
 
 export const useNotificationStore = defineStore("notification", () => {
@@ -103,6 +104,30 @@ export const useNotificationStore = defineStore("notification", () => {
     }
   }
 
+  /**
+   * ใช้จากหน้าอื่นที่มี list เป็นของตัวเอง (เช่น NotificationsView.vue)
+   * ต่างจาก markAsRead ตรงที่ไม่ต้องพึ่งว่า id นั้นอยู่ใน `notifications` ของ panel หรือเปล่า
+   * ยังไงก็ยิง API จริง แล้ว sync `unreadCount` กลับมาให้ badge ที่กระดิ่งถูกต้อง
+   * คืนค่า boolean กลับไปให้ผู้เรียกใช้ตัดสินใจ revert local state ของตัวเอง
+   */
+  async function markAsReadRemote(id: number): Promise<boolean> {
+    const target = notifications.value.find(n => n.id === id)
+    const wasUnreadInPanel = !!target && !target.is_read
+
+    if (target) target.is_read = true
+    if (unreadCount.value > 0) unreadCount.value--
+
+    try {
+      await notiApi.markAsRead(id)
+      return true
+    } catch (err) {
+      if (target && wasUnreadInPanel) target.is_read = false
+      unreadCount.value++
+      console.error("markAsReadRemote failed:", err)
+      return false
+    }
+  }
+
   async function markAllAsRead() {
     if (unreadCount.value === 0) return
     const prevState = notifications.value.map(n => n.is_read)
@@ -175,6 +200,12 @@ export const useNotificationStore = defineStore("notification", () => {
   }
 
   function handleRemoteDelete({ ids }: SocketNotificationDeletedPayload) {
+    if (!ids || ids.length === 0) {
+      notifications.value = []
+      unreadCount.value = 0
+      pagination.value.total = 0
+      return
+    }
     ids.forEach(id => {
       const idx = notifications.value.findIndex(n => n.id === id)
       if (idx === -1) return
@@ -185,13 +216,6 @@ export const useNotificationStore = defineStore("notification", () => {
     })
   }
 
-  /**
-   * เรียกตอน user login แล้ว (เช่นใน MainLayout onMounted / watch(authStore.user))
-   * ผูก listener ของ event ที่ backend จะยิงเข้ามา:
-   *  - "notification:new"     -> AppNotification ก้อนใหม่
-   *  - "notification:read"    -> { id }  (เผื่อ mark read จากอุปกรณ์อื่น)
-   *  - "notification:deleted" -> { id }
-   */
   function bindSocket() {
     if (socketBound) return
     const { connect, on } = useSocket()
@@ -199,7 +223,10 @@ export const useNotificationStore = defineStore("notification", () => {
 
     on<SocketNotificationNewPayload>("notification:new", payload => {
       prependNotification(payload)
-      ;(window as any).$toast?.info?.(payload.message, payload.title)
+      ;(window as any).$toast?.info?.(
+        payload.message,
+        getNotificationTitle(payload),
+      )
     })
 
     on<SocketNotificationReadPayload>("notification:read", handleRemoteRead)
@@ -266,6 +293,7 @@ export const useNotificationStore = defineStore("notification", () => {
     fetchUnreadCount,
     refresh,
     markAsRead,
+    markAsReadRemote,
     markAllAsRead,
     removeNotification,
     clearAll,

@@ -10,6 +10,8 @@ import (
 type NotificationType string
 
 const (
+	NotifWelcome NotificationType = "welcome"
+
 	NotifFollowedYou NotificationType = "followed_you"
 
 	NotifMovieNowPlaying NotificationType = "movie_now_playing"
@@ -43,6 +45,7 @@ const (
 )
 
 var categoryByType = map[NotificationType]NotificationCategory{
+	NotifWelcome:                 CategorySystem,
 	NotifFollowedYou:             CategorySocial,
 	NotifFollowingReviewed:       CategorySocial,
 	NotifFollowingLikedReview:    CategorySocial,

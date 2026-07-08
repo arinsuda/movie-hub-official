@@ -3,13 +3,14 @@ package auth_module
 import (
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/mailer"
+	"github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mailer.Mailer, s *storage.MinIOClient) *Service {
-	svc := NewService(db, cfg, m, s)
+func RegisterRoutes(router fiber.Router, db *gorm.DB, cfg *config.Config, m *mailer.Mailer, s *storage.MinIOClient, notifSvc *notification_module.Service) *Service {
+	svc := NewService(db, cfg, m, s, notifSvc)
 	h := NewHandler(svc, cfg)
 	mw := NewMiddleware(cfg)
 

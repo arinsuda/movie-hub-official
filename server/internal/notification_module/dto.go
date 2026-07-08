@@ -24,11 +24,18 @@ type ActorSummary struct {
 }
 type ListNotificationsQuery struct {
 	Unread   *bool  `query:"unread"`
-	Category string `query:"category"` // NEW: system | social | media | achievement
+	Category string `query:"category"`
 	Page     int    `query:"page"`
-	PageSize int    `query:"page_size"`
+	PageSize int    `query:"limit"` // เปลี่ยนจาก page_size -> limit ให้ตรงกับ achievements_module convention + FE เดิม
 	Type     string `query:"type"`
 }
+type NotificationPaginationMeta struct {
+	Page       int   `json:"page"`
+	Limit      int   `json:"limit"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+}
+
 type NotificationResponse struct {
 	ID        uint                 `json:"id"`
 	Type      NotificationType     `json:"type"`
@@ -42,11 +49,9 @@ type NotificationResponse struct {
 	CreatedAt time.Time            `json:"created_at"`
 }
 type NotificationListResponse struct {
-	Notifications []NotificationResponse `json:"notifications"`
-	UnreadCount   int64                  `json:"unread_count"`
-	Total         int64                  `json:"total"`
-	Page          int                    `json:"page"`
-	PageSize      int                    `json:"page_size"`
+	Notifications []NotificationResponse     `json:"notifications"`
+	UnreadCount   int64                      `json:"unread_count"`
+	Pagination    NotificationPaginationMeta `json:"pagination"` // nest ให้ตรงกับ FE type เดิม
 }
 type UnreadByCategoryResponse struct {
 	Category NotificationCategory `json:"category"`

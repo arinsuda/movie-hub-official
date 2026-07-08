@@ -40,21 +40,39 @@
           @keydown.enter="handleClick(n)"
           @keydown.space.prevent="handleClick(n)"
         >
-          <div class="noti-item-icon" :class="`noti-item-icon--${n.type}`">
-            <UserPlus v-if="n.type === 'follow'" :size="16" />
-            <Heart v-else-if="n.type === 'review_like'" :size="16" />
-            <MessageCircle
+          <div class="noti-item-icon" :class="`noti-item-icon--${n.category}`">
+            <UserPlus v-if="n.type === 'followed_you'" :size="16" />
+            <Heart
               v-else-if="
-                n.type === 'review_comment' || n.type === 'comment_reply'
+                n.type === 'review_liked' || n.type === 'following_liked_review'
               "
               :size="16"
             />
-            <Trophy v-else-if="n.type === 'achievement_unlock'" :size="16" />
+            <MessageCircle
+              v-else-if="
+                n.type === 'review_commented' ||
+                n.type === 'following_commented'
+              "
+              :size="16"
+            />
+            <ThumbsUp
+              v-else-if="
+                n.type === 'review_marked_helpful' ||
+                n.type === 'following_marked_helpful'
+              "
+              :size="16"
+            />
+            <Trophy v-else-if="n.type === 'achievement_unlocked'" :size="16" />
+            <Clapperboard
+              v-else-if="n.type === 'movie_now_playing'"
+              :size="16"
+            />
+            <PartyPopper v-else-if="n.type === 'welcome'" :size="16" />
             <Bell v-else :size="16" />
           </div>
 
           <div class="noti-item-content">
-            <p class="noti-item-title">{{ n.title }}</p>
+            <p class="noti-item-title">{{ getNotificationTitle(n) }}</p>
             <p class="noti-item-message">{{ n.message }}</p>
             <span class="noti-item-time">{{ relativeTime(n.created_at) }}</span>
           </div>
@@ -82,6 +100,12 @@
         </button>
       </template>
     </div>
+
+    <div class="noti-footer">
+      <button class="noti-viewall" @click="goToAllNotifications">
+        ดูการแจ้งเตือนทั้งหมด
+      </button>
+    </div>
   </div>
 </template>
 
@@ -100,6 +124,11 @@
   } from "lucide-vue-next"
   import { useNotificationStore } from "@/stores/notification"
   import type { AppNotification } from "@/types/notification"
+  import { ThumbsUp, Clapperboard, PartyPopper } from "lucide-vue-next"
+  import {
+    getNotificationTitle,
+    getNotificationActionUrl,
+  } from "@/types/notification"
 
   const store = useNotificationStore()
   const router = useRouter()
@@ -112,10 +141,16 @@
 
   async function handleClick(n: AppNotification) {
     if (!n.is_read) await store.markAsRead(n.id)
-    if (n.action_url) {
-      router.push(n.action_url)
+    const url = getNotificationActionUrl(n)
+    if (url) {
+      router.push(url)
       close()
     }
+  }
+
+  function goToAllNotifications() {
+    router.push("/notifications")
+    close()
   }
 
   function onScroll(e: Event) {
@@ -124,7 +159,6 @@
     if (nearBottom) store.loadMore()
   }
 
-  // เวลาแบบสัมพัทธ์ (ไทย) — ไม่พึ่ง lib ภายนอกเพิ่ม
   function relativeTime(iso: string): string {
     const diffMs = Date.now() - new Date(iso).getTime()
     const sec = Math.floor(diffMs / 1000)
@@ -145,7 +179,6 @@
     })
   }
 
-  // directive แบบง่าย ๆ ไว้ปิด panel เมื่อคลิกนอกกรอบ
   const vClickOutside = {
     mounted(el: HTMLElement, binding: { value: () => void }) {
       ;(el as any)._clickOutsideHandler = (e: MouseEvent) => {
@@ -162,6 +195,18 @@
 </script>
 
 <style scoped>
+  .noti-item-icon--social {
+    color: #3b82f6;
+  }
+  .noti-item-icon--media {
+    color: #e50914;
+  }
+  .noti-item-icon--achievement {
+    color: #f5c518;
+  }
+  .noti-item-icon--system {
+    color: #10b981;
+  }
   .noti-panel {
     position: absolute;
     top: calc(100% + 10px);
@@ -376,6 +421,25 @@
   .noti-loadmore:hover {
     background: rgba(255, 255, 255, 0.05);
     color: #fff;
+  }
+
+  .noti-footer {
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .noti-viewall {
+    width: 100%;
+    padding: 0.75rem;
+    background: none;
+    border: none;
+    color: #e50914;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .noti-viewall:hover {
+    background: rgba(229, 9, 20, 0.08);
   }
 
   @media (max-width: 576px) {

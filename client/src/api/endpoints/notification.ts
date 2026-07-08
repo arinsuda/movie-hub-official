@@ -1,11 +1,15 @@
-import type { AppNotification, NotificationListResponse } from "@/types/notification"
+import type {
+  AppNotification,
+  NotificationListResponse,
+} from "@/types/notification"
 import api from "../index"
-
 
 export interface ListNotificationParams {
   page?: number
   limit?: number
-  unread_only?: boolean
+  unread?: boolean
+  category?: string
+  type?: string
 }
 
 export const notiApi = {
@@ -18,15 +22,12 @@ export const notiApi = {
     api.get<{ unread_count: number }>("/notifications/unread-count"),
 
   markAsRead: (notificationId: number) =>
-    api.patch<{ notification: AppNotification }>(
-      `/notifications/${notificationId}/read`,
-    ),
+    api.patch<void>("/notifications/read", { ids: [notificationId] }),
 
-  markAllAsRead: () =>
-    api.patch<{ updated: number }>("/notifications/read-all"),
+  markAllAsRead: () => api.patch<void>("/notifications/read", { ids: [] }),
 
   deleteNotification: (notificationId: number) =>
-    api.delete(`/notifications/${notificationId}`),
+    api.delete<void>("/notifications", { data: { ids: [notificationId] } }),
 
-  clearAll: () => api.delete("/notifications"),
+  clearAll: () => api.delete<void>("/notifications", { params: { all: true } }),
 }
