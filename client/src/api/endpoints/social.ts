@@ -1,4 +1,4 @@
-import api from "../index";
+import api from "../index"
 import type {
   ReviewResponse,
   CreateReviewRequest,
@@ -10,27 +10,24 @@ import type {
   MediaStatusResponse,
   PaginatedResponse,
   FollowStatsResponse,
-  FollowUserResponse,
+  FollowRelationshipStatus,
+  FollowActionResponse,
+  FollowUserSummary,
   FeedItemResponse,
   MediaType,
   ListType,
-} from "@/types";
+} from "@/types"
 
-// ── Review ─────────────────────────────────────────────────────────
-
-export type ReviewVisibilityFilter = "all" | "public" | "private";
+export type ReviewVisibilityFilter = "all" | "public" | "private"
 
 export interface GetUserReviewsParams {
-  page?: number;
-  limit?: number;
-  /** "all" (default) | "public" | "private" — private ใช้ได้เฉพาะเจ้าของโปรไฟล์ */
-  visibility?: ReviewVisibilityFilter;
-  /** กรองตามวันที่เขียนรีวิว (created_at), format "YYYY-MM-DD" */
-  date_from?: string;
-  date_to?: string;
-  /** กรองแบบรายเดือน/รายปี — ถ้าส่งมา จะมีผลเหนือ date_from/date_to */
-  year?: number;
-  month?: number;
+  page?: number
+  limit?: number
+  visibility?: ReviewVisibilityFilter
+  date_from?: string
+  date_to?: string
+  year?: number
+  month?: number
 }
 
 export const reviewApi = {
@@ -92,9 +89,8 @@ export const reviewApi = {
 
   deleteComment: (reviewId: number, commentId: number) =>
     api.delete(`/reviews/${reviewId}/comments/${commentId}`),
-};
+}
 
-// ── Library ────────────────────────────────────────────────────────
 export const libraryApi = {
   addItem: (userId: number, data: AddItemRequest) =>
     api.post<{ item: LibraryItemResponse }>(`/users/${userId}/library`, data),
@@ -124,35 +120,39 @@ export const libraryApi = {
 
   removeItem: (userId: number, itemId: number) =>
     api.delete(`/users/${userId}/library/${itemId}`),
-};
+}
 
-// ── Follow / Feed ──────────────────────────────────────────────────
 export const followApi = {
-  follow: (userId: number) => api.post(`/users/${userId}/follow`),
+  follow: (userId: number) =>
+    api.post<FollowActionResponse>(`/users/${userId}/follow`),
 
   unfollow: (userId: number) => api.delete(`/users/${userId}/follow`),
 
   getFollowStats: (userId: number) =>
     api.get<FollowStatsResponse>(`/users/${userId}/follow-stats`),
 
-  getFollowers: (userId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<FollowUserResponse>>(
-      `/users/${userId}/followers`,
-      {
-        params: { page, limit },
-      },
+  getFollowStatus: (userId: number) =>
+    api.get<FollowRelationshipStatus>(`/users/${userId}/follow-status`),
+
+  getFollowers: (userId: number) =>
+    api.get<{ followers: FollowUserSummary[] }>(`/users/${userId}/followers`),
+
+  getFollowing: (userId: number) =>
+    api.get<{ following: FollowUserSummary[] }>(`/users/${userId}/following`),
+
+  getPendingRequests: (userId: number) =>
+    api.get<{ requests: FollowUserSummary[] }>(
+      `/users/${userId}/follow-requests`,
     ),
 
-  getFollowing: (userId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<FollowUserResponse>>(
-      `/users/${userId}/following`,
-      {
-        params: { page, limit },
-      },
-    ),
+  acceptRequest: (userId: number, followerId: number) =>
+    api.post(`/users/${userId}/follow-requests/${followerId}/accept`),
+
+  rejectRequest: (userId: number, followerId: number) =>
+    api.delete(`/users/${userId}/follow-requests/${followerId}`),
 
   getFeed: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<FeedItemResponse>>("/feed", {
       params: { page, limit },
     }),
-};
+}

@@ -269,7 +269,6 @@
     return resolved ? resolved.embedUrl : null
   })
 
-  // Animation Refs
   const pageRef = ref<HTMLElement | null>(null)
   const backBtnRef = ref<HTMLElement | null>(null)
   const sidebarRef = ref<HTMLElement | null>(null)
@@ -277,14 +276,10 @@
   const backdropRef = ref<HTMLElement | null>(null)
   const progressBarRef = ref<HTMLElement | null>(null)
 
-  // States
   const movie = ref<any>(null)
   const castList = ref<any[]>([])
   const videoList = ref<any[]>([])
 
-  // isInitialLoading: true เฉพาะตอนเข้าเพจนี้ครั้งแรก (ยังไม่เคยมีข้อมูลหนังเลย) -> โชว์ full-screen spinner
-  // isTransitioning: true ตอนสลับจากหนังเรื่องหนึ่งไปอีกเรื่อง (เช่น กดเข้ามาจาก MovieSimilar) -> คงเนื้อหาเดิมไว้บนจอ
-  // แล้วโชว์ progress bar บาง ๆ ด้านบนแทน full-screen loading เดิม
   const isInitialLoading = ref(true)
   const isTransitioning = ref(false)
 
@@ -312,8 +307,6 @@
   const watchlist_ItemId = ref<number | null>(null)
   const watched_ItemId = ref<number | null>(null)
 
-  // movieId ที่ "แสดงผลจริง" ในโซนรีวิว/หนังคล้ายกัน จะอัปเดตพร้อมกับตอน swap ข้อมูลหลักเท่านั้น
-  // กันไม่ให้ MovieReviews/MovieSimilar สลับไปโชว์ข้อมูลเรื่องใหม่ก่อนส่วนอื่นของหน้าที่ยังจางอยู่ (จะได้ sync กันทั้งหน้า)
   const displayMovieId = ref<number>(movieId.value)
 
   function goBack() {
@@ -463,7 +456,6 @@
     }
   }
 
-  // โหลดรูปล่วงหน้าก่อน swap ข้อมูลจริง กัน backdrop/โปสเตอร์เรื่องใหม่กระพริบหรือค้างจอขาว ๆ ระหว่างโหลด
   function preloadImage(url: string): Promise<void> {
     return new Promise(resolve => {
       if (!url) {
@@ -477,7 +469,6 @@
     })
   }
 
-  // Exit animation: เล่นตอนกำลังจะสลับไปหนังเรื่องใหม่ (เนื้อหาเดิมยังอยู่บนจอ แค่จางหายไปแทนที่จะหายวับ)
   function animateExit(): Promise<void> {
     return new Promise(resolve => {
       if (!sidebarRef.value || !contentRef.value) {
@@ -505,8 +496,6 @@
     })
   }
 
-  // Entrance animation
-  // isTransitionEntrance = true -> เข้ามาจากการสลับหนัง (ไม่ต้องเล่น animation ปุ่มย้อนกลับซ้ำ เพราะมันไม่ได้จางหายไปด้วย)
   function animateEntrance(isTransitionEntrance = false) {
     if (!sidebarRef.value || !contentRef.value) return
 
@@ -520,9 +509,6 @@
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } })
 
     if (isTransitionEntrance) {
-      // animateExit ทำให้ contentRef/sidebarRef/backdropRef "ทั้งบล็อก" opacity เป็น 0 ไปแล้ว
-      // ตรงนี้ต้อง fade กลับมาทั้งบล็อกให้ครบทุกตัว ไม่งั้นเนื้อหาจะค้างที่ opacity 0 (มองไม่เห็น
-      // ทั้งที่ข้อมูลอัปเดตเป็นเรื่องใหม่แล้ว) — สลับหนังจึงเล่นแบบ fade รวดเดียวไว ๆ ไม่ cascade ทีละชิ้น
       if (backdropRef.value) {
         tl.fromTo(
           backdropRef.value,
@@ -546,7 +532,6 @@
       return
     }
 
-    // เข้าเพจครั้งแรก: cascade เข้าทีละส่วนแบบเดิม (ปุ่มย้อนกลับ -> backdrop -> sidebar -> เนื้อหาทีละชิ้น)
     if (backBtnRef.value) {
       tl.fromTo(
         backBtnRef.value,
@@ -582,7 +567,6 @@
     }
   }
 
-  // Progress bar บาง ๆ ด้านบนจอ (แนว Netflix/YouTube) ใช้แทน full-screen spinner ตอนสลับหนัง
   function startProgressBar() {
     if (!progressBarRef.value) return
     gsap.killTweensOf(progressBarRef.value)
@@ -646,14 +630,6 @@
     fetchStats()
   }
 
-  // ดึงข้อมูลภาพยนตร์ทั้งหมดของหน้านี้ แยกออกมาจาก onMounted
-  // เพื่อให้เรียกซ้ำได้ตอน movieId เปลี่ยน (กรณี Vue Router reuse component เดิม
-  // เช่น กดดูหนังจาก MovieSimilar แล้ว path เปลี่ยนจาก /movie/123 -> /movie/456)
-  //
-  // ถ้าเป็นการ "สลับหนัง" (movie.value มีข้อมูลอยู่แล้ว) จะไม่ null ข้อมูลเดิมทันทีเหมือนเมื่อก่อน
-  // แต่จะเล่น exit animation ให้เนื้อหาเดิมจางหายไป พร้อมกับ fetch ข้อมูลเรื่องใหม่และ preload รูปไปด้วยกัน
-  // แล้วค่อย swap ข้อมูลตอนที่จอว่างเปล่า (มองไม่เห็น) จริง ๆ ก่อนเล่น entrance กลับเข้ามา
-  // ผลคือไม่มีจังหวะที่จอกระพริบเป็น full-screen loading เหมือนตอนเข้าเพจครั้งแรก
   async function fetchMovieDetail() {
     if (!movieId.value) {
       router.push({ name: "upcoming" })
@@ -664,7 +640,7 @@
     const isTransition = movie.value !== null
 
     if (isTransition) {
-      showTrailerPopup.value = false // ปิด popup trailer ของเรื่องเดิมทันที ไม่ต้องรอ fade
+      showTrailerPopup.value = false
       isTransitioning.value = true
       await nextTick()
       startProgressBar()
@@ -678,7 +654,6 @@
     try {
       const [res] = await Promise.all([fetchPromise, exitPromise])
 
-      // กันเคสผู้ใช้กดสลับหนังซ้อนกันเร็ว ๆ ระหว่างที่ยังโหลดเรื่องก่อนหน้าไม่เสร็จ -> ทิ้งผลลัพธ์เก่านี้ไป
       if (currentMovieId !== movieId.value) return
 
       const nextMovie = res.data.movie
@@ -698,8 +673,6 @@
 
       if (currentMovieId !== movieId.value) return
 
-      // เนื้อหาเดิม (ถ้ามี) จางหายไปหมดแล้ว และรูปเรื่องใหม่พร้อมแสดงผลแล้ว
-      // จังหวะนี้ปลอดภัยที่สุดที่จะ swap ข้อมูล + reset ค่าที่ผูกกับหนังเรื่องเดิม โดยไม่มีอะไรกระพริบให้เห็น
       if (isTransition) {
         window.scrollTo(0, 0)
       }
@@ -767,8 +740,6 @@
     }
   }
 
-  // ตัวนี้แหละคือส่วนที่แก้บั๊กเดิม: เมื่อ movieId เปลี่ยน (path เปลี่ยนแต่ component เดิมถูก reuse)
-  // ให้ดึงข้อมูลใหม่ทันที โดยไม่ scroll กลับขึ้นบนสุดตรงนี้เลย (จะ scroll ตอนเนื้อหาเดิมจางหายไปหมดแล้วแทน กันจอกระตุก)
   watch(movieId, (newId, oldId) => {
     if (newId === oldId) return
     fetchMovieDetail()

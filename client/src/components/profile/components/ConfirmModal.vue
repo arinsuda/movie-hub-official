@@ -33,9 +33,10 @@
             <button
               class="btn-confirm"
               :class="config.confirmClass"
+              :disabled="confirmDisabled"
               @click="emit('confirm')"
             >
-              {{ config.confirmLabel }}
+              {{ confirmDisabled ? "Processing..." : config.confirmLabel }}
             </button>
           </div>
         </div>
@@ -46,13 +47,16 @@
 
 <script setup lang="ts">
   import { computed } from "vue"
-  import { Heart, Bookmark, Eye, Mail } from "lucide-vue-next"
+  import { Heart, Bookmark, Eye, Mail, UserMinus } from "lucide-vue-next"
   import type { ListType } from "@/types"
+
+  type ConfirmModalType = ListType | "email_change" | "unfollow"
 
   const props = defineProps<{
     modelValue: boolean
-    listType: ListType
+    listType: ConfirmModalType
     itemName?: string
+    confirmDisabled?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -62,7 +66,7 @@
   }>()
 
   const configs: Record<
-    ListType,
+    ConfirmModalType,
     {
       icon: unknown
       iconClass: string
@@ -113,6 +117,16 @@
       descriptionSuffix: ". Enter it to confirm your identity.",
       confirmLabel: "Send OTP",
       confirmClass: "confirm-blue",
+    },
+    unfollow: {
+      icon: UserMinus,
+      iconClass: "icon-user-minus",
+      ariaLabel: "Unfollow confirmation",
+      title: "Unfollow User?",
+      description: "You're about to unfollow",
+      descriptionSuffix: ". You can follow them again at any time.",
+      confirmLabel: "Unfollow",
+      confirmClass: "confirm-red",
     },
   }
 
@@ -298,5 +312,17 @@
     background: #0071e3;
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(10, 132, 255, 0.35);
+  }
+  .icon-user-minus {
+    background: rgba(225, 37, 27, 0.12);
+    color: #e1251b;
+    border: 1px solid rgba(225, 37, 27, 0.2);
+  }
+
+  .btn-confirm:disabled,
+  .btn-cancel:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>

@@ -97,7 +97,7 @@ func (s *Service) DeleteAllNotifications(ctx context.Context, userID uint) error
 	if err := s.repo.DeleteAllByUser(ctx, userID); err != nil {
 		return err
 	}
-	s.hub.EmitDeleted(userID, []uint{}) // array ว่าง = "ลบทั้งหมด" ให้อุปกรณ์อื่น sync
+	s.hub.EmitDeleted(userID, []uint{})
 	return nil
 }
 
@@ -127,6 +127,30 @@ func (s *Service) PushFollowedYou(ctx context.Context, targetUserID, actorID uin
 		TargetID:  &actorID,
 		TargetRef: ptr("user"),
 		Message:   fmt.Sprintf("%s started following you", actorUsername),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+func (s *Service) PushFollowRequested(ctx context.Context, targetUserID, actorID uint, actorUsername string) error {
+	n := Notification{
+		UserID:    targetUserID,
+		ActorID:   &actorID,
+		Type:      NotifFollowRequested,
+		TargetID:  &actorID,
+		TargetRef: ptr("user"),
+		Message:   fmt.Sprintf("%s requested to follow you", actorUsername),
+	}
+	return s.createAndEmit(ctx, []Notification{n})
+}
+
+func (s *Service) PushFollowAccepted(ctx context.Context, targetUserID, actorID uint, actorUsername string) error {
+	n := Notification{
+		UserID:    targetUserID,
+		ActorID:   &actorID,
+		Type:      NotifFollowAccepted,
+		TargetID:  &actorID,
+		TargetRef: ptr("user"),
+		Message:   fmt.Sprintf("%s accepted your follow request", actorUsername),
 	}
 	return s.createAndEmit(ctx, []Notification{n})
 }
@@ -264,8 +288,6 @@ func (s *Service) PushReviewCommented(ctx context.Context, reviewOwnerID, actorI
 	return s.createAndEmit(ctx, []Notification{n})
 }
 
-// ── Fan-out: แจ้ง follower ของคนทำ action (ของเดิม + เพิ่มใหม่ 2 ตัว) ──
-
 func (s *Service) PushFollowingMarkedHelpful(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
 	ref := "review"
 	msg := fmt.Sprintf("%s marked a review of %q as helpful", actorUsername, movieTitle)
@@ -278,8 +300,6 @@ func (s *Service) PushFollowingCommented(ctx context.Context, actorID uint, acto
 	return s.PushFollowingActivity(ctx, actorID, NotifFollowingCommented, &reviewID, &ref, msg)
 }
 
-// ── Achievement ────────────────────────────────────────────────
-
 func (s *Service) PushAchievementUnlocked(ctx context.Context, userID, achievementID uint, achievementName string, expGained int) error {
 	ref := "achievement"
 	n := Notification{
@@ -289,8 +309,6 @@ func (s *Service) PushAchievementUnlocked(ctx context.Context, userID, achieveme
 	}
 	return s.createAndEmit(ctx, []Notification{n})
 }
-
-// ── System ─────────────────────────────────────────────────────
 
 func (s *Service) PushEmailVerified(ctx context.Context, userID uint) error {
 	n := Notification{UserID: userID, Type: NotifEmailVerified, Message: "Your email has been verified"}

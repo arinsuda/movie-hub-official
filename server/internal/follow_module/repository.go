@@ -1,7 +1,9 @@
 package follow_module
 
 import (
+	"database/sql"
 	"errors"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -10,7 +12,8 @@ var (
 	ErrAlreadyFollowing = errors.New("already following")
 	ErrNotFollowing     = errors.New("not following")
 	ErrForbidden        = errors.New("forbidden")
-	ErrNotFound         = errors.New("not found")
+	ErrNotFound         = errors.New("follow request not found")
+	ErrUserNotFound     = errors.New("user not found")
 )
 
 type repository struct {
@@ -21,14 +24,25 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-func (r *repository) isPrivate(userID uint) (bool, error) {
+func (r *repository) isPrivate(db *gorm.DB, userID uint) (bool, error) {
 	var isPrivate bool
-	err := r.db.
+	err := db.
 		Table("users").
 		Select("is_private").
 		Where("id = ? AND is_active = true", userID).
-		Scan(&isPrivate).Error
-	return isPrivate, err
+		Row().
+		Scan(&isPrivate)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, ErrUserNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+	return isPrivate, nil
+}
+
+func isUniqueViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "duplicate key value violates unique constraint")
 }
 
 func (r *repository) Follow(followerID, followeeID uint) (*UserFollow, error) {
@@ -36,36 +50,46 @@ func (r *repository) Follow(followerID, followeeID uint) (*UserFollow, error) {
 		return nil, ErrForbidden
 	}
 
-	var existing UserFollow
-	err := r.db.
-		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
-		First(&existing).Error
-	if err == nil {
-		return nil, ErrAlreadyFollowing
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
-	}
+	var follow UserFollow
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var existing UserFollow
+		err := tx.
+			Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
+			First(&existing).Error
+		if err == nil {
+			return ErrAlreadyFollowing
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 
-	private, err := r.isPrivate(followeeID)
+		isPrivate, err := r.isPrivate(tx, followeeID)
+		if err != nil {
+			return err
+		}
+
+		status := StatusAccepted
+		if isPrivate {
+			status = StatusPending
+		}
+
+		follow = UserFollow{
+			FollowerID: followerID,
+			FolloweeID: followeeID,
+			Status:     status,
+		}
+		if err := tx.Create(&follow).Error; err != nil {
+			if isUniqueViolation(err) {
+				return ErrAlreadyFollowing
+			}
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	status := StatusAccepted
-	if private {
-		status = StatusPending
-	}
-
-	follow := &UserFollow{
-		FollowerID: followerID,
-		FolloweeID: followeeID,
-		Status:     status,
-	}
-	if err := r.db.Create(follow).Error; err != nil {
-		return nil, err
-	}
-	return follow, nil
+	return &follow, nil
 }
 
 func (r *repository) Unfollow(followerID, followeeID uint) error {
@@ -110,6 +134,43 @@ func (r *repository) RejectFollow(followerID, followeeID uint) error {
 	return nil
 }
 
+func (r *repository) canViewFollowList(requesterID, targetID uint) (bool, error) {
+	if requesterID == targetID {
+		return true, nil
+	}
+
+	isPrivate, err := r.isPrivate(r.db, targetID)
+	if err != nil {
+		return false, err
+	}
+	if !isPrivate {
+		return true, nil
+	}
+
+	var count int64
+	err = r.db.Model(&UserFollow{}).
+		Where("follower_id = ? AND followee_id = ? AND status = ?", requesterID, targetID, StatusAccepted).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *repository) GetStatus(followerID, followeeID uint) (*UserFollow, error) {
+	var follow UserFollow
+	err := r.db.
+		Where("follower_id = ? AND followee_id = ?", followerID, followeeID).
+		Take(&follow).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &follow, nil
+}
+
 type listRow struct {
 	ID          uint
 	Username    string
@@ -152,4 +213,20 @@ func (r *repository) GetPendingRequests(userID uint) ([]listRow, error) {
 		Order("uf.created_at DESC").
 		Scan(&rows).Error
 	return rows, err
+}
+
+func (r *repository) CountFollowers(userID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&UserFollow{}).
+		Where("followee_id = ? AND status = ?", userID, StatusAccepted).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *repository) CountFollowing(userID uint) (int64, error) {
+	var count int64
+	err := r.db.Model(&UserFollow{}).
+		Where("follower_id = ? AND status = ?", userID, StatusAccepted).
+		Count(&count).Error
+	return count, err
 }

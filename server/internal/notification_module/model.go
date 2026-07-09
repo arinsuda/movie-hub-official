@@ -16,23 +16,24 @@ const (
 
 	NotifMovieNowPlaying NotificationType = "movie_now_playing"
 
-	// Fan-out — แจ้ง follower ว่าคนที่ตามอยู่มี activity
 	NotifFollowingReviewed       NotificationType = "following_reviewed"
 	NotifFollowingLikedReview    NotificationType = "following_liked_review"
 	NotifFollowingAddedWatchlist NotificationType = "following_added_watchlist"
 	NotifFollowingAddedWatched   NotificationType = "following_added_watched"
-	NotifFollowingMarkedHelpful  NotificationType = "following_marked_helpful" // NEW
-	NotifFollowingCommented      NotificationType = "following_commented"      // NEW
+	NotifFollowingMarkedHelpful  NotificationType = "following_marked_helpful"
+	NotifFollowingCommented      NotificationType = "following_commented"
 
-	// Direct — แจ้งเจ้าของ content ตรงๆ
-	NotifReviewLiked         NotificationType = "review_liked"          // NEW
-	NotifReviewCommented     NotificationType = "review_commented"      // NEW
-	NotifReviewMarkedHelpful NotificationType = "review_marked_helpful" // NEW
+	NotifReviewLiked         NotificationType = "review_liked"
+	NotifReviewCommented     NotificationType = "review_commented"
+	NotifReviewMarkedHelpful NotificationType = "review_marked_helpful"
 
-	NotifAchievementUnlocked NotificationType = "achievement_unlocked" // NEW
+	NotifAchievementUnlocked NotificationType = "achievement_unlocked"
 
-	NotifEmailVerified   NotificationType = "email_verified"   // NEW
-	NotifPasswordChanged NotificationType = "password_changed" // NEW
+	NotifEmailVerified   NotificationType = "email_verified"
+	NotifPasswordChanged NotificationType = "password_changed"
+
+	NotifFollowRequested NotificationType = "follow_requested"
+	NotifFollowAccepted  NotificationType = "follow_accepted"
 )
 
 type NotificationCategory string
@@ -47,6 +48,8 @@ const (
 var categoryByType = map[NotificationType]NotificationCategory{
 	NotifWelcome:                 CategorySystem,
 	NotifFollowedYou:             CategorySocial,
+	NotifFollowRequested:         CategorySocial,
+	NotifFollowAccepted:          CategorySocial,
 	NotifFollowingReviewed:       CategorySocial,
 	NotifFollowingLikedReview:    CategorySocial,
 	NotifFollowingAddedWatchlist: CategorySocial,
@@ -71,7 +74,7 @@ type Notification struct {
 	User      users.User           `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 	ActorID   *uint                `gorm:"index"`
 	Type      NotificationType     `gorm:"type:varchar(50);not null;index"`
-	Category  NotificationCategory `gorm:"type:varchar(20);not null;index"` // NEW
+	Category  NotificationCategory `gorm:"type:varchar(20);not null;index"`
 	TargetID  *uint
 	TargetRef *string `gorm:"type:varchar(50)"`
 	Message   string  `gorm:"type:text;not null"`

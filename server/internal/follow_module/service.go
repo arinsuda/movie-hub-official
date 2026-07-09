@@ -36,8 +36,12 @@ func (s *Service) Follow(requesterID, targetID uint) (*FollowResponse, error) {
 		return nil, err
 	}
 
-	if follow.Status == StatusAccepted {
-		s.onFollowAccepted(requesterID, targetID)
+	switch follow.Status {
+	case StatusAccepted:
+		s.onFollowEstablished(requesterID, targetID)
+		s.notifyNewFollower(requesterID, targetID)
+	case StatusPending:
+		s.notifyFollowRequested(requesterID, targetID)
 	}
 
 	return &FollowResponse{
@@ -56,7 +60,8 @@ func (s *Service) AcceptFollow(requesterID, followerID uint) error {
 		return err
 	}
 
-	s.onFollowAccepted(followerID, requesterID)
+	s.onFollowEstablished(followerID, requesterID)
+	s.notifyFollowAccepted(requesterID, followerID)
 
 	return nil
 }
@@ -65,7 +70,15 @@ func (s *Service) RejectFollow(requesterID, followerID uint) error {
 	return s.repo.RejectFollow(followerID, requesterID)
 }
 
-func (s *Service) GetFollowers(userID uint) ([]UserSummary, error) {
+func (s *Service) GetFollowers(requesterID, userID uint) ([]UserSummary, error) {
+	canView, err := s.repo.canViewFollowList(requesterID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+
 	rows, err := s.repo.GetFollowers(userID)
 	if err != nil {
 		return nil, err
@@ -73,7 +86,15 @@ func (s *Service) GetFollowers(userID uint) ([]UserSummary, error) {
 	return toSummaryList(rows), nil
 }
 
-func (s *Service) GetFollowing(userID uint) ([]UserSummary, error) {
+func (s *Service) GetFollowing(requesterID, userID uint) ([]UserSummary, error) {
+	canView, err := s.repo.canViewFollowList(requesterID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+
 	rows, err := s.repo.GetFollowing(userID)
 	if err != nil {
 		return nil, err
@@ -92,32 +113,107 @@ func (s *Service) GetPendingRequests(requesterID, userID uint) ([]UserSummary, e
 	return toSummaryList(rows), nil
 }
 
-func (s *Service) onFollowAccepted(followerID, followeeID uint) {
+func (s *Service) GetRelationshipStatus(requesterID, targetID uint) (*RelationshipStatus, error) {
+	outbound, err := s.repo.GetStatus(requesterID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	inbound, err := s.repo.GetStatus(targetID, requesterID)
+	if err != nil {
+		return nil, err
+	}
+
+	status := &RelationshipStatus{}
+	if outbound != nil {
+		status.IsFollowing = outbound.Status == StatusAccepted
+		status.FollowStatus = string(outbound.Status)
+	}
+	if inbound != nil {
+		status.IsFollowedBy = inbound.Status == StatusAccepted
+	}
+	return status, nil
+}
+
+func (s *Service) onFollowEstablished(followerID, followeeID uint) {
 	ctx := context.Background()
 
 	var followingCount int64
 	s.db.Model(&UserFollow{}).
 		Where("follower_id = ? AND status = ?", followerID, StatusAccepted).
 		Count(&followingCount)
-	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followerID, "following_count", int(followingCount)) // ตัด _, _ = ออก
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followerID, "following_count", int(followingCount))
 
 	var followerCount int64
 	s.db.Model(&UserFollow{}).
 		Where("followee_id = ? AND status = ?", followeeID, StatusAccepted).
 		Count(&followerCount)
-	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followeeID, "follower_count", int(followerCount)) // ตัด _, _ = ออก
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followeeID, "follower_count", int(followerCount))
+}
 
-	if s.notifSvc != nil {
-		if actor, err := s.getUserSummary(followerID); err == nil {
-			_ = s.notifSvc.PushFollowedYou(ctx, followeeID, followerID, actor.Username)
-		}
+func (s *Service) notifyNewFollower(followerID, followeeID uint) {
+	if s.notifSvc == nil {
+		return
 	}
+	actor, err := s.getUserSummary(followerID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowedYou(context.Background(), followeeID, followerID, actor.Username)
+}
+
+func (s *Service) notifyFollowRequested(followerID, followeeID uint) {
+	if s.notifSvc == nil {
+		return
+	}
+	actor, err := s.getUserSummary(followerID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowRequested(context.Background(), followeeID, followerID, actor.Username)
+}
+
+func (s *Service) notifyFollowAccepted(accepterID, followerID uint) {
+	if s.notifSvc == nil {
+		return
+	}
+	actor, err := s.getUserSummary(accepterID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowAccepted(context.Background(), followerID, accepterID, actor.Username)
 }
 
 func (s *Service) getUserSummary(userID uint) (*users.User, error) {
 	var u users.User
 	err := s.db.First(&u, userID).Error
 	return &u, err
+}
+
+func (s *Service) GetFollowStats(requesterID, targetID uint) (*FollowStatsResponse, error) {
+	followers, err := s.repo.CountFollowers(targetID)
+	if err != nil {
+		return nil, err
+	}
+	following, err := s.repo.CountFollowing(targetID)
+	if err != nil {
+		return nil, err
+	}
+
+	isFollowing := false
+	if requesterID != targetID {
+		status, err := s.repo.GetStatus(requesterID, targetID)
+		if err != nil {
+			return nil, err
+		}
+		isFollowing = status != nil && status.Status == StatusAccepted
+	}
+
+	return &FollowStatsResponse{
+		UserID:      targetID,
+		Followers:   followers,
+		Following:   following,
+		IsFollowing: isFollowing,
+	}, nil
 }
 
 func toSummaryList(rows []listRow) []UserSummary {

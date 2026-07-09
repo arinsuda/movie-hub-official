@@ -71,10 +71,17 @@
 
           <!-- Actions -->
           <div class="hero-actions">
-            <button v-if="notMe" class="btn btn-primary">
-              <UserPlus :size="14" />
-              <span>Follow</span>
+            <button
+              v-if="notMe"
+              class="btn"
+              :class="followButtonClass"
+              :disabled="followLoading || isPendingFollow"
+              @click="handleFollowButtonClick"
+            >
+              <component :is="followButtonIcon" :size="14" />
+              <span>{{ followButtonLabel }}</span>
             </button>
+
             <button v-else class="btn btn-ghost" @click="showEdit = true">
               <Settings :size="14" />
               <span>Edit Profile</span>
@@ -113,7 +120,7 @@
             <component
               :is="activeComponent"
               v-bind="activeProps"
-              :key="activeTab"
+              :key="activeComponentKey"
             />
           </Transition>
         </main>
@@ -143,13 +150,24 @@
       </Transition>
     </Teleport>
   </div>
+
+  <ConfirmModal
+    v-model="showUnfollowConfirm"
+    list-type="unfollow"
+    :item-name="user?.display_name || user?.username"
+    :confirm-disabled="followLoading"
+    @confirm="confirmUnfollow"
+    @cancel="showUnfollowConfirm = false"
+  />
 </template>
 
 <script setup lang="ts">
-  import { authApi, userApi } from "@/api/api"
+  import { followApi, userApi } from "@/api/api"
   import { useAuthStore } from "@/stores/auth"
   import type { UserProfile } from "@/types/user"
-  import { computed, onMounted, ref } from "vue"
+  import type { ListType } from "@/types"
+  import { computed, ref, watch } from "vue"
+  import { useRoute } from "vue-router"
 
   import Avatar from "primevue/avatar"
 
@@ -161,6 +179,8 @@
     User as UserIcon,
     Settings,
     UserPlus,
+    UserCheck,
+    Clock,
     Monitor,
     TvMinimalPlay,
   } from "lucide-vue-next"
@@ -172,14 +192,54 @@
   import UserLikes from "@/components/profile/UserLikes.vue"
   import UserAchievements from "@/components/profile/UserAchievements.vue"
   import EditProfile from "@/components/profile/EditProfile.vue"
-import type { ListType } from "@/types"
+  import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
+  const route = useRoute()
   const auth = useAuthStore()
-  const userId = auth.user?.id ?? 0
+
   const user = ref<UserProfile | null>(null)
   const loading = ref(true)
-  const notMe = ref(false)
   const showEdit = ref(false)
+
+  type FollowStatus = "none" | "pending" | "accepted"
+
+  const followStatus = ref<FollowStatus>("none")
+  const followLoading = ref(false)
+  const showUnfollowConfirm = ref(false)
+
+  const viewedUserId = computed(() => {
+    const raw = route.params.userId
+    const value = Array.isArray(raw) ? raw[0] : raw
+    return Number(value)
+  })
+
+  const currentUserId = computed(() => auth.user?.id ?? null)
+
+  const notMe = computed(() => {
+    return currentUserId.value !== viewedUserId.value
+  })
+
+  const isFollowing = computed(() => followStatus.value === "accepted")
+  const isPendingFollow = computed(() => followStatus.value === "pending")
+
+  const followButtonLabel = computed(() => {
+    if (followLoading.value) return "กำลังโหลด..."
+    if (isFollowing.value) return "กำลังติดตาม"
+    if (isPendingFollow.value) return "ส่งคำขอแล้ว"
+    return "Follow"
+  })
+
+  const followButtonIcon = computed(() => {
+    if (isFollowing.value) return UserCheck
+    if (isPendingFollow.value) return Clock
+    return UserPlus
+  })
+
+  const followButtonClass = computed(() => {
+    if (isFollowing.value) return "btn-following"
+    if (isPendingFollow.value) return "btn-pending"
+    return "btn-primary"
+  })
 
   type TabKey =
     | "profile"
@@ -188,6 +248,7 @@ import type { ListType } from "@/types"
     | "likes"
     | "watched"
     | "achievements"
+
   const activeTab = ref<TabKey>("reviews")
 
   const tabs = computed(() => [
@@ -198,7 +259,7 @@ import type { ListType } from "@/types"
     { key: "achievements" as TabKey, label: "Achievements", icon: Trophy },
   ])
 
-  const componentMap: Record<string, unknown> = {
+  const componentMap: Record<TabKey, unknown> = {
     profile: ProfileInfo,
     reviews: UserReviews,
     watchlist: UserWatchlist,
@@ -208,9 +269,8 @@ import type { ListType } from "@/types"
   }
 
   const activeComponent = computed(() => componentMap[activeTab.value])
-  const activeProps = computed(() => {
-    const base = { userId }
 
+  const activeProps = computed(() => {
     const typeMap: Record<string, ListType | undefined> = {
       watchlist: "watchlist",
       likes: "likes",
@@ -218,9 +278,13 @@ import type { ListType } from "@/types"
     }
 
     return {
-      ...base,
+      userId: viewedUserId.value,
       listType: typeMap[activeTab.value],
     }
+  })
+
+  const activeComponentKey = computed(() => {
+    return `${activeTab.value}-${viewedUserId.value}`
   })
 
   const joinYear = computed(() =>
@@ -229,25 +293,125 @@ import type { ListType } from "@/types"
       : "—",
   )
 
-  async function handleEditClose() {
-    showEdit.value = false
-    await loadProfile()
+  function normalizeFollowStatus(data: unknown): FollowStatus {
+    const value = data as {
+      status?: string
+      is_following?: boolean
+      following?: boolean
+      is_pending?: boolean
+    }
+
+    if (value.status === "accepted" || value.status === "following") {
+      return "accepted"
+    }
+
+    if (value.status === "pending") {
+      return "pending"
+    }
+
+    if (value.is_following || value.following) {
+      return "accepted"
+    }
+
+    if (value.is_pending) {
+      return "pending"
+    }
+
+    return "none"
   }
 
   async function loadProfile() {
-    if (!auth.user) return
+    if (!Number.isInteger(viewedUserId.value) || viewedUserId.value <= 0) {
+      user.value = null
+      loading.value = false
+      return
+    }
+
     try {
       loading.value = true
-      const res = await userApi.me(userId)
+      const res = await userApi.getProfile(viewedUserId.value)
       user.value = res.data.user
     } catch (err) {
+      user.value = null
       console.error("fetchUserProfile failed:", err)
     } finally {
       loading.value = false
     }
   }
 
-  onMounted(loadProfile)
+  async function loadFollowStatus() {
+    if (!auth.user || !notMe.value) {
+      followStatus.value = "none"
+      return
+    }
+
+    try {
+      const res = await followApi.getFollowStatus(viewedUserId.value)
+      followStatus.value = normalizeFollowStatus(res.data)
+    } catch (err) {
+      followStatus.value = "none"
+      console.error("getFollowStatus failed:", err)
+    }
+  }
+
+  async function loadProfilePage() {
+    await loadProfile()
+    await loadFollowStatus()
+  }
+
+  async function handleEditClose() {
+    showEdit.value = false
+    await loadProfile()
+  }
+
+  async function handleFollowButtonClick() {
+    if (followLoading.value) return
+
+    if (isFollowing.value) {
+      showUnfollowConfirm.value = true
+      return
+    }
+
+    if (isPendingFollow.value) {
+      return
+    }
+
+    await followUser()
+  }
+
+  async function followUser() {
+    try {
+      followLoading.value = true
+
+      const res = await followApi.follow(viewedUserId.value)
+      followStatus.value = normalizeFollowStatus(res.data)
+
+      await loadProfile()
+    } catch (err) {
+      console.error("follow failed:", err)
+    } finally {
+      followLoading.value = false
+    }
+  }
+
+  async function confirmUnfollow() {
+    try {
+      followLoading.value = true
+
+      await followApi.unfollow(viewedUserId.value)
+
+      followStatus.value = "none"
+      showUnfollowConfirm.value = false
+
+      await loadProfile()
+    } catch (err) {
+      console.error("unfollow failed:", err)
+    } finally {
+      followLoading.value = false
+    }
+  }
+
+  watch(viewedUserId, loadProfilePage, { immediate: true })
 </script>
 
 <style scoped>
@@ -707,6 +871,29 @@ import type { ListType } from "@/types"
   .modal-leave-to {
     opacity: 0;
     transform: scale(0.96);
+  }
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-following {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  .btn-following:hover:not(:disabled) {
+    background: rgba(225, 37, 27, 0.12);
+    color: #ff6b6b;
+    border-color: rgba(225, 37, 27, 0.32);
+  }
+
+  .btn-pending {
+    background: rgba(255, 184, 0, 0.1);
+    color: #ffb800;
+    border: 1px solid rgba(255, 184, 0, 0.22);
   }
 
   /* ─────────── Responsive ─────────── */

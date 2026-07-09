@@ -48,8 +48,9 @@ func (h *Handler) GetFollowers(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c, "invalid user id")
 	}
+	claims := mw.GetClaims(c)
 
-	list, err := h.svc.GetFollowers(userID)
+	list, err := h.svc.GetFollowers(claims.UserID, userID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -61,8 +62,9 @@ func (h *Handler) GetFollowing(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c, "invalid user id")
 	}
+	claims := mw.GetClaims(c)
 
-	list, err := h.svc.GetFollowing(userID)
+	list, err := h.svc.GetFollowing(claims.UserID, userID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -109,6 +111,34 @@ func (h *Handler) RejectRequest(c fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+func (h *Handler) GetFollowStatus(c fiber.Ctx) error {
+	targetID, err := parseID(c, "userId")
+	if err != nil {
+		return badRequest(c, "invalid user id")
+	}
+	claims := mw.GetClaims(c)
+
+	status, err := h.svc.GetRelationshipStatus(claims.UserID, targetID)
+	if err != nil {
+		return handleErr(c, err)
+	}
+	return c.JSON(status)
+}
+
+func (h *Handler) GetFollowStats(c fiber.Ctx) error {
+	targetID, err := parseID(c, "userId")
+	if err != nil {
+		return badRequest(c, "invalid user id")
+	}
+	claims := mw.GetClaims(c)
+
+	stats, err := h.svc.GetFollowStats(claims.UserID, targetID)
+	if err != nil {
+		return handleErr(c, err)
+	}
+	return c.JSON(stats)
+}
+
 func parseID(c fiber.Ctx, param string) (uint, error) {
 	id, err := strconv.Atoi(c.Params(param))
 	if err != nil || id <= 0 {
@@ -131,6 +161,8 @@ func handleErr(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	case errors.Is(err, ErrNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "request not found"})
+	case errors.Is(err, ErrUserNotFound):
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
 	default:
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
 	}
