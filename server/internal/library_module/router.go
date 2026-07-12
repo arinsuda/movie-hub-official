@@ -2,6 +2,7 @@ package library_module
 
 import (
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	stats "github.com/arinsuda/movie-hub/internal/user_stats_module"
 	"github.com/gofiber/fiber/v3"
@@ -9,8 +10,8 @@ import (
 )
 
 func RegisterRoutes(router fiber.Router, db *gorm.DB, exp stats.ExpAdder, achieve achievementsmodule.Service,
-	notif *notification_module.Service) {
-	svc := NewService(db, exp, achieve, notif)
+	notif *notification_module.Service, feed feed_module.Service) {
+	svc := NewService(db, exp, achieve, notif, feed)
 	h := NewHandler(svc)
 
 	users := router.Group("/users/:userId")

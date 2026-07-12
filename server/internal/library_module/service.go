@@ -6,6 +6,7 @@ import (
 	"time"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	shared "github.com/arinsuda/movie-hub/internal/shared"
@@ -21,6 +22,7 @@ type Service struct {
 	expPort    stats.ExpAdder
 	achieveSvc achievementsmodule.Service
 	notifSvc   *notification_module.Service
+	feedSvc    feed_module.Service
 }
 
 func NewService(
@@ -28,6 +30,7 @@ func NewService(
 	exp stats.ExpAdder,
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
+	feed feed_module.Service,
 ) *Service {
 	return &Service{
 		repo:       newRepository(db),
@@ -35,6 +38,7 @@ func NewService(
 		expPort:    exp,
 		achieveSvc: achieve,
 		notifSvc:   notif,
+		feedSvc:    feed,
 	}
 }
 
@@ -85,6 +89,16 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 
 		s.trackLibraryTotal(userID)
 
+		// ── Feed: activity ให้คนที่ follow userID เห็นว่ามาร์คดูแล้ว ──
+		if s.feedSvc != nil {
+			mediaType := string(req.MediaType)
+			_ = s.feedSvc.CreateActivity(userID, feed_module.ActivityWatchedAdded, feed_module.ActivityPayload{
+				MediaID:       &req.MediaID,
+				MediaType:     &mediaType,
+				LibraryItemID: &item.ID,
+			})
+		}
+
 	case movie_module.ListWatchlist:
 
 		var watchlistCount int64
@@ -105,6 +119,16 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 					title,
 				)
 			}
+		}
+
+		// ── Feed: activity ให้คนที่ follow userID เห็นว่าเพิ่มเข้า watchlist ──
+		if s.feedSvc != nil {
+			mediaType := string(req.MediaType)
+			_ = s.feedSvc.CreateActivity(userID, feed_module.ActivityWatchlistAdded, feed_module.ActivityPayload{
+				MediaID:       &req.MediaID,
+				MediaType:     &mediaType,
+				LibraryItemID: &item.ID,
+			})
 		}
 	}
 

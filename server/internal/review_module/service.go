@@ -6,6 +6,7 @@ import (
 	"time"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
@@ -22,6 +23,7 @@ type Service struct {
 	expPort    stats.ExpAdder
 	achieveSvc achievementsmodule.Service
 	notifSvc   *notification_module.Service
+	feedSvc    feed_module.Service
 }
 
 func NewService(
@@ -30,6 +32,7 @@ func NewService(
 	exp stats.ExpAdder,
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
+	feed feed_module.Service,
 ) *Service {
 	return &Service{
 		repo:       newRepository(db),
@@ -38,6 +41,7 @@ func NewService(
 		expPort:    exp,
 		achieveSvc: achieve,
 		notifSvc:   notif,
+		feedSvc:    feed,
 	}
 }
 
@@ -113,6 +117,16 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 				title,
 			)
 		}
+	}
+
+	// ── Feed: สร้าง activity event เฉพาะ review ที่ public เท่านั้น ──
+	// (privacy setting ของ actor เองก็ยังเช็กซ้ำอีกชั้นใน feedSvc.CreateActivity)
+	if req.IsPublic && s.feedSvc != nil {
+		_ = s.feedSvc.CreateActivity(userID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
+			MediaID:   &req.MediaID,
+			MediaType: &req.MediaType,
+			ReviewID:  &review.ID,
+		})
 	}
 
 	inserted, err := s.repo.FindReviewByID(review.ID)
@@ -288,6 +302,16 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 		}
 	}
 
+	// ── Feed: activity ให้คนที่ follow requester เห็นว่าไป like review นี้ ──
+	// (default ปิดใน ActivityPrivacySetting เพราะ like เกิดถี่ อาจ spam feed — ผู้ใช้เปิดเองได้)
+	if review.IsPublic && s.feedSvc != nil {
+		_ = s.feedSvc.CreateActivity(requesterID, feed_module.ActivityReviewLiked, feed_module.ActivityPayload{
+			MediaID:   &review.MediaID,
+			MediaType: &review.MediaType,
+			ReviewID:  &reviewID,
+		})
+	}
+
 	return nil
 }
 
@@ -379,6 +403,18 @@ func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentReq
 			_ = s.notifSvc.PushFollowingCommented(ctx, requesterID, actor.Username, reviewID, title)             // fan-out
 		}
 	}
+
+	// ── Feed: activity ให้คนที่ follow requester เห็นว่าไป comment review นี้ ──
+	// เฉพาะตอน review เป็น public เท่านั้น (comment บน private review ของตัวเองไม่ควรเข้า feed คนอื่น)
+	if review.IsPublic && s.feedSvc != nil {
+		_ = s.feedSvc.CreateActivity(requesterID, feed_module.ActivityReviewCommented, feed_module.ActivityPayload{
+			MediaID:   &review.MediaID,
+			MediaType: &review.MediaType,
+			ReviewID:  &reviewID,
+			CommentID: &comment.ID,
+		})
+	}
+
 	return toCommentResponse(comment), nil
 }
 

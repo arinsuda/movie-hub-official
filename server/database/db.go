@@ -7,6 +7,7 @@ import (
 
 	"github.com/arinsuda/movie-hub/config"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/like_module"
@@ -91,6 +92,10 @@ func autoMigrate(db *gorm.DB) error {
 
 		&achievementsmodule.Achievement{},
 		&achievementsmodule.UserAchievement{},
+
+		// feed_module: activity feed + per-type privacy setting
+		&feed_module.ActivityEvent{},
+		&feed_module.ActivityPrivacySetting{},
 	)
 	if err != nil {
 		return err
@@ -178,10 +183,10 @@ func seedInitialData(db *gorm.DB) error {
 			db.Where("role_name = ?", user_module.RoleAdmin).First(&roleAdmin)
 
 			adminUser := &user_module.User{
-				Username: adminUsername,
-				Email:    adminEmail,
-				Password: string(hashedPassword),
-				RoleID:   roleAdmin.ID,
+				Username:        adminUsername,
+				Email:           adminEmail,
+				Password:        string(hashedPassword),
+				RoleID:          roleAdmin.ID,
 				VerifiedEmailAt: &adminVerifiedEmailAt,
 			}
 

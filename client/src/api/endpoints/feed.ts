@@ -1,0 +1,34 @@
+import api from "../index";
+import type {
+  FeedListResponse,
+  FeedQueryParams,
+  ActivitySettingsResponse,
+  UpdateActivitySettingsRequest,
+} from "@/types/feed";
+
+export const feedApi = {
+  // GET /feed — ฟีดของคนที่ user ติดตามอยู่ (accepted follow เท่านั้น)
+  getFeed: (params: FeedQueryParams = {}) =>
+    api.get<FeedListResponse>("/feed", {
+      params: { page: 1, limit: 20, ...params },
+    }),
+
+  // GET /users/:userId/activities — activity ของ user คนเดียว ใช้กับหน้าโปรไฟล์
+  getUserActivities: (userId: number, params: FeedQueryParams = {}) =>
+    api.get<FeedListResponse>(`/users/${userId}/activities`, {
+      params: { page: 1, limit: 20, ...params },
+    }),
+
+  // PATCH /activities/:activityId/visibility — ซ่อน/แสดง activity ของตัวเอง
+  updateVisibility: (activityId: number, isVisible: boolean) =>
+    api.patch(`/activities/${activityId}/visibility`, {
+      is_visible: isVisible,
+    }),
+
+  // GET /me/activity-settings
+  getSettings: () => api.get<ActivitySettingsResponse>("/me/activity-settings"),
+
+  // PATCH /me/activity-settings
+  updateSettings: (data: UpdateActivitySettingsRequest) =>
+    api.patch<ActivitySettingsResponse>("/me/activity-settings", data),
+};

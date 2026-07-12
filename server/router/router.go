@@ -7,6 +7,7 @@ import (
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/analytics_module"
 	"github.com/arinsuda/movie-hub/internal/auth_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/like_module"
@@ -41,6 +42,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	passwordResetMailer := user_module.NewSMTPPasswordResetMailer()
 
 	achieveModule := achievementsmodule.New(db)
+	feedModule := feed_module.New(db)
 
 	mw := middleware.NewAuthMiddleware(cfg)
 
@@ -64,13 +66,14 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	authSvc.SetUserService(userSvc)
 
 	achieveModule.RegisterRoutes(api, mw.RequireAuth)
+	feedModule.RegisterRoutes(protected)
 
 	notification_module.RegisterRoutes(protected, notifSvc, notifHub)
 
 	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc)
-	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc)
-	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc)
-	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc)
+	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc, feedModule.Service)
+	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc, feedModule.Service)
+	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc, feedModule.Service)
 
 	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)
