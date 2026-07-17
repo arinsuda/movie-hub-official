@@ -60,10 +60,9 @@ type ActivityEvent struct {
 	AchievementID *uint `gorm:"index"`
 	LibraryItemID *uint `gorm:"index"`
 
-	TargetUserID *uint       `gorm:"index"`
-	TargetUser   *users.User `gorm:"foreignKey:TargetUserID;constraint:OnDelete:SETNULL;"`
-
-	Message string `gorm:"type:text"`
+	TargetUserID *uint  `gorm:"index"`
+	TargetUser   *users.User  `gorm:"foreignKey:TargetUserID;references:ID;constraint:OnDelete:SET NULL;"`
+	Message      string `gorm:"type:text"`
 
 	Visibility ActivityVisibility `gorm:"type:varchar(20);not null;default:'default';index"`
 

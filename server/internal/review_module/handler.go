@@ -20,12 +20,11 @@ func NewHandler(svc *Service) *Handler {
 // ── Review ────────────────────────────────────────────────────────
 
 func (h *Handler) CreateReview(c fiber.Ctx) error {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return badRequest(c, "invalid user id")
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req CreateReviewRequest
@@ -33,7 +32,7 @@ func (h *Handler) CreateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.CreateReview(c.Context(), userID, req)
+	review, err := h.svc.CreateReview(c.Context(), claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -86,12 +85,16 @@ func (h *Handler) GetMediaReviews(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateReview(c fiber.Ctx) error {
-	userID, reviewID, err := parseIDs(c)
+	reviewID, err := parseReviewID(c)
 	if err != nil {
-		return badRequest(c, err.Error())
+		return badRequest(c, "invalid review id")
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req UpdateReviewRequest
@@ -99,7 +102,7 @@ func (h *Handler) UpdateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.UpdateReview(c.Context(), reviewID, userID, req)
+	review, err := h.svc.UpdateReview(c.Context(), reviewID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -107,15 +110,19 @@ func (h *Handler) UpdateReview(c fiber.Ctx) error {
 }
 
 func (h *Handler) DeleteReview(c fiber.Ctx) error {
-	userID, reviewID, err := parseIDs(c)
+	reviewID, err := parseReviewID(c)
 	if err != nil {
-		return badRequest(c, err.Error())
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+		return badRequest(c, "invalid review id")
 	}
 
-	if err := h.svc.DeleteReview(c.Context(), reviewID, userID); err != nil {
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	if err := h.svc.DeleteReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -211,10 +218,6 @@ func (h *Handler) GetComments(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateComment(c fiber.Ctx) error {
-	reviewID, err := parseReviewID(c)
-	if err != nil {
-		return badRequest(c, "invalid review id")
-	}
 	commentID, err := parseCommentID(c)
 	if err != nil {
 		return badRequest(c, "invalid comment id")
@@ -226,7 +229,6 @@ func (h *Handler) UpdateComment(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	_ = reviewID
 	comment, err := h.svc.UpdateComment(c.Context(), commentID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
@@ -381,23 +383,6 @@ func parseCommentID(c fiber.Ctx) (uint, error) {
 		return 0, errors.New("invalid comment id")
 	}
 	return uint(id), nil
-}
-
-func parseIDs(c fiber.Ctx) (uint, uint, error) {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return 0, 0, err
-	}
-	reviewID, err := parseReviewID(c)
-	return userID, reviewID, err
-}
-
-func assertSelf(c fiber.Ctx, targetUserID uint) error {
-	claims := mw.GetClaims(c)
-	if claims == nil || claims.UserID != targetUserID {
-		return ErrForbidden
-	}
-	return nil
 }
 
 func handleError(c fiber.Ctx, err error) error {

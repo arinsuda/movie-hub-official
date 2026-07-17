@@ -59,7 +59,7 @@
     if (deleting.value) return
     try {
       deleting.value = true
-      await reviewApi.deleteReview(props.userId, props.review.id)
+      await reviewApi.deleteReview(props.review.id)
       emit("deleted", props.review.id)
     } catch (err) {
       console.error("Delete review failed:", err)

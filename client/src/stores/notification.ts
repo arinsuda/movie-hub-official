@@ -57,7 +57,7 @@ export const useNotificationStore = defineStore("notification", () => {
 
       pagination.value = {
         ...DEFAULT_PAGINATION,
-        ...(res.data.pagination ?? {}),
+        ...res.data.pagination,
         page,
         limit,
       }

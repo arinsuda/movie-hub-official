@@ -204,7 +204,7 @@
 
       pagination.value = {
         ...DEFAULT_PAGINATION,
-        ...(res.data.pagination ?? {}),
+        ...res.data.pagination,
         page,
         limit: pagination.value.limit,
       }

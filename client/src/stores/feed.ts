@@ -45,7 +45,7 @@ export const useFeedStore = defineStore("feed", () => {
       items.value = page === 1 ? next : [...items.value, ...next];
       pagination.value = {
         ...DEFAULT_PAGINATION,
-        ...(res.data.pagination ?? {}),
+        ...res.data.pagination,
       };
     } catch (err) {
       console.error("fetchFeed failed:", err);

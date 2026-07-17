@@ -50,11 +50,8 @@ func NewService(
 }
 
 func (s *Service) CreateReview(ctx context.Context, userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
-	if req.MediaType != "movie" && req.MediaType != "tv" {
-		return nil, ErrInvalidMediaType
-	}
-	if req.MediaID <= 0 {
-		return nil, ErrInvalidMediaID
+	if err := validateReviewRequest(req); err != nil {
+		return nil, err
 	}
 
 	review := &Review{
@@ -204,6 +201,10 @@ func (s *Service) GetMediaReviews(ctx context.Context, mediaID int, mediaType st
 }
 
 func (s *Service) UpdateReview(ctx context.Context, reviewID, requesterID uint, req UpdateReviewRequest) (*ReviewResponse, error) {
+	if err := validateUpdateReviewRequest(req); err != nil {
+		return nil, err
+	}
+
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return nil, err
@@ -518,6 +519,27 @@ func validateReviewRequest(req CreateReviewRequest) error {
 	}
 	if req.MediaID <= 0 {
 		return ErrInvalidMediaID
+	}
+	if req.WatchedAt != nil {
+		_, err := time.Parse("2006-01-02", *req.WatchedAt)
+		if err != nil {
+			return ErrInvalidWatchedAt
+		}
+	}
+	return nil
+}
+
+func validateUpdateReviewRequest(req UpdateReviewRequest) error {
+	if req.Rating != nil {
+		if *req.Rating < 0.5 || *req.Rating > 5.0 || math.Mod(float64(*req.Rating)*2, 1) != 0 {
+			return ErrInvalidRating
+		}
+	}
+	if req.WatchedAt != nil {
+		_, err := time.Parse("2006-01-02", *req.WatchedAt)
+		if err != nil {
+			return ErrInvalidWatchedAt
+		}
 	}
 	return nil
 }

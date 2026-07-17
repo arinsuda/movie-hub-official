@@ -41,7 +41,7 @@ export function useUserActivities(userId: Ref<number> | number) {
       items.value = page === 1 ? next : [...items.value, ...next];
       pagination.value = {
         ...DEFAULT_PAGINATION,
-        ...(res.data.pagination ?? {}),
+        ...res.data.pagination,
       };
     } catch (err) {
       console.error("useUserActivities fetch failed:", err);

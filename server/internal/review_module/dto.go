@@ -11,7 +11,7 @@ import (
 type CreateReviewRequest struct {
 	MediaID   int     `json:"media_id"`
 	MediaType string  `json:"media_type"` // "movie" | "tv"
-	Rating    float32 `json:"rating"`     // 0.0 - 10.0
+	Rating    float32 `json:"rating"`     // 0.5 - 5.0 (increments of 0.5)
 	Body      string  `json:"body"`
 	IsPublic  bool    `json:"is_public"`
 	WatchedAt *string `json:"watched_at"` // "2026-05-01"

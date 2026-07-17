@@ -168,7 +168,7 @@
     if (saving.value) return
     try {
       saving.value = true
-      const res = await reviewApi.updateReview(props.userId, props.review.id, {
+      const res = await reviewApi.updateReview(props.review.id, {
         rating: form.rating,
         body: form.body,
       })

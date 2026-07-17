@@ -17,7 +17,7 @@ var (
 	ErrAlreadyMarkedHelpful = errors.New("already marked helpful")
 	ErrNotMarkedHelpful     = errors.New("not marked helpful")
 	ErrInvalidWatchedAt     = errors.New("invalid watched_at")
-	ErrInvalidRating        = errors.New("rating must be 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, or 5")
+	ErrInvalidRating        = errors.New("rating must be between 0.5 and 5 in increments of 0.5")
 	ErrInvalidMediaType     = errors.New("media_type must be 'movie' or 'tv'")
 	ErrInvalidMediaID       = errors.New("invalid media_id")
 )

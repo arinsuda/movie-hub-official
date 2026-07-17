@@ -83,14 +83,18 @@ func TestMigrationAndConstraints(t *testing.T) {
 	}
 
 	// 2. CHECK constraint validation: invalid visibility rejected
-	invalidEvent := ActivityEvent{
-		ActorID:    1,
-		Type:       ActivityMediaLiked,
-		Visibility: "invalid_visibility",
-	}
-	err = tx.Create(&invalidEvent).Error
-	if err == nil {
-		t.Error("expected DB check constraint to reject invalid visibility value")
+	{
+		tx2 := db.Begin()
+		invalidEvent := ActivityEvent{
+			ActorID:    1,
+			Type:       ActivityMediaLiked,
+			Visibility: "invalid_visibility",
+		}
+		err2 := tx2.Create(&invalidEvent).Error
+		if err2 == nil {
+			t.Error("expected DB check constraint to reject invalid visibility value")
+		}
+		tx2.Rollback()
 	}
 
 	// 3. Unique index validation: duplicate active media liked rejected
@@ -108,16 +112,23 @@ func TestMigrationAndConstraints(t *testing.T) {
 		t.Fatalf("failed to create first active event: %v", err)
 	}
 
-	active2 := ActivityEvent{
-		ActorID:    1,
-		Type:       ActivityMediaLiked,
-		MediaID:    &mID,
-		MediaType:  &mType,
-		Visibility: "default",
-	}
-	err = tx.Create(&active2).Error
-	if err == nil {
-		t.Error("expected database unique index to reject duplicate active media liked event")
+	{
+		err3 := tx.SavePoint("sp1").Error
+		if err3 != nil {
+			t.Fatalf("failed to create savepoint: %v", err3)
+		}
+		active2 := ActivityEvent{
+			ActorID:    1,
+			Type:       ActivityMediaLiked,
+			MediaID:    &mID,
+			MediaType:  &mType,
+			Visibility: "default",
+		}
+		err3 = tx.Create(&active2).Error
+		if err3 == nil {
+			t.Error("expected database unique index to reject duplicate active media liked event")
+		}
+		tx.RollbackTo("sp1")
 	}
 
 	// 4. Soft-deleted activity does not block recreation (restore-or-create lifecycle)

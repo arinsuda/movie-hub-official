@@ -1673,7 +1673,7 @@ var require_speakingurl = __commonJS({ "../../node_modules/.pnpm/speakingurl@14.
 			};
 		};
 		var escapeChars = function escapeChars2(input) {
-			return input.replace(/[-\\^$*+?.()|[\]{}\/]/g, "\\$&");
+			return input.replace(/[-\\^$*+?.()|[\]{}/]/g, "\\$&");
 		};
 		var isReplacedCustomChar = function(ch, customReplacements) {
 			for (var c in customReplacements) if (customReplacements[c] === ch) return true;

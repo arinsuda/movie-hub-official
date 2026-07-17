@@ -31,35 +31,41 @@ export interface GetUserReviewsParams {
 }
 
 export const reviewApi = {
-  createReview: (userId: number, data: CreateReviewRequest) =>
-    api.post<{ review: ReviewResponse }>(`/users/${userId}/reviews`, data),
+  createReview: (data: CreateReviewRequest) =>
+    api.post<{ review: ReviewResponse }>("/reviews", data),
 
   getUserReviews: (userId: number, params: GetUserReviewsParams = {}) =>
-    api.get<{ reviews: ReviewResponse[] }>(`/users/${userId}/reviews`, {
-      params: { page: 1, limit: 20, ...params },
+    api.get<{ reviews: ReviewResponse[] }>(`/reviews/user/${userId}`, {
+      params,
     }),
 
   getMediaReviews: (
-    mediaType: "movies" | "tv",
+    mediaType: "movie" | "tv" | "movies",
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
-  ) =>
-    api.get<{ reviews: ReviewResponse[] }>(`/${mediaType}/${mediaId}/reviews`, {
-      params: { page: 1, limit: 20, ...params },
-    }),
+  ) => {
+    // Convert movies -> movie, tv remains tv/series
+    const mt = mediaType === "movies" ? "movie" : mediaType === "tv" ? "tv" : mediaType;
+    return api.get<{ reviews: ReviewResponse[] }>(
+      `/reviews/media/${mt}/${mediaId}`,
+      { params },
+    );
+  },
 
-  updateReview: (userId: number, reviewId: number, data: UpdateReviewRequest) =>
+  updateReview: (reviewId: number, data: UpdateReviewRequest) =>
     api.patch<{ review: ReviewResponse }>(
-      `/users/${userId}/reviews/${reviewId}`,
+      `/reviews/${reviewId}`,
       data,
     ),
 
-  deleteReview: (userId: number, reviewId: number) =>
-    api.delete(`/users/${userId}/reviews/${reviewId}`),
+  deleteReview: (reviewId: number) =>
+    api.delete(`/reviews/${reviewId}`),
 
-  likeReview: (reviewId: number) => api.post(`/reviews/${reviewId}/likes`),
+  likeReview: (reviewId: number) =>
+    api.post(`/reviews/${reviewId}/like`),
 
-  unlikeReview: (reviewId: number) => api.delete(`/reviews/${reviewId}/likes`),
+  unlikeReview: (reviewId: number) =>
+    api.delete(`/reviews/${reviewId}/like`),
 
   markHelpful: (reviewId: number) =>
     api.post<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
@@ -67,12 +73,9 @@ export const reviewApi = {
   unmarkHelpful: (reviewId: number) =>
     api.delete<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
 
-  getComments: (reviewId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<CommentResponse>>(
+  getComments: (reviewId: number) =>
+    api.get<{ comments: CommentResponse[] }>(
       `/reviews/${reviewId}/comments`,
-      {
-        params: { page, limit },
-      },
     ),
 
   createComment: (reviewId: number, data: CreateCommentRequest) =>
@@ -81,9 +84,9 @@ export const reviewApi = {
       data,
     ),
 
-  updateComment: (reviewId: number, commentId: number, body: string) =>
+  updateComment: (commentId: number, body: string) =>
     api.patch<{ comment: CommentResponse }>(
-      `/reviews/${reviewId}/comments/${commentId}`,
+      `/reviews/comments/${commentId}`,
       { body },
     ),
 
