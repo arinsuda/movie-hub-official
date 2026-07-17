@@ -373,11 +373,10 @@
     try {
       if (isWatchlisted.value) {
         if (!watchlist_ItemId.value) {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            tvId.value,
-            "tv",
-          )
+          const libRes = await libraryApi.getOwnMediaStatus(
+             tvId.value,
+             "tv",
+           )
           const inLists = libRes.data?.in_lists || []
           const watchlistInfo = inLists.find(
             (l: any) => l.list_type === "watchlist",
@@ -392,9 +391,8 @@
         }
 
         await libraryApi.removeItem(
-          currentUserId.value,
-          watchlist_ItemId.value!,
-        )
+           watchlist_ItemId.value!,
+         )
 
         removStats.value.watchlist_count = Math.max(
           0,
@@ -404,7 +402,7 @@
         watchlist_ItemId.value = null
         window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว")
       } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
+        const res = await libraryApi.addItem({
           media_id: tvId.value,
           media_type: "tv",
           list_type: "watchlist",
@@ -432,13 +430,13 @@
 
     try {
       if (isWatched.value && watched_ItemId.value) {
-        await libraryApi.removeItem(currentUserId.value, watched_ItemId.value)
+        await libraryApi.removeItem(watched_ItemId.value)
 
         isWatched.value = false
         watched_ItemId.value = null
         window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม")
       } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
+        const res = await libraryApi.addItem({
           media_id: tvId.value,
           media_type: "tv",
           list_type: "watched",
@@ -717,11 +715,10 @@
 
       if (currentUserId.value) {
         try {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            currentTvId,
-            "tv",
-          )
+          const libRes = await libraryApi.getOwnMediaStatus(
+             currentTvId,
+             "tv",
+           )
           const inLists = libRes.data?.in_lists || []
 
           const watchlistInfo = inLists.find(l => l.list_type === "watchlist")

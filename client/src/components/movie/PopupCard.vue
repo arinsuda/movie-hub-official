@@ -238,8 +238,7 @@ onMounted(async () => {
     if (!currentUserId.value) return;
 
     const userId = currentUserId.value;
-    const resLibrary = await libraryApi.getMediaStatus(
-      userId,
+    const resLibrary = await libraryApi.getOwnMediaStatus(
       props.movie.id,
       mt.value,
     );
@@ -284,11 +283,10 @@ async function handleWatchlistToggle() {
     window.$toast?.warning("กรุณาเข้าสู่ระบบก่อนใช้งาน", "แจ้งเตือน");
     return;
   }
-  const userId = currentUserId.value;
 
   try {
     if (isInWatchlist.value && watchlistItemId.value) {
-      await libraryApi.removeItem(userId, watchlistItemId.value);
+      await libraryApi.removeItem(watchlistItemId.value);
       stats.value.watchlist_count = Math.max(
         0,
         stats.value.watchlist_count - 1,
@@ -297,7 +295,7 @@ async function handleWatchlistToggle() {
       watchlistItemId.value = null;
       window.$toast?.info(`ลบออกจาก Watchlist แล้ว`, displayTitle.value);
     } else {
-      const res = await libraryApi.addItem(userId, {
+      const res = await libraryApi.addItem({
         media_id: props.movie.id,
         media_type: mt.value,
         list_type: "watchlist",

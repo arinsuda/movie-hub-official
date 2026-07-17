@@ -94,36 +94,7 @@ export const reviewApi = {
     api.delete(`/reviews/${reviewId}/comments/${commentId}`),
 }
 
-export const libraryApi = {
-  addItem: (userId: number, data: AddItemRequest) =>
-    api.post<{ item: LibraryItemResponse }>(`/users/${userId}/library`, data),
 
-  getLibrary: (
-    userId: number,
-    params?: { list_type?: ListType; media_type?: MediaType },
-  ) =>
-    api.get<{ items: LibraryItemResponse[] }>(`/users/${userId}/library`, {
-      params,
-    }),
-
-  getMediaStatus: (userId: number, mediaId: number, mediaType: MediaType) =>
-    api.get<MediaStatusResponse>(`/users/${userId}/library/status`, {
-      params: { media_id: mediaId, media_type: mediaType },
-    }),
-
-  updateItem: (
-    userId: number,
-    itemId: number,
-    data: { watched_at?: string; tags?: string[]; note?: string },
-  ) =>
-    api.patch<{ item: LibraryItemResponse }>(
-      `/users/${userId}/library/${itemId}`,
-      data,
-    ),
-
-  removeItem: (userId: number, itemId: number) =>
-    api.delete(`/users/${userId}/library/${itemId}`),
-}
 
 export const followApi = {
   follow: (userId: number) =>

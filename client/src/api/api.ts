@@ -1,5 +1,6 @@
 export { authApi } from "./endpoints/auth"
 export { movieApi } from "./endpoints/movie"
 export { userApi } from "./endpoints/user"
-export { reviewApi, libraryApi, followApi } from "./endpoints/social"
+export { reviewApi, followApi } from "./endpoints/social"
+export { libraryApi } from "./endpoints/library"
 export { default as apiClient } from "./index"

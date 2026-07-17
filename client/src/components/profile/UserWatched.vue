@@ -126,7 +126,7 @@
   onMounted(async () => {
     try {
       loading.value = true
-      const response = await libraryApi.getLibrary(props.userId, {
+      const response = await libraryApi.getVisibleUserLibrary(props.userId, {
         list_type: "watched",
       })
 
@@ -171,7 +171,7 @@
     if (pendingId.value == null || !pendingType.value) return
 
     try {
-      await libraryApi.removeItem(props.userId, pendingId.value)
+      await libraryApi.removeItem(pendingId.value)
 
       watchlist.value = watchlist.value.filter(i => i.id !== pendingId.value)
       showModal.value = false
