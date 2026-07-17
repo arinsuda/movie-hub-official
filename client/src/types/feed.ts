@@ -56,6 +56,7 @@ export interface FeedListResponse {
 export interface FeedQueryParams {
   page?: number;
   limit?: number;
+  category?: string;
 }
 
 export interface ActivitySettingsResponse {

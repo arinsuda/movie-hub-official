@@ -22,6 +22,7 @@ export const useFeedStore = defineStore("feed", () => {
   const loading = ref(false);
   const loadingMore = ref(false);
   const error = ref<string | null>(null);
+  const selectedCategory = ref<string>("");
 
   const settings = ref<ActivitySettingsResponse | null>(null);
   const settingsLoading = ref(false);
@@ -45,7 +46,7 @@ export const useFeedStore = defineStore("feed", () => {
     const topId = topActivityId.value;
     if (!topId) return;
     try {
-      const res = await feedApi.getNewCount(topId);
+      const res = await feedApi.getNewCount(topId, selectedCategory.value || undefined);
       newItemsCount.value = res.data.count;
     } catch (err) {
       console.error("checkNewItems failed:", err);
@@ -110,7 +111,11 @@ export const useFeedStore = defineStore("feed", () => {
     error.value = null;
 
     try {
-      const res = await feedApi.getFeed({ page, limit });
+      const res = await feedApi.getFeed({
+        page,
+        limit,
+        category: selectedCategory.value || undefined,
+      });
       const next = res.data.items ?? [];
       items.value = page === 1 ? next : [...items.value, ...next];
       pagination.value = {
@@ -124,6 +129,13 @@ export const useFeedStore = defineStore("feed", () => {
       loading.value = false;
       loadingMore.value = false;
     }
+  }
+
+  async function setCategory(cat: string) {
+    selectedCategory.value = cat;
+    items.value = [];
+    pagination.value = { ...DEFAULT_PAGINATION };
+    await fetchFeed(1);
   }
 
   async function loadMore() {
@@ -229,6 +241,7 @@ export const useFeedStore = defineStore("feed", () => {
     settings,
     settingsLoading,
     settingsError,
+    selectedCategory,
 
     fetchFeed,
     loadMore,
@@ -241,6 +254,7 @@ export const useFeedStore = defineStore("feed", () => {
     bindSocket,
     unbindSocket,
     showNewItems,
+    setCategory,
   };
 });
 

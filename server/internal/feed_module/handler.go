@@ -45,7 +45,9 @@ func (h *handler) GetNewCount(c fiber.Ctx) error {
 		return badRequest(c, "invalid after_id")
 	}
 
-	count, err := h.svc.CountNewFeedItems(c.Context(), claims.UserID, uint(afterID))
+	category := c.Query("category")
+
+	count, err := h.svc.CountNewFeedItems(c.Context(), claims.UserID, uint(afterID), category)
 	if err != nil {
 		return handleErr(c, err)
 	}

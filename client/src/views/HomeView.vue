@@ -29,7 +29,10 @@
         <p class="hero__meta">
           {{ currentHero.release_date?.slice(0, 4) }}
           <span class="hero__dot-sep">·</span>
-          ⭐ {{ currentHero.vote_average?.toFixed(1) }}
+          <span class="inline-flex items-center gap-1 align-middle">
+            <Star :size="14" class="fill-amber-500 text-amber-500" />
+            {{ currentHero.vote_average?.toFixed(1) }}
+          </span>
         </p>
       </div>
 
@@ -190,7 +193,7 @@
   import { useQuery } from "@tanstack/vue-query"
   import { movieApi } from "@/api/api"
   import { useAuthStore } from "@/stores/auth"
-  import { Sparkles, Clapperboard, ChevronRight } from "lucide-vue-next"
+  import { Sparkles, Clapperboard, ChevronRight, Star } from "lucide-vue-next"
   import type { Movie } from "@/types"
   import PopupCard from "@/components/movie/PopupCard.vue"
   import {

@@ -268,7 +268,7 @@ async function handleLikeToggle() {
       stats.value.like_count++;
       isLiked.value = true;
       window.$toast?.success(
-        `เพิ่มไปยังรายการที่ชอบเรียบร้อย! ❤️`,
+        `เพิ่มไปยังรายการที่ชอบเรียบร้อย!`,
         displayTitle.value,
       );
     }

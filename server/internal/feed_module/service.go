@@ -21,7 +21,7 @@ type Service interface {
 	DeleteActivity(ctx context.Context, activityID, requesterID uint) error
 	GetSettings(ctx context.Context, userID uint) (*ActivitySettingsResponse, error)
 	UpdateSettings(ctx context.Context, userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error)
-	CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error)
+	CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint, category string) (int64, error)
 	IsActivityEnabled(ctx context.Context, userID uint, activityType ActivityType) (bool, error)
 
 	DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error
@@ -181,8 +181,8 @@ func (s *service) UpdateSettings(ctx context.Context, userID uint, req UpdateAct
 	return s.GetSettings(ctx, userID)
 }
 
-func (s *service) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error) {
-	return s.repo.CountNewFeedItems(ctx, userID, afterActivityID)
+func (s *service) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint, category string) (int64, error) {
+	return s.repo.CountNewFeedItems(ctx, userID, afterActivityID, category)
 }
 
 func (s *service) broadcastRefresh(ctx context.Context, actorID uint) {

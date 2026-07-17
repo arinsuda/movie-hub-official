@@ -21,8 +21,9 @@ type ActivityPayload struct {
 }
 
 type PaginationQuery struct {
-	Page  int `query:"page"`
-	Limit int `query:"limit"`
+	Page     int    `query:"page"`
+	Limit    int    `query:"limit"`
+	Category string `query:"category"`
 }
 
 func (p *PaginationQuery) Normalize() {

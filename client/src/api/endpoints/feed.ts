@@ -40,9 +40,9 @@ export const feedApi = {
     api.patch<ActivitySettingsResponse>("/me/activity-settings", data),
 
   // GET /feed/new-count — นับกิจกรรมใหม่ตั้งแต่ after_id
-  getNewCount: (afterId: number) =>
+  getNewCount: (afterId: number, category?: string) =>
     api.get<{ count: number }>("/feed/new-count", {
-      params: { after_id: afterId },
+      params: { after_id: afterId, category },
     }),
 };
 

@@ -161,7 +161,7 @@ const feedSelectColumns = `
 
 func (r *repository) FindFeed(ctx context.Context, userID uint, pq PaginationQuery) ([]feedRow, int64, error) {
 	buildQuery := func() *gorm.DB {
-		return r.db.WithContext(ctx).Table("activity_events ae").
+		db := r.db.WithContext(ctx).Table("activity_events ae").
 			Joins("JOIN users u ON u.id = ae.actor_id AND u.is_active = true").
 			Joins("LEFT JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.follower_id = ?", userID).
 			Joins("LEFT JOIN activity_privacy_settings aps ON aps.user_id = ae.actor_id AND aps.activity_type = ae.type").
@@ -190,6 +190,16 @@ func (r *repository) FindFeed(ctx context.Context, userID uint, pq PaginationQue
 					)
 				)
 			`)
+
+		if pq.Category == "reviews" {
+			db = db.Where("ae.type = 'review_created'")
+		} else if pq.Category == "lists" {
+			db = db.Where("ae.type IN ('watchlist_added', 'watched_added')")
+		} else if pq.Category == "social" {
+			db = db.Where("ae.type IN ('user_followed', 'achievement_unlocked', 'review_liked', 'review_commented', 'media_liked')")
+		}
+
+		return db
 	}
 
 	var total int64
@@ -282,9 +292,9 @@ func (r *repository) UpsertSetting(ctx context.Context, userID uint, t ActivityT
 		FirstOrCreate(&setting).Error
 }
 
-func (r *repository) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error) {
+func (r *repository) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint, category string) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Table("activity_events ae").
+	db := r.db.WithContext(ctx).Table("activity_events ae").
 		Joins("JOIN users u ON u.id = ae.actor_id AND u.is_active = true").
 		Joins("LEFT JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.follower_id = ?", userID).
 		Joins("LEFT JOIN activity_privacy_settings aps ON aps.user_id = ae.actor_id AND aps.activity_type = ae.type").
@@ -313,9 +323,17 @@ func (r *repository) CountNewFeedItems(ctx context.Context, userID uint, afterAc
 					OR (ae.visibility = 'default' AND (u.is_private = false OR uf.status = 'accepted'))
 				)
 			)
-		`).
-		Count(&count).Error
+		`)
 
+	if category == "reviews" {
+		db = db.Where("ae.type = 'review_created'")
+	} else if category == "lists" {
+		db = db.Where("ae.type IN ('watchlist_added', 'watched_added')")
+	} else if category == "social" {
+		db = db.Where("ae.type IN ('user_followed', 'achievement_unlocked', 'review_liked', 'review_commented', 'media_liked')")
+	}
+
+	err := db.Count(&count).Error
 	return count, err
 }
 

@@ -354,7 +354,7 @@
         await mediaApi.likeMedia("movie", movieId.value)
         removStats.value.liked_at = new Date().toISOString()
         removStats.value.like_count += 1
-        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️")
+        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว")
       }
     } catch (err) {
       console.error("ล้มเหลวในการบันทึกสถานะถูกใจ:", err)
