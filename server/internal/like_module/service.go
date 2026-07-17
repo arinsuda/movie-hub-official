@@ -62,6 +62,29 @@ func (s *Service) Like(ctx context.Context, userID uint, mediaID int, mediaType 
 	s.createAchievementFeedActivities(ctx, userID, unlocked)
 
 
+	if s.notifSvc != nil {
+		if actor, err := s.getUserSummary(userID); err == nil {
+			var title string
+			switch mediaType {
+			case movie_module.MediaMovie:
+				if details, err := tmdbmodule.GetMovieByID(mediaID); err == nil && details != nil {
+					title = details.Title
+				}
+			case movie_module.MediaSeries:
+				if details, err := tmdbmodule.GetSeriesByID(mediaID); err == nil && details != nil {
+					title = details.Name
+				}
+			}
+			_ = s.notifSvc.PushFollowingLikedMedia(
+				ctx,
+				userID,
+				actor.Username,
+				uint(mediaID),
+				title,
+			)
+		}
+	}
+
 	if s.feedSvc != nil {
 		mt := string(mediaType)
 		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityMediaLiked, feed_module.ActivityPayload{
@@ -147,6 +170,18 @@ func (s *Service) createAchievementFeedActivities(ctx context.Context, userID ui
 			Message:       u.Name,
 		})
 	}
+}
+
+type UserSummary struct {
+	Username string
+}
+
+func (s *Service) getUserSummary(userID uint) (*UserSummary, error) {
+	var u struct {
+		Username string
+	}
+	err := s.db.Table("users").Where("id = ?", userID).Select("username").First(&u).Error
+	return &UserSummary{Username: u.Username}, err
 }
 
 

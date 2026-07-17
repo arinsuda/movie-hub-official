@@ -6,6 +6,7 @@ export type NotificationType =
   | "following_added_watched"
   | "following_marked_helpful"
   | "following_commented"
+  | "following_liked_media"
   | "review_liked"
   | "review_commented"
   | "review_marked_helpful"
@@ -68,6 +69,7 @@ const TITLE_BY_TYPE: Record<NotificationType, string> = {
   following_added_watched: "กิจกรรมจากคนที่คุณติดตาม",
   following_marked_helpful: "กิจกรรมจากคนที่คุณติดตาม",
   following_commented: "กิจกรรมจากคนที่คุณติดตาม",
+  following_liked_media: "กิจกรรมจากคนที่คุณติดตาม",
   review_liked: "มีคนถูกใจรีวิวของคุณ",
   review_commented: "มีคอมเมนต์ใหม่ในรีวิวของคุณ",
   review_marked_helpful: "รีวิวของคุณถูกโหวตว่ามีประโยชน์",

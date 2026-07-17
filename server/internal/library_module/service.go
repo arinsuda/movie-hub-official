@@ -92,6 +92,19 @@ func (s *Service) AddItem(ctx context.Context, userID uint, req AddItemRequest) 
 
 		s.trackLibraryTotal(ctx, userID)
 
+		if s.notifSvc != nil {
+			if actor, err := s.getUserSummary(userID); err == nil {
+				title, _ := s.fetchTitle(req.MediaID, req.MediaType)
+				_ = s.notifSvc.PushFollowingAddedWatched(
+					ctx,
+					userID,
+					actor.Username,
+					uint(req.MediaID),
+					title,
+				)
+			}
+		}
+
 		if s.feedSvc != nil {
 			mediaType := string(req.MediaType)
 			_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityWatchedAdded, feed_module.ActivityPayload{

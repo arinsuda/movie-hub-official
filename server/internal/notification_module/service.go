@@ -196,6 +196,8 @@ func (s *Service) PushFollowingActivity(
 	case NotifFollowingMarkedHelpful:
 		// review_liked setting controls marked helpful as well
 		activityType = privacy_policy.ActivityReviewLiked
+	case NotifFollowingLikedMedia:
+		activityType = privacy_policy.ActivityMediaLiked
 	}
 
 	if activityType != "" {
@@ -275,6 +277,12 @@ func (s *Service) PushFollowingAddedWatched(ctx context.Context, actorID uint, a
 	ref := "movie"
 	msg := fmt.Sprintf("%s marked %q as watched", actorUsername, movieTitle)
 	return s.PushFollowingActivity(ctx, actorID, NotifFollowingAddedWatched, &movieID, &ref, msg)
+}
+
+func (s *Service) PushFollowingLikedMedia(ctx context.Context, actorID uint, actorUsername string, movieID uint, movieTitle string) error {
+	ref := "movie"
+	msg := fmt.Sprintf("%s liked %q", actorUsername, movieTitle)
+	return s.PushFollowingActivity(ctx, actorID, NotifFollowingLikedMedia, &movieID, &ref, msg)
 }
 
 func (s *Service) toResponse(n Notification) NotificationResponse {

@@ -22,6 +22,7 @@ const (
 	NotifFollowingAddedWatched   NotificationType = "following_added_watched"
 	NotifFollowingMarkedHelpful  NotificationType = "following_marked_helpful"
 	NotifFollowingCommented      NotificationType = "following_commented"
+	NotifFollowingLikedMedia     NotificationType = "following_liked_media"
 
 	NotifReviewLiked         NotificationType = "review_liked"
 	NotifReviewCommented     NotificationType = "review_commented"
@@ -56,6 +57,7 @@ var categoryByType = map[NotificationType]NotificationCategory{
 	NotifFollowingAddedWatched:   CategorySocial,
 	NotifFollowingMarkedHelpful:  CategorySocial,
 	NotifFollowingCommented:      CategorySocial,
+	NotifFollowingLikedMedia:     CategorySocial,
 	NotifReviewLiked:             CategorySocial,
 	NotifReviewCommented:         CategorySocial,
 	NotifReviewMarkedHelpful:     CategorySocial,
