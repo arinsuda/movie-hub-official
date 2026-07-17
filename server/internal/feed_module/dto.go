@@ -3,13 +3,10 @@ package feed_module
 import (
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
 )
 
-// ── Activity creation (ใช้ภายใน — module อื่นเรียกผ่าน Service.CreateActivity) ──
-
-// ActivityPayload คือ argument ที่ module อื่น (review, library, like, achievement)
-// ส่งเข้ามาตอนสร้าง activity event ใหม่
 type ActivityPayload struct {
 	MediaID   *int
 	MediaType *string
@@ -18,11 +15,10 @@ type ActivityPayload struct {
 	CommentID     *uint
 	AchievementID *uint
 	LibraryItemID *uint
+	TargetUserID  *uint
 
 	Message string
 }
-
-// ── Pagination ───────────────────────────────────────────────────
 
 type PaginationQuery struct {
 	Page  int `query:"page"`
@@ -57,8 +53,6 @@ func newPaginationMeta(page, limit int, total int64) PaginationMeta {
 	return PaginationMeta{Page: page, Limit: limit, Total: total, TotalPages: totalPages}
 }
 
-// ── Feed responses ───────────────────────────────────────────────
-
 type ActorSummary struct {
 	ID          uint    `json:"id"`
 	Username    string  `json:"username"`
@@ -69,7 +63,7 @@ type ActorSummary struct {
 type FeedItemResponse struct {
 	ID uint `json:"id"`
 
-	Type ActivityType `json:"type"`
+	Type privacy_policy.ActivityType `json:"type"`
 
 	Actor ActorSummary `json:"actor"`
 
@@ -80,7 +74,11 @@ type FeedItemResponse struct {
 	AchievementID *uint `json:"achievement_id,omitempty"`
 	LibraryItemID *uint `json:"library_item_id,omitempty"`
 
+	TargetUser *ActorSummary `json:"target_user,omitempty"`
+
 	Message string `json:"message"`
+
+	Visibility privacy_policy.ActivityVisibility `json:"visibility"`
 
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -90,13 +88,9 @@ type FeedListResponse struct {
 	Pagination PaginationMeta     `json:"pagination"`
 }
 
-// ── Visibility ───────────────────────────────────────────────────
-
-type UpdateVisibilityRequest struct {
-	IsVisible bool `json:"is_visible"`
+type UpdateActivityVisibilityRequest struct {
+	Visibility privacy_policy.ActivityVisibility `json:"visibility"`
 }
-
-// ── Settings ─────────────────────────────────────────────────────
 
 type ActivitySettingsResponse struct {
 	ReviewCreated       bool `json:"review_created"`
@@ -106,6 +100,7 @@ type ActivitySettingsResponse struct {
 	WatchlistAdded      bool `json:"watchlist_added"`
 	WatchedAdded        bool `json:"watched_added"`
 	AchievementUnlocked bool `json:"achievement_unlocked"`
+	UserFollowed        bool `json:"user_followed"`
 }
 
 type UpdateActivitySettingsRequest struct {
@@ -116,4 +111,5 @@ type UpdateActivitySettingsRequest struct {
 	WatchlistAdded      *bool `json:"watchlist_added"`
 	WatchedAdded        *bool `json:"watched_added"`
 	AchievementUnlocked *bool `json:"achievement_unlocked"`
+	UserFollowed        *bool `json:"user_followed"`
 }

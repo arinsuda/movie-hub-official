@@ -33,7 +33,10 @@
           :key="item.id"
           :item="item"
           :can-manage="item.actor.id === currentUserId"
-          @hide="emit('hide', $event)"
+          @update-visibility="
+            (id, val) => emit('update-visibility', id, val)
+          "
+          @delete-activity="(id) => emit('delete-activity', id)"
         />
       </div>
 
@@ -86,14 +89,18 @@ const props = defineProps<{
 const emit = defineEmits<{
   "load-more": [];
   retry: [];
-  hide: [id: number];
+  "update-visibility": [
+    id: number,
+    visibility: "default" | "public" | "followers" | "private",
+  ];
+  "delete-activity": [id: number];
 }>();
 
 const sentinel = ref<HTMLElement | null>(null);
 
 useInfiniteScroll(sentinel, () => emit("load-more"), {
   disabled: computed(
-    () => props.loading || props.loadingMore || !props.hasMore,
+    () => props.loading || props.loadingMore || !props.hasMore
   ),
 });
 </script>

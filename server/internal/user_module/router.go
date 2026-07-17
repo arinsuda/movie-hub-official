@@ -1,6 +1,7 @@
 package user_module
 
 import (
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
@@ -13,9 +14,10 @@ func RegisterRoutes(
 	statsSvc StatsProvider,
 	emailVerifier EmailVerificationSender,
 	passwordResetMailer PasswordResetMailer,
+	policy privacy_policy.UserAccessPolicy,
 ) *Service {
 	mailer := NewSMTPMailer()
-	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer)
+	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer, policy)
 	h := NewHandler(svc)
 
 	users := router.Group("/users")

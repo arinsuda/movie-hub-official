@@ -1,37 +1,46 @@
 package feed_module
 
 import (
+	"context"
+	"errors"
+
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	noti "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"gorm.io/gorm"
 )
 
 type Service interface {
-	// CreateActivity ให้ module อื่น (review/library/like/achievement) เรียกหลังทำ action สำเร็จ
-	// จะเช็ก ActivityPrivacySetting ของ actor ก่อนเสมอ — ถ้าปิดแชร์ activity type นี้ไว้ จะไม่สร้าง event ให้
-	// (ทำให้ user ยังใช้งาน watchlist/watched/like ได้ตามปกติ แค่ไม่โผล่ใน feed คนอื่น)
-	CreateActivity(actorID uint, activityType ActivityType, payload ActivityPayload) error
+	CreateActivity(ctx context.Context, actorID uint, activityType ActivityType, payload ActivityPayload) error
+	GetFeed(ctx context.Context, userID uint, pq PaginationQuery) (*FeedListResponse, error)
+	GetUserActivities(ctx context.Context, targetUserID, requesterID uint, pq PaginationQuery) (*FeedListResponse, error)
+	UpdateActivityVisibility(ctx context.Context, activityID, requesterID uint, visibility privacy_policy.ActivityVisibility) error
+	DeleteActivity(ctx context.Context, activityID, requesterID uint) error
+	GetSettings(ctx context.Context, userID uint) (*ActivitySettingsResponse, error)
+	UpdateSettings(ctx context.Context, userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error)
 
-	GetFeed(userID uint, pq PaginationQuery) (*FeedListResponse, error)
-	GetUserActivities(targetUserID, requesterID uint, pq PaginationQuery) (*FeedListResponse, error)
-
-	UpdateVisibility(activityID, requesterID uint, isVisible bool) error
-
-	GetSettings(userID uint) (*ActivitySettingsResponse, error)
-	UpdateSettings(userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error)
+	DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error
+	DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error
+	DeleteMediaActivity(ctx context.Context, actorID uint, activityType ActivityType, mediaID int, mediaType string) error
+	DeleteFollowActivity(ctx context.Context, followerID uint, followeeID uint) error
 }
 
 type service struct {
 	repo *repository
+	hub  *noti.Hub
 }
 
-func NewService(db *gorm.DB) Service {
-	return &service{repo: newRepository(db)}
+func NewService(db *gorm.DB, hub *noti.Hub) Service {
+	return &service{
+		repo: newRepository(db),
+		hub:  hub,
+	}
 }
 
-func (s *service) CreateActivity(actorID uint, activityType ActivityType, payload ActivityPayload) error {
-	enabled, err := s.repo.IsEnabled(actorID, activityType)
+func (s *service) CreateActivity(ctx context.Context, actorID uint, activityType ActivityType, payload ActivityPayload) error {
+	enabled, err := s.repo.IsEnabled(ctx, actorID, activityType)
 	if err != nil {
 		return err
 	}
@@ -48,58 +57,102 @@ func (s *service) CreateActivity(actorID uint, activityType ActivityType, payloa
 		CommentID:     payload.CommentID,
 		AchievementID: payload.AchievementID,
 		LibraryItemID: payload.LibraryItemID,
+		TargetUserID:  payload.TargetUserID,
 		Message:       payload.Message,
+		Visibility:    privacy_policy.VisibilityDefault,
 		IsVisible:     true,
 	}
-	return s.repo.Create(event)
-}
 
-func (s *service) GetFeed(userID uint, pq PaginationQuery) (*FeedListResponse, error) {
-	pq.Normalize()
-	rows, total, err := s.repo.FindFeed(userID, pq)
-	if err != nil {
-		return nil, err
-	}
-	return toFeedListResponse(rows, pq, total), nil
-}
-
-func (s *service) GetUserActivities(targetUserID, requesterID uint, pq PaginationQuery) (*FeedListResponse, error) {
-	canView, err := s.repo.canViewUserActivities(requesterID, targetUserID)
-	if err != nil {
-		return nil, err
-	}
-	if !canView {
-		return nil, ErrForbidden
-	}
-
-	pq.Normalize()
-	rows, total, err := s.repo.FindUserActivities(targetUserID, pq)
-	if err != nil {
-		return nil, err
-	}
-	return toFeedListResponse(rows, pq, total), nil
-}
-
-func (s *service) UpdateVisibility(activityID, requesterID uint, isVisible bool) error {
-	event, err := s.repo.FindByID(activityID)
-	if err != nil {
+	if err := s.repo.CreateOrRestore(ctx, event); err != nil {
 		return err
 	}
-	if event.ActorID != requesterID {
-		return ErrForbidden
-	}
-	return s.repo.UpdateVisibility(activityID, isVisible)
+
+	s.broadcastRefresh(ctx, actorID)
+	return nil
 }
 
-func (s *service) GetSettings(userID uint) (*ActivitySettingsResponse, error) {
-	rows, err := s.repo.FindSettings(userID)
+func (s *service) GetFeed(ctx context.Context, userID uint, pq PaginationQuery) (*FeedListResponse, error) {
+	pq.Normalize()
+	rows, total, err := s.repo.FindFeed(ctx, userID, pq)
+	if err != nil {
+		return nil, err
+	}
+	return toFeedListResponse(rows, pq, total), nil
+}
+
+func (s *service) GetUserActivities(ctx context.Context, targetUserID, requesterID uint, pq PaginationQuery) (*FeedListResponse, error) {
+	pq.Normalize()
+	rows, total, err := s.repo.FindUserActivities(ctx, targetUserID, requesterID, pq)
+	if err != nil {
+		return nil, err
+	}
+	return toFeedListResponse(rows, pq, total), nil
+}
+
+func (s *service) UpdateActivityVisibility(ctx context.Context, activityID, requesterID uint, visibility privacy_policy.ActivityVisibility) error {
+	if visibility != privacy_policy.VisibilityDefault &&
+		visibility != privacy_policy.VisibilityPublic &&
+		visibility != privacy_policy.VisibilityFollowers &&
+		visibility != privacy_policy.VisibilityPrivate {
+		return errors.New("invalid visibility value")
+	}
+
+	err := s.repo.UpdateOwnedActivityVisibility(ctx, activityID, requesterID, visibility)
+	if err == nil {
+		s.broadcastActivityUpdate(ctx, requesterID, activityID, visibility)
+	}
+	return err
+}
+
+func (s *service) DeleteActivity(ctx context.Context, activityID, requesterID uint) error {
+	err := s.repo.DeleteOwnedActivity(ctx, activityID, requesterID)
+	if err == nil {
+		s.broadcastActivityDelete(ctx, requesterID, activityID)
+	}
+	return err
+}
+
+func (s *service) DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error {
+	err := s.repo.DeleteReviewActivity(ctx, actorID, reviewID)
+	if err == nil {
+		s.broadcastRefresh(ctx, actorID)
+	}
+	return err
+}
+
+func (s *service) DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error {
+	err := s.repo.DeleteCommentActivity(ctx, actorID, commentID)
+	if err == nil {
+		s.broadcastRefresh(ctx, actorID)
+	}
+	return err
+}
+
+func (s *service) DeleteMediaActivity(ctx context.Context, actorID uint, activityType ActivityType, mediaID int, mediaType string) error {
+	err := s.repo.DeleteMediaActivity(ctx, actorID, activityType, mediaID, mediaType)
+	if err == nil {
+		s.broadcastRefresh(ctx, actorID)
+	}
+	return err
+}
+
+func (s *service) DeleteFollowActivity(ctx context.Context, followerID uint, followeeID uint) error {
+	err := s.repo.DeleteFollowActivity(ctx, followerID, followeeID)
+	if err == nil {
+		s.broadcastRefresh(ctx, followerID)
+	}
+	return err
+}
+
+func (s *service) GetSettings(ctx context.Context, userID uint) (*ActivitySettingsResponse, error) {
+	rows, err := s.repo.FindSettings(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	return toSettingsResponse(rows), nil
 }
 
-func (s *service) UpdateSettings(userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error) {
+func (s *service) UpdateSettings(ctx context.Context, userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error) {
 	updates := map[ActivityType]*bool{
 		ActivityReviewCreated:       req.ReviewCreated,
 		ActivityReviewCommented:     req.ReviewCommented,
@@ -108,18 +161,58 @@ func (s *service) UpdateSettings(userID uint, req UpdateActivitySettingsRequest)
 		ActivityWatchlistAdded:      req.WatchlistAdded,
 		ActivityWatchedAdded:        req.WatchedAdded,
 		ActivityAchievementUnlocked: req.AchievementUnlocked,
+		ActivityUserFollowed:        req.UserFollowed,
 	}
 
 	for activityType, value := range updates {
 		if value == nil {
 			continue
 		}
-		if err := s.repo.UpsertSetting(userID, activityType, *value); err != nil {
+		if err := s.repo.UpsertSetting(ctx, userID, activityType, *value); err != nil {
 			return nil, err
 		}
 	}
 
-	return s.GetSettings(userID)
+	return s.GetSettings(ctx, userID)
+}
+
+func (s *service) broadcastRefresh(ctx context.Context, actorID uint) {
+	if s.hub == nil {
+		return
+	}
+	s.hub.EmitFeedRefresh(actorID)
+	var followerIDs []uint
+	if err := s.repo.db.WithContext(ctx).Table("user_follows").Where("followee_id = ? AND status = 'accepted'", actorID).Pluck("follower_id", &followerIDs).Error; err == nil {
+		for _, followerID := range followerIDs {
+			s.hub.EmitFeedRefresh(followerID)
+		}
+	}
+}
+
+func (s *service) broadcastActivityUpdate(ctx context.Context, actorID uint, activityID uint, visibility privacy_policy.ActivityVisibility) {
+	if s.hub == nil {
+		return
+	}
+	s.hub.EmitFeedUpdated(actorID, activityID, string(visibility))
+	var followerIDs []uint
+	if err := s.repo.db.WithContext(ctx).Table("user_follows").Where("followee_id = ? AND status = 'accepted'", actorID).Pluck("follower_id", &followerIDs).Error; err == nil {
+		for _, followerID := range followerIDs {
+			s.hub.EmitFeedUpdated(followerID, activityID, string(visibility))
+		}
+	}
+}
+
+func (s *service) broadcastActivityDelete(ctx context.Context, actorID uint, activityID uint) {
+	if s.hub == nil {
+		return
+	}
+	s.hub.EmitFeedDeleted(actorID, activityID)
+	var followerIDs []uint
+	if err := s.repo.db.WithContext(ctx).Table("user_follows").Where("followee_id = ? AND status = 'accepted'", actorID).Pluck("follower_id", &followerIDs).Error; err == nil {
+		for _, followerID := range followerIDs {
+			s.hub.EmitFeedDeleted(followerID, activityID)
+		}
+	}
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -141,6 +234,7 @@ func toSettingsResponse(rows []ActivityPrivacySetting) *ActivitySettingsResponse
 		WatchlistAdded:      enabled[ActivityWatchlistAdded],
 		WatchedAdded:        enabled[ActivityWatchedAdded],
 		AchievementUnlocked: enabled[ActivityAchievementUnlocked],
+		UserFollowed:        enabled[ActivityUserFollowed],
 	}
 }
 
@@ -170,7 +264,27 @@ func toFeedItemResponse(row feedRow) FeedItemResponse {
 		AchievementID: row.AchievementID,
 		LibraryItemID: row.LibraryItemID,
 		Message:       row.Message,
+		Visibility:    row.Visibility,
 		CreatedAt:     row.CreatedAt,
+	}
+
+	if row.TargetUserID != nil {
+		item.TargetUser = &ActorSummary{
+			ID:          *row.TargetUserID,
+			Username:    row.TargetUserUsername,
+			DisplayName: row.TargetUserDisplayName,
+			AvatarURL:   row.TargetUserAvatarURL,
+		}
+	} else if row.Type == ActivityUserFollowed {
+		// Target user was physically or soft deleted
+		deletedUsername := "deleted_user"
+		deletedDisplayName := "ผู้ใช้ที่ถูกลบ"
+		item.TargetUser = &ActorSummary{
+			ID:          0,
+			Username:    deletedUsername,
+			DisplayName: &deletedDisplayName,
+			AvatarURL:   nil,
+		}
 	}
 
 	if row.MediaID != nil && row.MediaType != nil {

@@ -19,11 +19,18 @@ export const feedApi = {
       params: { page: 1, limit: 20, ...params },
     }),
 
-  // PATCH /activities/:activityId/visibility — ซ่อน/แสดง activity ของตัวเอง
-  updateVisibility: (activityId: number, isVisible: boolean) =>
+  // PATCH /activities/:activityId/visibility — อัปเดตความเป็นส่วนตัวของ activity
+  updateVisibility: (
+    activityId: number,
+    visibility: "default" | "public" | "followers" | "private"
+  ) =>
     api.patch(`/activities/${activityId}/visibility`, {
-      is_visible: isVisible,
+      visibility,
     }),
+
+  // DELETE /activities/:activityId — ลบ activity ของตนเองออกจาก feed
+  deleteActivity: (activityId: number) =>
+    api.delete(`/activities/${activityId}`),
 
   // GET /me/activity-settings
   getSettings: () => api.get<ActivitySettingsResponse>("/me/activity-settings"),

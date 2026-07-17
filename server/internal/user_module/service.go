@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -26,6 +27,7 @@ type Service struct {
 	mailer              Mailer
 	emailVerifier       EmailVerificationSender
 	passwordResetMailer PasswordResetMailer
+	policy              privacy_policy.UserAccessPolicy
 }
 
 func NewService(
@@ -35,6 +37,7 @@ func NewService(
 	mailer Mailer,
 	emailVerifier EmailVerificationSender,
 	passwordResetMailer PasswordResetMailer,
+	policy privacy_policy.UserAccessPolicy,
 ) *Service {
 	return &Service{
 		repo:                newRepository(db),
@@ -43,6 +46,7 @@ func NewService(
 		mailer:              mailer,
 		emailVerifier:       emailVerifier,
 		passwordResetMailer: passwordResetMailer,
+		policy:              policy,
 	}
 }
 
@@ -56,10 +60,13 @@ func (s *Service) GetProfile(targetUserID, requesterID uint) (*UserProfileRespon
 	profile := toProfileResponse(user, reviewCount, followerCount, followingCount, level)
 
 	if user.IsPrivate && requesterID != targetUserID {
-		profile.Bio = nil
-		profile.FavoriteGenres = nil
-		profile.Gender = ""
-		profile.DateOfBirth = nil
+		canView, err := s.policy.CanViewProfileSection(context.Background(), requesterID, targetUserID, privacy_policy.SectionProfile)
+		if err != nil || !canView {
+			profile.Bio = nil
+			profile.FavoriteGenres = nil
+			profile.Gender = ""
+			profile.DateOfBirth = nil
+		}
 	}
 
 	if profile.AvatarURL != nil && strings.HasPrefix(*profile.AvatarURL, "avatars/") {

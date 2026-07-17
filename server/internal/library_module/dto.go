@@ -22,13 +22,20 @@ type UpdateItemRequest struct {
 	Note      *string  `json:"note"`
 }
 
-type LibraryItemResponse struct {
+type OwnLibraryItemResponse struct {
 	ID        uint                  `json:"id"`
 	Media     shared.MediaSummary   `json:"media"`
 	ListType  movie_module.ListType `json:"list_type"`
 	WatchedAt *time.Time            `json:"watched_at"`
 	Tags      []string              `json:"tags"`
 	Note      *string               `json:"note"`
+	CreatedAt time.Time             `json:"created_at"`
+}
+
+type PublicLibraryItemResponse struct {
+	ID        uint                  `json:"id"`
+	Media     shared.MediaSummary   `json:"media"`
+	ListType  movie_module.ListType `json:"list_type"`
 	CreatedAt time.Time             `json:"created_at"`
 }
 

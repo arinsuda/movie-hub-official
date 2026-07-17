@@ -8,6 +8,7 @@ import (
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/feed_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
@@ -24,6 +25,7 @@ type Service struct {
 	achieveSvc achievementsmodule.Service
 	notifSvc   *notification_module.Service
 	feedSvc    feed_module.Service
+	policy     privacy_policy.UserAccessPolicy
 }
 
 func NewService(
@@ -33,6 +35,7 @@ func NewService(
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
 	feed feed_module.Service,
+	policy privacy_policy.UserAccessPolicy,
 ) *Service {
 	return &Service{
 		repo:       newRepository(db),
@@ -42,14 +45,16 @@ func NewService(
 		achieveSvc: achieve,
 		notifSvc:   notif,
 		feedSvc:    feed,
+		policy:     policy,
 	}
 }
 
-// ── Review ────────────────────────────────────────────────────────
-
-func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
-	if err := validateReviewRequest(req); err != nil {
-		return nil, err
+func (s *Service) CreateReview(ctx context.Context, userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
+	if req.MediaType != "movie" && req.MediaType != "tv" {
+		return nil, ErrInvalidMediaType
+	}
+	if req.MediaID <= 0 {
+		return nil, ErrInvalidMediaID
 	}
 
 	review := &Review{
@@ -72,45 +77,45 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		return nil, err
 	}
 
-	// ── EXP ───────────────────────────────────────────────────────
 	_ = s.expPort.AddExperience(userID, stats.ExpPerReview)
 
-	// ── Achievement: review_count ─────────────────────────────────
 	var reviewCount int64
-	s.db.Model(&Review{}).
+	s.db.WithContext(ctx).Model(&Review{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&reviewCount)
-	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "review_count", int(reviewCount))
+	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "review_count", int(reviewCount))
+	s.createAchievementFeedActivities(ctx, userID, unlocked)
 
-	// ── Achievement: rating_one_star_count / rating_five_star_count ──
 	if req.Rating <= 1.0 {
 		var oneStarCount int64
-		s.db.Model(&Review{}).
+		s.db.WithContext(ctx).Model(&Review{}).
 			Where("user_id = ? AND rating <= 1.0 AND deleted_at IS NULL", userID).
 			Count(&oneStarCount)
-		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "rating_one_star_count", int(oneStarCount))
+		unlocked = shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "rating_one_star_count", int(oneStarCount))
+		s.createAchievementFeedActivities(ctx, userID, unlocked)
 	}
 	if req.Rating == 5.0 {
 		var fiveStarCount int64
-		s.db.Model(&Review{}).
+		s.db.WithContext(ctx).Model(&Review{}).
 			Where("user_id = ? AND rating = 5.0 AND deleted_at IS NULL", userID).
 			Count(&fiveStarCount)
-		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "rating_five_star_count", int(fiveStarCount))
+		unlocked = shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "rating_five_star_count", int(fiveStarCount))
+		s.createAchievementFeedActivities(ctx, userID, unlocked)
 	}
 	if req.Rating < 3.0 {
 		var lowRatingCount int64
-		s.db.Model(&Review{}).
+		s.db.WithContext(ctx).Model(&Review{}).
 			Where("user_id = ? AND rating < 3.0 AND deleted_at IS NULL", userID).
 			Count(&lowRatingCount)
-		shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, userID, "low_rating_count", int(lowRatingCount))
+		unlocked = shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "low_rating_count", int(lowRatingCount))
+		s.createAchievementFeedActivities(ctx, userID, unlocked)
 	}
 
-	// ── Notification: fan-out ให้ followers ──────────────────────
 	if req.IsPublic && s.notifSvc != nil {
 		if actor, err := s.getUserSummary(userID); err == nil {
 			title, _ := fetchMediaSummary(req.MediaID, req.MediaType)
 			_ = s.notifSvc.PushFollowingReviewed(
-				context.Background(),
+				ctx,
 				userID,
 				actor.Username,
 				review.ID,
@@ -119,13 +124,12 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 		}
 	}
 
-	// ── Feed: สร้าง activity event เฉพาะ review ที่ public เท่านั้น ──
-	// (privacy setting ของ actor เองก็ยังเช็กซ้ำอีกชั้นใน feedSvc.CreateActivity)
 	if req.IsPublic && s.feedSvc != nil {
-		_ = s.feedSvc.CreateActivity(userID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
+		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
 			MediaID:   &req.MediaID,
 			MediaType: &req.MediaType,
 			ReviewID:  &review.ID,
+			Message:   review.Body,
 		})
 	}
 
@@ -133,14 +137,18 @@ func (s *Service) CreateReview(userID uint, req CreateReviewRequest) (*ReviewRes
 	if err != nil {
 		return nil, err
 	}
-	// review ที่เพิ่งสร้าง ยังไม่มีใคร like/helpful แน่นอน (รวมถึงตัวเอง)
 	return toReviewResponse(inserted, false, false, s.minio), nil
 }
 
-// GetUserReviews คืนรีวิวของ userID ตาม filter ที่กำหนด (visibility + date range)
-// ถ้า requesterID ไม่ใช่เจ้าของ (userID) จะบังคับเห็นเฉพาะ public เท่านั้น
-// ไม่ว่า filter.Visibility จะขอ "private" หรือ "all" มาก็ตาม
-func (s *Service) GetUserReviews(userID, requesterID uint, filter ReviewFilter) ([]ReviewResponse, error) {
+func (s *Service) GetUserReviews(ctx context.Context, userID, requesterID uint, filter ReviewFilter) ([]ReviewResponse, error) {
+	canView, err := s.policy.CanViewProfileSection(ctx, requesterID, userID, privacy_policy.SectionReviews)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+
 	if userID != requesterID {
 		filter.Visibility = "public"
 	}
@@ -165,27 +173,37 @@ func (s *Service) GetUserReviews(userID, requesterID uint, filter ReviewFilter) 
 	return responses, nil
 }
 
-func (s *Service) GetMediaReviews(mediaID int, mediaType string, requesterID uint) ([]ReviewResponse, error) {
+func (s *Service) GetMediaReviews(ctx context.Context, mediaID int, mediaType string, requesterID uint) ([]ReviewResponse, error) {
 	reviews, err := s.repo.FindReviewsByMedia(mediaID, mediaType)
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]uint, len(reviews))
-	for i, r := range reviews {
+	var visibleReviews []Review
+	for _, r := range reviews {
+		canView, err := s.policy.CanViewProfileSection(ctx, requesterID, r.UserID, privacy_policy.SectionReviews)
+		if err == nil && canView {
+			if r.UserID == requesterID || r.IsPublic {
+				visibleReviews = append(visibleReviews, r)
+			}
+		}
+	}
+
+	ids := make([]uint, len(visibleReviews))
+	for i, r := range visibleReviews {
 		ids[i] = r.ID
 	}
 	likedMap, _ := s.repo.FindLikedIDs(ids, requesterID)
 	helpfulMap, _ := s.repo.FindHelpfulIDs(ids, requesterID)
 
-	responses := make([]ReviewResponse, len(reviews))
-	for i, r := range reviews {
+	responses := make([]ReviewResponse, len(visibleReviews))
+	for i, r := range visibleReviews {
 		responses[i] = *toReviewResponse(&r, likedMap[r.ID], helpfulMap[r.ID], s.minio)
 	}
 	return responses, nil
 }
 
-func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewRequest) (*ReviewResponse, error) {
+func (s *Service) UpdateReview(ctx context.Context, reviewID, requesterID uint, req UpdateReviewRequest) (*ReviewResponse, error) {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return nil, err
@@ -209,12 +227,24 @@ func (s *Service) UpdateReview(reviewID, requesterID uint, req UpdateReviewReque
 	if err != nil {
 		return nil, err
 	}
+
+	// Update feed message dynamically if body changed
+	if s.feedSvc != nil && req.Body != nil {
+		// Restore/Create dynamically takes care of updating matching activity message
+		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
+			MediaID:   &updated.MediaID,
+			MediaType: &updated.MediaType,
+			ReviewID:  &updated.ID,
+			Message:   updated.Body,
+		})
+	}
+
 	liked, _ := s.repo.IsLiked(reviewID, requesterID)
 	helpful, _ := s.repo.IsHelpful(reviewID, requesterID)
 	return toReviewResponse(updated, liked, helpful, s.minio), nil
 }
 
-func (s *Service) DeleteReview(reviewID, requesterID uint) error {
+func (s *Service) DeleteReview(ctx context.Context, reviewID, requesterID uint) error {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return err
@@ -228,10 +258,13 @@ func (s *Service) DeleteReview(reviewID, requesterID uint) error {
 	}
 
 	_ = s.expPort.AddExperience(requesterID, -stats.ExpPerReview)
+
+	if s.feedSvc != nil {
+		_ = s.feedSvc.DeleteReviewActivity(ctx, requesterID, reviewID)
+	}
+
 	return nil
 }
-
-// ── In-app Rating ─────────────────────────────────────────────────
 
 func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse, error) {
 	if mediaType != "movie" && mediaType != "tv" {
@@ -261,9 +294,7 @@ func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse
 	}, nil
 }
 
-// ── Like ──────────────────────────────────────────────────────────
-
-func (s *Service) LikeReview(reviewID, requesterID uint) error {
+func (s *Service) LikeReview(ctx context.Context, reviewID, requesterID uint) error {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return err
@@ -276,36 +307,31 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 		return err
 	}
 
-	// ── EXP ──────────────────────────────────────────────────────
 	_ = s.expPort.AddExperience(review.UserID, stats.ExpPerLike)
 
-	// ── Achievement: review_like_given_count (ฝั่งคนกด like) ────
 	var likeGivenCount int64
-	s.db.Model(&ReviewLike{}).Where("user_id = ?", requesterID).Count(&likeGivenCount)
-	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, requesterID, "review_like_given_count", int(likeGivenCount))
+	s.db.WithContext(ctx).Model(&ReviewLike{}).Where("user_id = ?", requesterID).Count(&likeGivenCount)
+	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, requesterID, "review_like_given_count", int(likeGivenCount))
+	s.createAchievementFeedActivities(ctx, requesterID, unlocked)
 
-	// ── Achievement: review_like_received_count (ฝั่งเจ้าของ review) ──
 	var likeReceivedCount int64
-	s.db.Model(&ReviewLike{}).
+	s.db.WithContext(ctx).Model(&ReviewLike{}).
 		Joins("JOIN reviews ON reviews.id = review_likes.review_id").
 		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
 		Count(&likeReceivedCount)
-	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, review.UserID, "review_like_received_count", int(likeReceivedCount))
+	unlocked = shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, review.UserID, "review_like_received_count", int(likeReceivedCount))
+	s.createAchievementFeedActivities(ctx, review.UserID, unlocked)
 
-	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(requesterID); err == nil {
 			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
-			ctx := context.Background()
-			_ = s.notifSvc.PushReviewLiked(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
-			_ = s.notifSvc.PushFollowingLikedReview(ctx, requesterID, actor.Username, reviewID, title)       // fan-out
+			_ = s.notifSvc.PushReviewLiked(ctx, review.UserID, requesterID, reviewID, actor.Username, title)
+			_ = s.notifSvc.PushFollowingLikedReview(ctx, requesterID, actor.Username, reviewID, title)
 		}
 	}
 
-	// ── Feed: activity ให้คนที่ follow requester เห็นว่าไป like review นี้ ──
-	// (default ปิดใน ActivityPrivacySetting เพราะ like เกิดถี่ อาจ spam feed — ผู้ใช้เปิดเองได้)
 	if review.IsPublic && s.feedSvc != nil {
-		_ = s.feedSvc.CreateActivity(requesterID, feed_module.ActivityReviewLiked, feed_module.ActivityPayload{
+		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewLiked, feed_module.ActivityPayload{
 			MediaID:   &review.MediaID,
 			MediaType: &review.MediaType,
 			ReviewID:  &reviewID,
@@ -315,7 +341,7 @@ func (s *Service) LikeReview(reviewID, requesterID uint) error {
 	return nil
 }
 
-func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
+func (s *Service) UnlikeReview(ctx context.Context, reviewID, requesterID uint) error {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return err
@@ -326,14 +352,15 @@ func (s *Service) UnlikeReview(reviewID, requesterID uint) error {
 	}
 
 	_ = s.expPort.AddExperience(review.UserID, -stats.ExpPerLike)
+
+	if s.feedSvc != nil {
+		_ = s.feedSvc.DeleteReviewActivity(ctx, requesterID, reviewID)
+	}
+
 	return nil
 }
 
-// ── Helpful ───────────────────────────────────────────────────────
-// แนวคิดแบบ Stack Overflow: โหวตว่ารีวิวนี้ "มีประโยชน์" มากแค่ไหน
-// ไม่ผูกกับความชอบส่วนตัว (like) แยกกันชัดเจน
-
-func (s *Service) MarkHelpful(reviewID, requesterID uint) error {
+func (s *Service) MarkHelpful(ctx context.Context, reviewID, requesterID uint) error {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return err
@@ -341,7 +368,6 @@ func (s *Service) MarkHelpful(reviewID, requesterID uint) error {
 	if !review.IsPublic && review.UserID != requesterID {
 		return ErrForbidden
 	}
-	// เจ้าของรีวิวโหวต helpful รีวิวตัวเองไม่ได้ (กันการปั่นตัวเลข)
 	if review.UserID == requesterID {
 		return ErrForbidden
 	}
@@ -350,38 +376,33 @@ func (s *Service) MarkHelpful(reviewID, requesterID uint) error {
 		return err
 	}
 
-	// ── Achievement: review_helpful_received_count (ฝั่งเจ้าของ review) ──
 	var helpfulReceivedCount int64
-	s.db.Model(&ReviewHelpful{}).
+	s.db.WithContext(ctx).Model(&ReviewHelpful{}).
 		Joins("JOIN reviews ON reviews.id = review_helpfuls.review_id").
 		Where("reviews.user_id = ? AND reviews.deleted_at IS NULL", review.UserID).
 		Count(&helpfulReceivedCount)
-	shared.TrackAndNotify(context.Background(), s.achieveSvc, s.notifSvc, review.UserID, "review_helpful_received_count", int(helpfulReceivedCount))
+	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, review.UserID, "review_helpful_received_count", int(helpfulReceivedCount))
+	s.createAchievementFeedActivities(ctx, review.UserID, unlocked)
 
-	// ── Notification: แจ้งเจ้าของ review (ถ้าไม่ใช่คนเดียวกัน) ──
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(requesterID); err == nil {
 			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
-			ctx := context.Background()
-			// เดิม bug: เรียก PushFollowingLikedReview ผิด แก้เป็นนี่
-			_ = s.notifSvc.PushReviewMarkedHelpful(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
-			_ = s.notifSvc.PushFollowingMarkedHelpful(ctx, requesterID, actor.Username, reviewID, title)             // fan-out
+			_ = s.notifSvc.PushReviewMarkedHelpful(ctx, review.UserID, requesterID, reviewID, actor.Username, title)
+			_ = s.notifSvc.PushFollowingMarkedHelpful(ctx, requesterID, actor.Username, reviewID, title)
 		}
 	}
 
 	return nil
 }
 
-func (s *Service) UnmarkHelpful(reviewID, requesterID uint) error {
+func (s *Service) UnmarkHelpful(ctx context.Context, reviewID, requesterID uint) error {
 	if _, err := s.repo.FindReviewByID(reviewID); err != nil {
 		return err
 	}
 	return s.repo.DeleteHelpful(reviewID, requesterID)
 }
 
-// ── Comment ───────────────────────────────────────────────────────
-
-func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentRequest) (*CommentResponse, error) {
+func (s *Service) CreateComment(ctx context.Context, reviewID, requesterID uint, req CreateCommentRequest) (*CommentResponse, error) {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return nil, err
@@ -398,16 +419,13 @@ func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentReq
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(requesterID); err == nil {
 			title, _ := fetchMediaSummary(review.MediaID, review.MediaType)
-			ctx := context.Background()
-			_ = s.notifSvc.PushReviewCommented(ctx, review.UserID, requesterID, reviewID, actor.Username, title) // direct
-			_ = s.notifSvc.PushFollowingCommented(ctx, requesterID, actor.Username, reviewID, title)             // fan-out
+			_ = s.notifSvc.PushReviewCommented(ctx, review.UserID, requesterID, reviewID, actor.Username, title)
+			_ = s.notifSvc.PushFollowingCommented(ctx, requesterID, actor.Username, reviewID, title)
 		}
 	}
 
-	// ── Feed: activity ให้คนที่ follow requester เห็นว่าไป comment review นี้ ──
-	// เฉพาะตอน review เป็น public เท่านั้น (comment บน private review ของตัวเองไม่ควรเข้า feed คนอื่น)
 	if review.IsPublic && s.feedSvc != nil {
-		_ = s.feedSvc.CreateActivity(requesterID, feed_module.ActivityReviewCommented, feed_module.ActivityPayload{
+		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewCommented, feed_module.ActivityPayload{
 			MediaID:   &review.MediaID,
 			MediaType: &review.MediaType,
 			ReviewID:  &reviewID,
@@ -418,7 +436,7 @@ func (s *Service) CreateComment(reviewID, requesterID uint, req CreateCommentReq
 	return toCommentResponse(comment), nil
 }
 
-func (s *Service) GetComments(reviewID, requesterID uint) ([]CommentResponse, error) {
+func (s *Service) GetComments(ctx context.Context, reviewID, requesterID uint) ([]CommentResponse, error) {
 	review, err := s.repo.FindReviewByID(reviewID)
 	if err != nil {
 		return nil, err
@@ -439,7 +457,7 @@ func (s *Service) GetComments(reviewID, requesterID uint) ([]CommentResponse, er
 	return responses, nil
 }
 
-func (s *Service) UpdateComment(commentID, requesterID uint, req UpdateCommentRequest) (*CommentResponse, error) {
+func (s *Service) UpdateComment(ctx context.Context, commentID, requesterID uint, req UpdateCommentRequest) (*CommentResponse, error) {
 	comment, err := s.repo.FindCommentByID(commentID)
 	if err != nil {
 		return nil, err
@@ -454,7 +472,7 @@ func (s *Service) UpdateComment(commentID, requesterID uint, req UpdateCommentRe
 	return toCommentResponse(comment), nil
 }
 
-func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
+func (s *Service) DeleteComment(ctx context.Context, commentID, reviewID, requesterID uint) error {
 	comment, err := s.repo.FindCommentByID(commentID)
 	if err != nil {
 		return err
@@ -462,10 +480,28 @@ func (s *Service) DeleteComment(commentID, reviewID, requesterID uint) error {
 	if comment.UserID != requesterID {
 		return ErrForbidden
 	}
-	return s.repo.DeleteComment(commentID, reviewID)
+	if err := s.repo.DeleteComment(commentID, reviewID); err != nil {
+		return err
+	}
+
+	if s.feedSvc != nil {
+		_ = s.feedSvc.DeleteCommentActivity(ctx, requesterID, commentID)
+	}
+
+	return nil
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+func (s *Service) createAchievementFeedActivities(ctx context.Context, userID uint, unlocked []shared.NeutralUnlocked) {
+	if s.feedSvc == nil {
+		return
+	}
+	for _, u := range unlocked {
+		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityAchievementUnlocked, feed_module.ActivityPayload{
+			AchievementID: &u.ID,
+			Message:       u.Name,
+		})
+	}
+}
 
 func (s *Service) getUserSummary(userID uint) (*users.User, error) {
 	var u users.User

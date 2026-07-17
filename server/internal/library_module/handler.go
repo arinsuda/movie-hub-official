@@ -31,7 +31,7 @@ func (h *Handler) AddItem(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	item, err := h.svc.AddItem(userID, req)
+	item, err := h.svc.AddItem(c.Context(), userID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -44,9 +44,7 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c, "invalid user id")
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
-	}
+	claims := mw.GetClaims(c)
 
 	var listType *movie_module.ListType
 	if q := c.Query("list_type"); q != "" {
@@ -60,7 +58,7 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 		mediaType = &mt
 	}
 
-	items, err := h.svc.GetLibrary(userID, listType, mediaType)
+	items, err := h.svc.GetLibrary(c.Context(), userID, claims.UserID, listType, mediaType)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -77,7 +75,7 @@ func (h *Handler) RemoveItem(c fiber.Ctx) error {
 		return forbidden(c)
 	}
 
-	if err := h.svc.RemoveItem(itemID, userID); err != nil {
+	if err := h.svc.RemoveItem(c.Context(), itemID, userID); err != nil {
 		return handleError(c, err)
 	}
 
@@ -98,7 +96,7 @@ func (h *Handler) UpdateItem(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	item, err := h.svc.UpdateItem(itemID, userID, req)
+	item, err := h.svc.UpdateItem(c.Context(), itemID, userID, req)
 	if err != nil {
 		return handleError(c, err)
 	}

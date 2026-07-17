@@ -1,9 +1,5 @@
 import type { MediaType } from "@/types";
 
-// หมายเหตุ: ถ้า @/types มี FeedItemResponse / PaginatedResponse อยู่แล้ว
-// (ตามที่ social.ts import ใช้อยู่) ให้เทียบ field แล้ว merge เข้าไปแทนไฟล์นี้
-// เพื่อไม่ให้มี type ซ้ำซ้อนกันสองที่
-
 export type ActivityType =
   | "review_created"
   | "review_commented"
@@ -11,7 +7,8 @@ export type ActivityType =
   | "media_liked"
   | "watchlist_added"
   | "watched_added"
-  | "achievement_unlocked";
+  | "achievement_unlocked"
+  | "user_followed";
 
 export interface FeedActorSummary {
   id: number;
@@ -38,7 +35,9 @@ export interface FeedItemResponse {
   comment_id?: number;
   achievement_id?: number;
   library_item_id?: number;
+  target_user?: FeedActorSummary;
   message: string;
+  visibility: "default" | "public" | "followers" | "private";
   created_at: string;
 }
 
@@ -67,6 +66,7 @@ export interface ActivitySettingsResponse {
   watchlist_added: boolean;
   watched_added: boolean;
   achievement_unlocked: boolean;
+  user_followed: boolean;
 }
 
 export type UpdateActivitySettingsRequest = Partial<ActivitySettingsResponse>;

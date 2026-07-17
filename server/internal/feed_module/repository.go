@@ -1,11 +1,13 @@
 package feed_module
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -22,23 +24,59 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// ── Activity events ──────────────────────────────────────────────
-
-func (r *repository) Create(event *ActivityEvent) error {
-	return r.db.Create(event).Error
-}
-
-func (r *repository) FindByID(id uint) (*ActivityEvent, error) {
+func (r *repository) FindByID(ctx context.Context, id uint) (*ActivityEvent, error) {
 	var e ActivityEvent
-	err := r.db.First(&e, id).Error
+	err := r.db.WithContext(ctx).First(&e, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrActivityNotFound
 	}
 	return &e, err
 }
 
-func (r *repository) UpdateVisibility(id uint, isVisible bool) error {
-	result := r.db.Model(&ActivityEvent{}).Where("id = ?", id).Update("is_visible", isVisible)
+func (r *repository) CreateOrRestore(ctx context.Context, event *ActivityEvent) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing ActivityEvent
+		query := tx.Unscoped().Where("actor_id = ? AND type = ?", event.ActorID, string(event.Type))
+		if event.MediaID != nil && event.MediaType != nil {
+			query = query.Where("media_id = ? AND media_type = ?", event.MediaID, event.MediaType)
+		} else if event.ReviewID != nil {
+			query = query.Where("review_id = ?", event.ReviewID)
+		} else if event.CommentID != nil {
+			query = query.Where("comment_id = ?", event.CommentID)
+		} else if event.AchievementID != nil {
+			query = query.Where("achievement_id = ?", event.AchievementID)
+		} else if event.TargetUserID != nil {
+			query = query.Where("target_user_id = ?", event.TargetUserID)
+		}
+
+		err := query.Clauses(clause.Locking{Strength: "UPDATE"}).First(&existing).Error
+		if err == nil {
+			if !existing.DeletedAt.Valid {
+				return nil
+			}
+			updates := map[string]any{
+				"deleted_at": gorm.DeletedAt{Valid: false},
+				"created_at": time.Now().UTC(),
+				"visibility": string(event.Visibility),
+				"is_visible": true,
+				"message":    event.Message,
+			}
+			return tx.Unscoped().Model(&existing).Updates(updates).Error
+		}
+
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		event.CreatedAt = time.Now().UTC()
+		return tx.Create(event).Error
+	})
+}
+
+func (r *repository) UpdateOwnedActivityVisibility(ctx context.Context, activityID, requesterID uint, visibility ActivityVisibility) error {
+	result := r.db.WithContext(ctx).Model(&ActivityEvent{}).
+		Where("id = ? AND actor_id = ? AND deleted_at IS NULL", activityID, requesterID).
+		Update("visibility", string(visibility))
 	if result.Error != nil {
 		return result.Error
 	}
@@ -48,10 +86,46 @@ func (r *repository) UpdateVisibility(id uint, isVisible bool) error {
 	return nil
 }
 
-// feedRow คือ shape ของแถวที่ได้จาก join activity_events กับ users (และ user_follows ถ้าเป็น following feed)
+func (r *repository) DeleteOwnedActivity(ctx context.Context, activityID, requesterID uint) error {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND actor_id = ? AND deleted_at IS NULL", activityID, requesterID).
+		Delete(&ActivityEvent{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrActivityNotFound
+	}
+	return nil
+}
+
+func (r *repository) DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error {
+	return r.db.WithContext(ctx).
+		Where("actor_id = ? AND review_id = ? AND deleted_at IS NULL", actorID, reviewID).
+		Delete(&ActivityEvent{}).Error
+}
+
+func (r *repository) DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error {
+	return r.db.WithContext(ctx).
+		Where("actor_id = ? AND comment_id = ? AND deleted_at IS NULL", actorID, commentID).
+		Delete(&ActivityEvent{}).Error
+}
+
+func (r *repository) DeleteMediaActivity(ctx context.Context, actorID uint, activityType ActivityType, mediaID int, mediaType string) error {
+	return r.db.WithContext(ctx).
+		Where("actor_id = ? AND type = ? AND media_id = ? AND media_type = ? AND deleted_at IS NULL", actorID, string(activityType), mediaID, mediaType).
+		Delete(&ActivityEvent{}).Error
+}
+
+func (r *repository) DeleteFollowActivity(ctx context.Context, followerID uint, followeeID uint) error {
+	return r.db.WithContext(ctx).
+		Where("actor_id = ? AND type = ? AND target_user_id = ? AND deleted_at IS NULL", followerID, string(ActivityUserFollowed), followeeID).
+		Delete(&ActivityEvent{}).Error
+}
+
 type feedRow struct {
 	ID   uint
-	Type ActivityType
+	Type privacy_policy.ActivityType
 
 	ActorID          uint
 	ActorUsername    string
@@ -66,8 +140,14 @@ type feedRow struct {
 	AchievementID *uint
 	LibraryItemID *uint
 
-	Message   string
-	CreatedAt time.Time
+	TargetUserID          *uint
+	TargetUserUsername    string
+	TargetUserDisplayName *string
+	TargetUserAvatarURL   *string
+
+	Message    string
+	Visibility privacy_policy.ActivityVisibility
+	CreatedAt  time.Time
 }
 
 const feedSelectColumns = `
@@ -75,16 +155,48 @@ const feedSelectColumns = `
 	ae.actor_id, u.username AS actor_username, u.display_name AS actor_display_name, u.avatar_url AS actor_avatar_url,
 	ae.media_id, ae.media_type,
 	ae.review_id, ae.comment_id, ae.achievement_id, ae.library_item_id,
-	ae.message, ae.created_at
+	ae.target_user_id, tu.username AS target_user_username, tu.display_name AS target_user_display_name, tu.avatar_url AS target_user_avatar_url,
+	ae.message, ae.visibility, ae.created_at
 `
 
-// FindFeed ดึง activity ของคนที่ userID follow อยู่แบบ accepted เท่านั้น (following feed)
-func (r *repository) FindFeed(userID uint, pq PaginationQuery) ([]feedRow, int64, error) {
+func (r *repository) FindFeed(ctx context.Context, userID uint, pq PaginationQuery) ([]feedRow, int64, error) {
 	buildQuery := func() *gorm.DB {
-		return r.db.Table("activity_events ae").
-			Joins("JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.status = 'accepted'").
+		return r.db.WithContext(ctx).Table("activity_events ae").
 			Joins("JOIN users u ON u.id = ae.actor_id AND u.is_active = true").
-			Where("uf.follower_id = ? AND ae.is_visible = true", userID)
+			Joins("LEFT JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.follower_id = ?", userID).
+			Joins("LEFT JOIN activity_privacy_settings aps ON aps.user_id = ae.actor_id AND aps.activity_type = ae.type").
+			Where("ae.deleted_at IS NULL").
+			Where(`
+				(ae.actor_id = ? OR (uf.status = 'accepted' AND ae.is_visible = true))
+				AND (
+					ae.actor_id = ? 
+					OR 
+					(
+						(aps.enabled IS NULL AND (
+							(ae.type = 'review_created' AND true) OR
+							(ae.type = 'review_commented' AND true) OR
+							(ae.type = 'review_liked' AND false) OR
+							(ae.type = 'media_liked' AND false) OR
+							(ae.type = 'watchlist_added' AND false) OR
+							(ae.type = 'watched_added' AND false) OR
+							(ae.type = 'achievement_unlocked' AND true) OR
+							(ae.type = 'user_followed' AND false)
+						)) OR aps.enabled = true
+					)
+				)
+				AND (
+					ae.actor_id = ?
+					OR
+					(
+						(u.is_private = false OR uf.status = 'accepted')
+						AND (
+							ae.visibility = 'public' 
+							OR (ae.visibility = 'followers' AND uf.status = 'accepted')
+							OR (ae.visibility = 'default' AND (u.is_private = false OR uf.status = 'accepted'))
+						)
+					)
+				)
+			`, userID, userID, userID)
 	}
 
 	var total int64
@@ -95,19 +207,44 @@ func (r *repository) FindFeed(userID uint, pq PaginationQuery) ([]feedRow, int64
 	var rows []feedRow
 	err := buildQuery().
 		Select(feedSelectColumns).
-		Order("ae.created_at DESC").
+		Joins("LEFT JOIN users tu ON tu.id = ae.target_user_id").
+		Order("ae.created_at DESC, ae.id DESC").
 		Limit(pq.Limit).Offset(pq.Offset()).
 		Scan(&rows).Error
 
 	return rows, total, err
 }
 
-// FindUserActivities ดึง activity ของ user คนเดียว ใช้กับหน้า profile
-func (r *repository) FindUserActivities(targetUserID uint, pq PaginationQuery) ([]feedRow, int64, error) {
+func (r *repository) FindUserActivities(ctx context.Context, targetUserID, requesterID uint, pq PaginationQuery) ([]feedRow, int64, error) {
 	buildQuery := func() *gorm.DB {
-		return r.db.Table("activity_events ae").
+		return r.db.WithContext(ctx).Table("activity_events ae").
 			Joins("JOIN users u ON u.id = ae.actor_id AND u.is_active = true").
-			Where("ae.actor_id = ? AND ae.is_visible = true", targetUserID)
+			Joins("LEFT JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.follower_id = ?", requesterID).
+			Joins("LEFT JOIN activity_privacy_settings aps ON aps.user_id = ae.actor_id AND aps.activity_type = ae.type").
+			Where("ae.actor_id = ? AND ae.deleted_at IS NULL", targetUserID).
+			Where(`
+				(ae.actor_id = ? OR (
+					ae.is_visible = true
+					AND (
+						(aps.enabled IS NULL AND (
+							(ae.type = 'review_created' AND true) OR
+							(ae.type = 'review_commented' AND true) OR
+							(ae.type = 'review_liked' AND false) OR
+							(ae.type = 'media_liked' AND false) OR
+							(ae.type = 'watchlist_added' AND false) OR
+							(ae.type = 'watched_added' AND false) OR
+							(ae.type = 'achievement_unlocked' AND true) OR
+							(ae.type = 'user_followed' AND false)
+						)) OR aps.enabled = true
+					)
+					AND (u.is_private = false OR uf.status = 'accepted')
+					AND (
+						ae.visibility = 'public'
+						OR (ae.visibility = 'followers' AND uf.status = 'accepted')
+						OR (ae.visibility = 'default' AND (u.is_private = false OR uf.status = 'accepted'))
+					)
+				))
+			`, requesterID)
 	}
 
 	var total int64
@@ -118,60 +255,23 @@ func (r *repository) FindUserActivities(targetUserID uint, pq PaginationQuery) (
 	var rows []feedRow
 	err := buildQuery().
 		Select(feedSelectColumns).
-		Order("ae.created_at DESC").
+		Joins("LEFT JOIN users tu ON tu.id = ae.target_user_id").
+		Order("ae.created_at DESC, ae.id DESC").
 		Limit(pq.Limit).Offset(pq.Offset()).
 		Scan(&rows).Error
 
 	return rows, total, err
 }
 
-// canViewUserActivities เช็กสิทธิ์แบบเดียวกับ follow_module.canViewFollowList:
-// ดูของตัวเองได้เสมอ / user ไม่ private ดูได้หมด / user private ต้อง follow กันแบบ accepted ก่อนถึงดูได้
-func (r *repository) canViewUserActivities(requesterID, targetUserID uint) (bool, error) {
-	if requesterID == targetUserID {
-		return true, nil
-	}
-
-	var isPrivate bool
-	err := r.db.
-		Table("users").
-		Select("is_private").
-		Where("id = ? AND is_active = true", targetUserID).
-		Row().
-		Scan(&isPrivate)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, ErrUserNotFound
-	}
-	if err != nil {
-		return false, err
-	}
-	if !isPrivate {
-		return true, nil
-	}
-
-	var count int64
-	err = r.db.Table("user_follows").
-		Where("follower_id = ? AND followee_id = ? AND status = 'accepted'", requesterID, targetUserID).
-		Count(&count).Error
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-// ── Privacy settings ─────────────────────────────────────────────
-
-func (r *repository) FindSettings(userID uint) ([]ActivityPrivacySetting, error) {
+func (r *repository) FindSettings(ctx context.Context, userID uint) ([]ActivityPrivacySetting, error) {
 	var rows []ActivityPrivacySetting
-	err := r.db.Where("user_id = ?", userID).Find(&rows).Error
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&rows).Error
 	return rows, err
 }
 
-// IsEnabled คืนค่าว่า user เปิดแชร์ activity type นี้ไหม
-// ถ้ายังไม่เคยตั้งค่า (ไม่มี row) จะใช้ค่า default ตาม defaultEnabled
-func (r *repository) IsEnabled(userID uint, t ActivityType) (bool, error) {
+func (r *repository) IsEnabled(ctx context.Context, userID uint, t ActivityType) (bool, error) {
 	var setting ActivityPrivacySetting
-	err := r.db.Where("user_id = ? AND activity_type = ?", userID, t).First(&setting).Error
+	err := r.db.WithContext(ctx).Where("user_id = ? AND activity_type = ?", userID, string(t)).First(&setting).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return defaultEnabled[t], nil
 	}
@@ -181,9 +281,9 @@ func (r *repository) IsEnabled(userID uint, t ActivityType) (bool, error) {
 	return setting.Enabled, nil
 }
 
-func (r *repository) UpsertSetting(userID uint, t ActivityType, enabled bool) error {
+func (r *repository) UpsertSetting(ctx context.Context, userID uint, t ActivityType, enabled bool) error {
 	setting := ActivityPrivacySetting{UserID: userID, ActivityType: t, Enabled: enabled}
-	return r.db.
+	return r.db.WithContext(ctx).
 		Where(ActivityPrivacySetting{UserID: userID, ActivityType: t}).
 		Assign(ActivityPrivacySetting{Enabled: enabled}).
 		FirstOrCreate(&setting).Error

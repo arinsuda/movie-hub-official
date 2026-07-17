@@ -23,7 +23,7 @@ func (h *Handler) Follow(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	resp, err := h.svc.Follow(claims.UserID, targetID)
+	resp, err := h.svc.Follow(c.Context(), claims.UserID, targetID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -37,7 +37,7 @@ func (h *Handler) Unfollow(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.Unfollow(claims.UserID, targetID); err != nil {
+	if err := h.svc.Unfollow(c.Context(), claims.UserID, targetID); err != nil {
 		return handleErr(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -50,7 +50,7 @@ func (h *Handler) GetFollowers(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	list, err := h.svc.GetFollowers(claims.UserID, userID)
+	list, err := h.svc.GetFollowers(c.Context(), claims.UserID, userID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -64,7 +64,7 @@ func (h *Handler) GetFollowing(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	list, err := h.svc.GetFollowing(claims.UserID, userID)
+	list, err := h.svc.GetFollowing(c.Context(), claims.UserID, userID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -78,7 +78,7 @@ func (h *Handler) GetPendingRequests(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	list, err := h.svc.GetPendingRequests(claims.UserID, userID)
+	list, err := h.svc.GetPendingRequests(c.Context(), claims.UserID, userID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -92,7 +92,7 @@ func (h *Handler) AcceptRequest(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.AcceptFollow(claims.UserID, followerID); err != nil {
+	if err := h.svc.AcceptFollow(c.Context(), claims.UserID, followerID); err != nil {
 		return handleErr(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -105,7 +105,7 @@ func (h *Handler) RejectRequest(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.RejectFollow(claims.UserID, followerID); err != nil {
+	if err := h.svc.RejectFollow(c.Context(), claims.UserID, followerID); err != nil {
 		return handleErr(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -118,7 +118,7 @@ func (h *Handler) GetFollowStatus(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	status, err := h.svc.GetRelationshipStatus(claims.UserID, targetID)
+	status, err := h.svc.GetRelationshipStatus(c.Context(), claims.UserID, targetID)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -132,7 +132,7 @@ func (h *Handler) GetFollowStats(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	stats, err := h.svc.GetFollowStats(claims.UserID, targetID)
+	stats, err := h.svc.GetFollowStats(c.Context(), claims.UserID, targetID)
 	if err != nil {
 		return handleErr(c, err)
 	}

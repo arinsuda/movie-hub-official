@@ -27,7 +27,7 @@ export const useFeedStore = defineStore("feed", () => {
   const settingsError = ref<string | null>(null);
 
   const hasMore = computed(
-    () => pagination.value.page < pagination.value.total_pages,
+    () => pagination.value.page < pagination.value.total_pages
   );
   const isEmpty = computed(() => !loading.value && items.value.length === 0);
 
@@ -65,8 +65,26 @@ export const useFeedStore = defineStore("feed", () => {
     await fetchFeed(1);
   }
 
-  // ซ่อน activity ของตัวเองออกจากฟีด — optimistic update แบบเดียวกับ removeNotification
-  async function hideActivity(id: number) {
+  async function updateVisibility(
+    id: number,
+    visibility: "default" | "public" | "followers" | "private"
+  ) {
+    const item = items.value.find((i) => i.id === id);
+    if (!item) return;
+
+    const prevVisibility = item.visibility;
+    item.visibility = visibility;
+
+    try {
+      await feedApi.updateVisibility(id, visibility);
+    } catch (err) {
+      item.visibility = prevVisibility;
+      console.error("updateVisibility failed:", err);
+      throw err;
+    }
+  }
+
+  async function deleteActivity(id: number) {
     const idx = items.value.findIndex((i) => i.id === id);
     if (idx === -1) return;
 
@@ -75,11 +93,12 @@ export const useFeedStore = defineStore("feed", () => {
     pagination.value.total = Math.max(0, pagination.value.total - 1);
 
     try {
-      await feedApi.updateVisibility(id, false);
+      await feedApi.deleteActivity(id);
     } catch (err) {
       items.value.splice(idx, 0, removed);
       pagination.value.total++;
-      console.error("hideActivity failed:", err);
+      console.error("deleteActivity failed:", err);
+      throw err;
     }
   }
 
@@ -142,7 +161,8 @@ export const useFeedStore = defineStore("feed", () => {
     fetchFeed,
     loadMore,
     refresh,
-    hideActivity,
+    updateVisibility,
+    deleteActivity,
     fetchSettings,
     updateSettings,
     reset,

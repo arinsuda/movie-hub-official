@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 )
@@ -16,7 +17,6 @@ func newHandler(svc Service) *handler {
 	return &handler{svc: svc}
 }
 
-// GetFeed handles GET /feed — timeline ของคนที่ผู้ใช้ login อยู่ follow
 func (h *handler) GetFeed(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 
@@ -25,14 +25,13 @@ func (h *handler) GetFeed(c fiber.Ctx) error {
 		return badRequest(c, "invalid query parameters")
 	}
 
-	res, err := h.svc.GetFeed(claims.UserID, pq)
+	res, err := h.svc.GetFeed(c.Context(), claims.UserID, pq)
 	if err != nil {
 		return handleErr(c, err)
 	}
 	return c.JSON(res)
 }
 
-// GetUserActivities handles GET /users/:userId/activities — ใช้ในหน้า profile
 func (h *handler) GetUserActivities(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 
@@ -46,14 +45,13 @@ func (h *handler) GetUserActivities(c fiber.Ctx) error {
 		return badRequest(c, "invalid query parameters")
 	}
 
-	res, err := h.svc.GetUserActivities(targetID, claims.UserID, pq)
+	res, err := h.svc.GetUserActivities(c.Context(), targetID, claims.UserID, pq)
 	if err != nil {
 		return handleErr(c, err)
 	}
 	return c.JSON(res)
 }
 
-// UpdateVisibility handles PATCH /activities/:activityId/visibility — hide/unhide activity รายอัน
 func (h *handler) UpdateVisibility(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 
@@ -62,29 +60,41 @@ func (h *handler) UpdateVisibility(c fiber.Ctx) error {
 		return badRequest(c, "invalid activity id")
 	}
 
-	var req UpdateVisibilityRequest
+	var req UpdateActivityVisibilityRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return badRequest(c, "invalid request body")
 	}
 
-	if err := h.svc.UpdateVisibility(activityID, claims.UserID, req.IsVisible); err != nil {
+	if err := h.svc.UpdateActivityVisibility(c.Context(), activityID, claims.UserID, req.Visibility); err != nil {
 		return handleErr(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// GetSettings handles GET /me/activity-settings
+func (h *handler) DeleteActivity(c fiber.Ctx) error {
+	claims := mw.GetClaims(c)
+
+	activityID, err := parseActivityID(c)
+	if err != nil {
+		return badRequest(c, "invalid activity id")
+	}
+
+	if err := h.svc.DeleteActivity(c.Context(), activityID, claims.UserID); err != nil {
+		return handleErr(c, err)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (h *handler) GetSettings(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 
-	res, err := h.svc.GetSettings(claims.UserID)
+	res, err := h.svc.GetSettings(c.Context(), claims.UserID)
 	if err != nil {
 		return handleErr(c, err)
 	}
 	return c.JSON(res)
 }
 
-// UpdateSettings handles PATCH /me/activity-settings
 func (h *handler) UpdateSettings(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 
@@ -93,7 +103,7 @@ func (h *handler) UpdateSettings(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	res, err := h.svc.UpdateSettings(claims.UserID, req)
+	res, err := h.svc.UpdateSettings(c.Context(), claims.UserID, req)
 	if err != nil {
 		return handleErr(c, err)
 	}
@@ -124,7 +134,7 @@ func handleErr(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, ErrActivityNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "activity not found"})
-	case errors.Is(err, ErrForbidden):
+	case errors.Is(err, ErrForbidden) || errors.Is(err, privacy_policy.ErrForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	case errors.Is(err, ErrUserNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})

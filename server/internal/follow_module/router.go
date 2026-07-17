@@ -2,6 +2,7 @@ package follow_module
 
 import (
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
@@ -12,8 +13,9 @@ func RegisterRoutes(
 	db *gorm.DB,
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
+	feed feed_module.Service,
 ) {
-	svc := NewService(db, achieve, notif)
+	svc := NewService(db, achieve, notif, feed)
 	h := NewHandler(svc)
 
 	users := router.Group("/users")
@@ -25,4 +27,5 @@ func RegisterRoutes(
 	users.Get("/:userId/follow-stats", h.GetFollowStats)
 	users.Get("/:userId/follow-requests", h.GetPendingRequests)
 	users.Post("/:userId/follow-requests/:followerId/accept", h.AcceptRequest)
-	users.Delete("/:userId/follow-requests/:followerId", h.RejectRequest)}
+	users.Delete("/:userId/follow-requests/:followerId", h.RejectRequest)
+}

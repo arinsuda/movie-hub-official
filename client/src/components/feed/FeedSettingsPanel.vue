@@ -61,6 +61,7 @@ const options: { key: keyof ActivitySettingsResponse; label: string }[] = [
   { key: "watchlist_added", label: "เพิ่มลงวอทช์ลิสต์" },
   { key: "watched_added", label: "ทำเครื่องหมายว่าดูแล้ว" },
   { key: "achievement_unlocked", label: "ปลดล็อกความสำเร็จ" },
+  { key: "user_followed", label: "ติดตามผู้ใช้คนอื่น" },
 ];
 
 function toggle(key: keyof ActivitySettingsResponse) {

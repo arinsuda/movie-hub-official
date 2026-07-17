@@ -7,6 +7,11 @@ import (
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
 )
 
+type NeutralUnlocked struct {
+	ID   uint
+	Name string
+}
+
 func TrackAndNotify(
 	ctx context.Context,
 	achieveSvc achievementsmodule.Service,
@@ -14,15 +19,21 @@ func TrackAndNotify(
 	userID uint,
 	actionType string,
 	count int,
-) {
+) []NeutralUnlocked {
 	if achieveSvc == nil {
-		return
+		return nil
 	}
 	unlocked, _ := achieveSvc.Track(userID, actionType, count)
-	if notifSvc == nil {
-		return
-	}
+	
+	var result []NeutralUnlocked
 	for _, u := range unlocked {
-		_ = notifSvc.PushAchievementUnlocked(ctx, userID, u.Achievement.ID, u.Achievement.Name, u.ExpGained)
+		result = append(result, NeutralUnlocked{
+			ID:   u.Achievement.ID,
+			Name: u.Achievement.Name,
+		})
+		if notifSvc != nil {
+			_ = notifSvc.PushAchievementUnlocked(ctx, userID, u.Achievement.ID, u.Achievement.Name, u.ExpGained)
+		}
 	}
+	return result
 }

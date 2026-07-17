@@ -15,6 +15,7 @@ import (
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/arinsuda/movie-hub/internal/user_module"
@@ -41,17 +42,17 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	statsSvc := user_stats_module.NewService(db)
 	passwordResetMailer := user_module.NewSMTPPasswordResetMailer()
 
-	achieveModule := achievementsmodule.New(db)
-	feedModule := feed_module.New(db)
-
-	mw := middleware.NewAuthMiddleware(cfg)
-
 	userNotifAdapter := user_module.NewNotificationUserAdapter(db)
 
 	verifier := &jwtVerifier{secret: cfg.JWT.AccessSecret}
 
 	notifHub := notification_module.NewHub(verifier, cfg.CORS.AllowedOrigin)
 	notifSvc := notification_module.NewService(db, userNotifAdapter, notifHub)
+
+	policy := privacy_policy.NewUserAccessPolicy(db)
+
+	achieveModule := achievementsmodule.New(db, policy)
+	feedModule := feed_module.New(db, notifHub)
 
 	app.Get("/", welcomeHandler)
 	app.Get("/health", healthHandler)
@@ -60,9 +61,10 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 
 	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc, notifSvc)
 
+	mw := middleware.NewAuthMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
 
-	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer)
+	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer, policy)
 	authSvc.SetUserService(userSvc)
 
 	achieveModule.RegisterRoutes(api, mw.RequireAuth)
@@ -70,10 +72,10 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 
 	notification_module.RegisterRoutes(protected, notifSvc, notifHub)
 
-	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc)
-	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc, feedModule.Service)
-	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc, feedModule.Service)
-	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc, feedModule.Service)
+	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc, feedModule.Service)
+	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc, feedModule.Service, policy)
 
 	analytics_module.RegisterRoutes(protected, db)
 	movie_module.RegisterRoutes(protected)

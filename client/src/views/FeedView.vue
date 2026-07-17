@@ -70,7 +70,8 @@
       :current-user-id="currentUserId"
       @load-more="feedStore.loadMore"
       @retry="feedStore.refresh"
-      @hide="feedStore.hideActivity"
+      @update-visibility="feedStore.updateVisibility"
+      @delete-activity="feedStore.deleteActivity"
     />
   </div>
 </template>

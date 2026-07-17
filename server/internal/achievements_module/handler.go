@@ -3,6 +3,7 @@ package achievementsmodule
 import (
 	"strconv"
 
+	"github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -64,7 +65,12 @@ func (h *handler) listUserAchievements(c fiber.Ctx) error {
 		filter.Unlocked = &b
 	}
 
-	res, err := h.svc.ListUserAchievements(uint(userID), filter)
+	var requesterID uint
+	if claims := middleware.GetClaims(c); claims != nil {
+		requesterID = claims.UserID
+	}
+
+	res, err := h.svc.ListUserAchievements(c.Context(), uint(userID), requesterID, filter)
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}

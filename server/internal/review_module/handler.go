@@ -33,7 +33,7 @@ func (h *Handler) CreateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.CreateReview(userID, req)
+	review, err := h.svc.CreateReview(c.Context(), userID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -59,7 +59,7 @@ func (h *Handler) GetUserReviews(c fiber.Ctx) error {
 		return badRequest(c, err.Error())
 	}
 
-	reviews, err := h.svc.GetUserReviews(userID, claims.UserID, filter)
+	reviews, err := h.svc.GetUserReviews(c.Context(), userID, claims.UserID, filter)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -78,7 +78,7 @@ func (h *Handler) GetMediaReviews(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	reviews, err := h.svc.GetMediaReviews(mediaID, mt, claims.UserID)
+	reviews, err := h.svc.GetMediaReviews(c.Context(), mediaID, mt, claims.UserID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -99,7 +99,7 @@ func (h *Handler) UpdateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.UpdateReview(reviewID, userID, req)
+	review, err := h.svc.UpdateReview(c.Context(), reviewID, userID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -115,7 +115,7 @@ func (h *Handler) DeleteReview(c fiber.Ctx) error {
 		return forbidden(c)
 	}
 
-	if err := h.svc.DeleteReview(reviewID, userID); err != nil {
+	if err := h.svc.DeleteReview(c.Context(), reviewID, userID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -156,7 +156,7 @@ func (h *Handler) LikeReview(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.LikeReview(reviewID, claims.UserID); err != nil {
+	if err := h.svc.LikeReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -169,7 +169,7 @@ func (h *Handler) UnlikeReview(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.UnlikeReview(reviewID, claims.UserID); err != nil {
+	if err := h.svc.UnlikeReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -189,7 +189,7 @@ func (h *Handler) CreateComment(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	comment, err := h.svc.CreateComment(reviewID, claims.UserID, req)
+	comment, err := h.svc.CreateComment(c.Context(), reviewID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -203,7 +203,7 @@ func (h *Handler) GetComments(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	comments, err := h.svc.GetComments(reviewID, claims.UserID)
+	comments, err := h.svc.GetComments(c.Context(), reviewID, claims.UserID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -227,7 +227,7 @@ func (h *Handler) UpdateComment(c fiber.Ctx) error {
 	}
 
 	_ = reviewID
-	comment, err := h.svc.UpdateComment(commentID, claims.UserID, req)
+	comment, err := h.svc.UpdateComment(c.Context(), commentID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -245,7 +245,7 @@ func (h *Handler) DeleteComment(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.DeleteComment(commentID, reviewID, claims.UserID); err != nil {
+	if err := h.svc.DeleteComment(c.Context(), commentID, reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -260,7 +260,7 @@ func (h *Handler) MarkHelpful(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.MarkHelpful(reviewID, claims.UserID); err != nil {
+	if err := h.svc.MarkHelpful(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -273,7 +273,7 @@ func (h *Handler) UnmarkHelpful(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.UnmarkHelpful(reviewID, claims.UserID); err != nil {
+	if err := h.svc.UnmarkHelpful(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)

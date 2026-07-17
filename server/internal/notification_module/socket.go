@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/zishang520/socket.io/servers/socket/v3"
 	"github.com/zishang520/socket.io/v3/pkg/types"
 )
@@ -115,5 +116,22 @@ func (h *Hub) EmitDeleted(userID uint, ids []uint) {
 func (h *Hub) EmitUnreadCount(userID uint, count int64) {
 	_ = h.io.To(roomFor(userID)).Emit("notification:unread_count", map[string]any{
 		"unread_count": count,
+	})
+}
+
+func (h *Hub) EmitFeedRefresh(userID uint) {
+	_ = h.io.To(roomFor(userID)).Emit(privacy_policy.EventFeedRefresh, map[string]any{})
+}
+
+func (h *Hub) EmitFeedUpdated(userID uint, activityID uint, visibility string) {
+	_ = h.io.To(roomFor(userID)).Emit(privacy_policy.EventFeedActivityUpdated, map[string]any{
+		"id":         activityID,
+		"visibility": visibility,
+	})
+}
+
+func (h *Hub) EmitFeedDeleted(userID uint, activityID uint) {
+	_ = h.io.To(roomFor(userID)).Emit(privacy_policy.EventFeedActivityRemoved, map[string]any{
+		"id": activityID,
 	})
 }

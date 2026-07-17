@@ -13,6 +13,7 @@ const ACTIVITY_META: Record<ActivityType, ActivityMeta> = {
   watchlist_added: { label: "เพิ่มลงวอทช์ลิสต์", icon: "🔖" },
   watched_added: { label: "ดูแล้ว", icon: "✅" },
   achievement_unlocked: { label: "ปลดล็อกความสำเร็จ", icon: "🏆" },
+  user_followed: { label: "ติดตามผู้ใช้", icon: "👤" },
 };
 
 export function getActivityMeta(type: ActivityType): ActivityMeta {
