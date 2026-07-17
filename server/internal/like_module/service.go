@@ -61,6 +61,7 @@ func (s *Service) Like(ctx context.Context, userID uint, mediaID int, mediaType 
 	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "like_count", int(count))
 	s.createAchievementFeedActivities(ctx, userID, unlocked)
 
+
 	if s.feedSvc != nil {
 		mt := string(mediaType)
 		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityMediaLiked, feed_module.ActivityPayload{
@@ -147,3 +148,5 @@ func (s *Service) createAchievementFeedActivities(ctx context.Context, userID ui
 		})
 	}
 }
+
+

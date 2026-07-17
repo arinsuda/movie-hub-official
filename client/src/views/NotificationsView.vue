@@ -63,7 +63,8 @@
             class="notifications-page-item-icon"
             :class="`notifications-page-item-icon--${n.category}`"
           >
-            <UserPlus v-if="n.type === 'followed_you'" :size="18" />
+            <UserPlus v-if="n.type === 'followed_you' || n.type === 'follow_requested'" :size="18" />
+            <UserCheck v-else-if="n.type === 'follow_accepted'" :size="18" />
             <Heart
               v-else-if="
                 n.type === 'review_liked' || n.type === 'following_liked_review'
@@ -139,6 +140,7 @@
     ThumbsUp,
     Trophy,
     UserPlus,
+    UserCheck,
   } from "lucide-vue-next"
   import { notiApi } from "@/api/endpoints/notification"
   import { useNotificationStore } from "@/stores/notification"

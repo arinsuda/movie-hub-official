@@ -52,7 +52,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	policy := privacy_policy.NewUserAccessPolicy(db)
 
 	achieveModule := achievementsmodule.New(db, policy)
-	feedModule := feed_module.New(db, notifHub)
+	feedModule := feed_module.New(db, notifHub, mc)
 
 	app.Get("/", welcomeHandler)
 	app.Get("/health", healthHandler)

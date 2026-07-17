@@ -60,6 +60,35 @@
       </div>
     </header>
 
+    <!-- Floating New Feed Items Alert -->
+    <Transition name="slide-down">
+      <div
+        v-if="feedStore.newItemsCount > 0"
+        class="sticky top-4 z-10 mb-4 flex justify-center"
+      >
+        <button
+          type="button"
+          class="flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-400 backdrop-blur-md transition-all hover:bg-blue-500/20 active:scale-95 shadow-lg shadow-blue-500/5"
+          @click="feedStore.showNewItems()"
+        >
+          <svg
+            viewBox="0 0 20 20"
+            class="h-4 w-4 animate-bounce"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M10 3v14m0-14l-4 4m4-4l4 4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          มี {{ feedStore.newItemsCount }} กิจกรรมใหม่
+        </button>
+      </div>
+    </Transition>
+
     <FeedList
       :items="feedStore.items"
       :loading="feedStore.loading"
@@ -77,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useFeedStore } from "@/stores/feed";
 import { useClickOutside } from "@/composables/useClickOutside";
 import FeedList from "@/components/feed/FeedList.vue";
@@ -93,7 +122,12 @@ const settingsRef = ref<HTMLElement | null>(null);
 useClickOutside(settingsRef, () => (isSettingsOpen.value = false));
 
 onMounted(() => {
+  feedStore.bindSocket();
   if (feedStore.items.length === 0) feedStore.fetchFeed(1);
+});
+
+onUnmounted(() => {
+  feedStore.unbindSocket();
 });
 </script>
 
@@ -106,4 +140,17 @@ onMounted(() => {
 .fade-leave-to {
   opacity: 0;
 }
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition:
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
 </style>
+

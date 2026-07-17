@@ -288,3 +288,48 @@ func (r *repository) UpsertSetting(ctx context.Context, userID uint, t ActivityT
 		Assign(ActivityPrivacySetting{Enabled: enabled}).
 		FirstOrCreate(&setting).Error
 }
+
+func (r *repository) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("activity_events ae").
+		Joins("JOIN users u ON u.id = ae.actor_id AND u.is_active = true").
+		Joins("LEFT JOIN user_follows uf ON uf.followee_id = ae.actor_id AND uf.follower_id = ?", userID).
+		Joins("LEFT JOIN activity_privacy_settings aps ON aps.user_id = ae.actor_id AND aps.activity_type = ae.type").
+		Where("ae.deleted_at IS NULL").
+		Where("ae.id > ?", afterActivityID).
+		Where(`
+			(ae.actor_id = ? OR (uf.status = 'accepted' AND ae.is_visible = true))
+			AND (
+				ae.actor_id = ? 
+				OR 
+				(
+					(aps.enabled IS NULL AND (
+						(ae.type = 'review_created' AND true) OR
+						(ae.type = 'review_commented' AND true) OR
+						(ae.type = 'review_liked' AND false) OR
+						(ae.type = 'media_liked' AND false) OR
+						(ae.type = 'watchlist_added' AND false) OR
+						(ae.type = 'watched_added' AND false) OR
+						(ae.type = 'achievement_unlocked' AND true) OR
+						(ae.type = 'user_followed' AND false)
+					)) OR aps.enabled = true
+				)
+			)
+			AND (
+				ae.actor_id = ?
+				OR
+				(
+					(u.is_private = false OR uf.status = 'accepted')
+					AND (
+						ae.visibility = 'public' 
+						OR (ae.visibility = 'followers' AND uf.status = 'accepted')
+						OR (ae.visibility = 'default' AND (u.is_private = false OR uf.status = 'accepted'))
+					)
+				)
+			)
+		`, userID, userID, userID).
+		Count(&count).Error
+
+	return count, err
+}
+

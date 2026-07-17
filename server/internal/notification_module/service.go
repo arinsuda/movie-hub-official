@@ -2,8 +2,10 @@ package notification_module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	user_module "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
@@ -178,6 +180,59 @@ func (s *Service) PushFollowingActivity(
 	targetRef *string,
 	message string,
 ) error {
+	// Map notification type to the corresponding feed activity type to check privacy settings.
+	var activityType privacy_policy.ActivityType
+	switch notifType {
+	case NotifFollowingReviewed:
+		activityType = privacy_policy.ActivityReviewCreated
+	case NotifFollowingCommented:
+		activityType = privacy_policy.ActivityReviewCommented
+	case NotifFollowingLikedReview:
+		activityType = privacy_policy.ActivityReviewLiked
+	case NotifFollowingAddedWatchlist:
+		activityType = privacy_policy.ActivityWatchlistAdded
+	case NotifFollowingAddedWatched:
+		activityType = privacy_policy.ActivityWatchedAdded
+	case NotifFollowingMarkedHelpful:
+		// review_liked setting controls marked helpful as well
+		activityType = privacy_policy.ActivityReviewLiked
+	}
+
+	if activityType != "" {
+		var setting struct {
+			Enabled bool
+		}
+		err := s.repo.db.WithContext(ctx).Table("activity_privacy_settings").
+			Select("enabled").
+			Where("user_id = ? AND activity_type = ?", actorID, string(activityType)).
+			First(&setting).Error
+
+		enabled := false
+		if err == nil {
+			enabled = setting.Enabled
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Fallback to default activity sharing setting
+			defaultActivitySharing := map[privacy_policy.ActivityType]bool{
+				privacy_policy.ActivityReviewCreated:       true,
+				privacy_policy.ActivityReviewCommented:     true,
+				privacy_policy.ActivityReviewLiked:         false,
+				privacy_policy.ActivityMediaLiked:          false,
+				privacy_policy.ActivityWatchlistAdded:      false,
+				privacy_policy.ActivityWatchedAdded:        false,
+				privacy_policy.ActivityAchievementUnlocked: true,
+				privacy_policy.ActivityUserFollowed:        false,
+			}
+			enabled = defaultActivitySharing[activityType]
+		} else {
+			return err
+		}
+
+		if !enabled {
+			// Sharing is disabled for this activity type, do not send notifications to followers.
+			return nil
+		}
+	}
+
 	followerIDs, err := s.userProvider.FindFollowerIDs(actorID)
 	if err != nil {
 		return err
@@ -196,6 +251,7 @@ func (s *Service) PushFollowingActivity(
 	}
 	return s.createAndEmit(ctx, ns)
 }
+
 
 func (s *Service) PushFollowingReviewed(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
 	ref := "review"
@@ -225,6 +281,7 @@ func (s *Service) toResponse(n Notification) NotificationResponse {
 	resp := NotificationResponse{
 		ID:        n.ID,
 		Type:      n.Type,
+		Category:  n.Category,
 		Message:   n.Message,
 		IsRead:    n.IsRead,
 		ReadAt:    n.ReadAt,

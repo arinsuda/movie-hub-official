@@ -32,6 +32,28 @@ func (h *handler) GetFeed(c fiber.Ctx) error {
 	return c.JSON(res)
 }
 
+func (h *handler) GetNewCount(c fiber.Ctx) error {
+	claims := mw.GetClaims(c)
+
+	afterIDStr := c.Query("after_id")
+	if afterIDStr == "" {
+		return c.JSON(fiber.Map{"count": 0})
+	}
+
+	afterID, err := strconv.ParseUint(afterIDStr, 10, 32)
+	if err != nil {
+		return badRequest(c, "invalid after_id")
+	}
+
+	count, err := h.svc.CountNewFeedItems(c.Context(), claims.UserID, uint(afterID))
+	if err != nil {
+		return handleErr(c, err)
+	}
+
+	return c.JSON(fiber.Map{"count": count})
+}
+
+
 func (h *handler) GetUserActivities(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 

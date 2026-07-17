@@ -8,6 +8,7 @@ import (
 	noti "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
+	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"gorm.io/gorm"
 )
@@ -20,6 +21,8 @@ type Service interface {
 	DeleteActivity(ctx context.Context, activityID, requesterID uint) error
 	GetSettings(ctx context.Context, userID uint) (*ActivitySettingsResponse, error)
 	UpdateSettings(ctx context.Context, userID uint, req UpdateActivitySettingsRequest) (*ActivitySettingsResponse, error)
+	CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error)
+	IsActivityEnabled(ctx context.Context, userID uint, activityType ActivityType) (bool, error)
 
 	DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error
 	DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error
@@ -28,14 +31,16 @@ type Service interface {
 }
 
 type service struct {
-	repo *repository
-	hub  *noti.Hub
+	repo  *repository
+	hub   *noti.Hub
+	minio *storage.MinIOClient
 }
 
-func NewService(db *gorm.DB, hub *noti.Hub) Service {
+func NewService(db *gorm.DB, hub *noti.Hub, minio *storage.MinIOClient) Service {
 	return &service{
-		repo: newRepository(db),
-		hub:  hub,
+		repo:  newRepository(db),
+		hub:   hub,
+		minio: minio,
 	}
 }
 
@@ -77,7 +82,7 @@ func (s *service) GetFeed(ctx context.Context, userID uint, pq PaginationQuery) 
 	if err != nil {
 		return nil, err
 	}
-	return toFeedListResponse(rows, pq, total), nil
+	return toFeedListResponse(rows, pq, total, s.minio), nil
 }
 
 func (s *service) GetUserActivities(ctx context.Context, targetUserID, requesterID uint, pq PaginationQuery) (*FeedListResponse, error) {
@@ -86,7 +91,7 @@ func (s *service) GetUserActivities(ctx context.Context, targetUserID, requester
 	if err != nil {
 		return nil, err
 	}
-	return toFeedListResponse(rows, pq, total), nil
+	return toFeedListResponse(rows, pq, total, s.minio), nil
 }
 
 func (s *service) UpdateActivityVisibility(ctx context.Context, activityID, requesterID uint, visibility privacy_policy.ActivityVisibility) error {
@@ -176,6 +181,10 @@ func (s *service) UpdateSettings(ctx context.Context, userID uint, req UpdateAct
 	return s.GetSettings(ctx, userID)
 }
 
+func (s *service) CountNewFeedItems(ctx context.Context, userID uint, afterActivityID uint) (int64, error) {
+	return s.repo.CountNewFeedItems(ctx, userID, afterActivityID)
+}
+
 func (s *service) broadcastRefresh(ctx context.Context, actorID uint) {
 	if s.hub == nil {
 		return
@@ -238,10 +247,10 @@ func toSettingsResponse(rows []ActivityPrivacySetting) *ActivitySettingsResponse
 	}
 }
 
-func toFeedListResponse(rows []feedRow, pq PaginationQuery, total int64) *FeedListResponse {
+func toFeedListResponse(rows []feedRow, pq PaginationQuery, total int64, minio *storage.MinIOClient) *FeedListResponse {
 	items := make([]FeedItemResponse, len(rows))
 	for i, row := range rows {
-		items[i] = toFeedItemResponse(row)
+		items[i] = toFeedItemResponse(row, minio)
 	}
 	return &FeedListResponse{
 		Items:      items,
@@ -249,7 +258,7 @@ func toFeedListResponse(rows []feedRow, pq PaginationQuery, total int64) *FeedLi
 	}
 }
 
-func toFeedItemResponse(row feedRow) FeedItemResponse {
+func toFeedItemResponse(row feedRow, minio *storage.MinIOClient) FeedItemResponse {
 	item := FeedItemResponse{
 		ID:   row.ID,
 		Type: row.Type,
@@ -257,7 +266,7 @@ func toFeedItemResponse(row feedRow) FeedItemResponse {
 			ID:          row.ActorID,
 			Username:    row.ActorUsername,
 			DisplayName: row.ActorDisplayName,
-			AvatarURL:   row.ActorAvatarURL,
+			AvatarURL:   presignAvatar(row.ActorAvatarURL, minio),
 		},
 		ReviewID:      row.ReviewID,
 		CommentID:     row.CommentID,
@@ -273,7 +282,7 @@ func toFeedItemResponse(row feedRow) FeedItemResponse {
 			ID:          *row.TargetUserID,
 			Username:    row.TargetUserUsername,
 			DisplayName: row.TargetUserDisplayName,
-			AvatarURL:   row.TargetUserAvatarURL,
+			AvatarURL:   presignAvatar(row.TargetUserAvatarURL, minio),
 		}
 	} else if row.Type == ActivityUserFollowed {
 		// Target user was physically or soft deleted
@@ -296,14 +305,14 @@ func toFeedItemResponse(row feedRow) FeedItemResponse {
 		case movie_module.MediaMovie:
 			if details, err := tmdbmodule.GetMovieByID(*row.MediaID); err == nil && details != nil {
 				media.Title = details.Title
-				media.PosterURL = details.PosterPath
+				media.PosterURL = tmdbmodule.ImageURL(details.PosterPath)
 				media.Genres = details.Genres
 				media.VoteAverage = float32(details.VoteAverage)
 			}
 		case movie_module.MediaSeries:
 			if details, err := tmdbmodule.GetSeriesByID(*row.MediaID); err == nil && details != nil {
 				media.Title = details.Name
-				media.PosterURL = details.PosterPath
+				media.PosterURL = tmdbmodule.ImageURL(details.PosterPath)
 				media.Genres = details.Genres
 				media.VoteAverage = float32(details.VoteAverage)
 			}
@@ -312,4 +321,20 @@ func toFeedItemResponse(row feedRow) FeedItemResponse {
 	}
 
 	return item
+}
+
+// presignAvatar resolves a MinIO object key to a presigned URL.
+// Returns the raw pointer unchanged if minio is nil or presigning fails.
+func presignAvatar(avatarURL *string, minio *storage.MinIOClient) *string {
+	if avatarURL == nil || *avatarURL == "" || minio == nil {
+		return avatarURL
+	}
+	if presigned, err := minio.PresignURL(context.Background(), *avatarURL); err == nil {
+		return &presigned
+	}
+	return avatarURL
+}
+
+func (s *service) IsActivityEnabled(ctx context.Context, userID uint, activityType ActivityType) (bool, error) {
+	return s.repo.IsEnabled(ctx, userID, activityType)
 }

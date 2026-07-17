@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { feedApi } from "@/api/endpoints/feed";
+import { useSocket } from "@/composables/useSocket";
 import type {
   FeedItemResponse,
   FeedPaginationMeta,
@@ -26,17 +27,86 @@ export const useFeedStore = defineStore("feed", () => {
   const settingsLoading = ref(false);
   const settingsError = ref<string | null>(null);
 
+  const newItemsCount = ref(0);
+  let socketBound = false;
+
   const hasMore = computed(
     () => pagination.value.page < pagination.value.total_pages
   );
   const isEmpty = computed(() => !loading.value && items.value.length === 0);
 
+  const topActivityId = computed(() => {
+    const first = items.value[0];
+    return first ? first.id : null;
+  });
+
+
+  async function checkNewItems() {
+    const topId = topActivityId.value;
+    if (!topId) return;
+    try {
+      const res = await feedApi.getNewCount(topId);
+      newItemsCount.value = res.data.count;
+    } catch (err) {
+      console.error("checkNewItems failed:", err);
+    }
+  }
+
+  function handleActivityUpdated(payload: { id: number; visibility: string }) {
+    const item = items.value.find((i) => i.id === payload.id);
+    if (item) {
+      item.visibility = payload.visibility as any;
+    }
+  }
+
+  function handleActivityRemoved(payload: { id: number }) {
+    const idx = items.value.findIndex((i) => i.id === payload.id);
+    if (idx !== -1) {
+      items.value.splice(idx, 1);
+      pagination.value.total = Math.max(0, pagination.value.total - 1);
+    }
+  }
+
+  function bindSocket() {
+    if (socketBound) return;
+    const { connect, on } = useSocket();
+    connect();
+
+    on("feed:refresh_required", checkNewItems);
+    on<{ id: number; visibility: string }>(
+      "feed:activity_updated",
+      handleActivityUpdated
+    );
+    on<{ id: number }>("feed:activity_removed", handleActivityRemoved);
+
+    socketBound = true;
+  }
+
+  function unbindSocket() {
+    if (!socketBound) return;
+    const { off } = useSocket();
+    off("feed:refresh_required", checkNewItems as any);
+    off("feed:activity_updated", handleActivityUpdated as any);
+    off("feed:activity_removed", handleActivityRemoved as any);
+    socketBound = false;
+  }
+
+  async function showNewItems() {
+    newItemsCount.value = 0;
+    await refresh();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function fetchFeed(page = 1) {
     if (loading.value || loadingMore.value) return;
 
-    const limit = pagination.value?.limit ?? DEFAULT_PAGINATION.limit;
-    if (page === 1) loading.value = true;
-    else loadingMore.value = true;
+    const limit = pagination.value.limit;
+    if (page === 1) {
+      loading.value = true;
+      newItemsCount.value = 0;
+    } else {
+      loadingMore.value = true;
+    }
     error.value = null;
 
     try {
@@ -143,6 +213,7 @@ export const useFeedStore = defineStore("feed", () => {
     loading.value = false;
     loadingMore.value = false;
     error.value = null;
+    newItemsCount.value = 0;
   }
 
   return {
@@ -153,6 +224,7 @@ export const useFeedStore = defineStore("feed", () => {
     error,
     hasMore,
     isEmpty,
+    newItemsCount,
 
     settings,
     settingsLoading,
@@ -166,5 +238,9 @@ export const useFeedStore = defineStore("feed", () => {
     fetchSettings,
     updateSettings,
     reset,
+    bindSocket,
+    unbindSocket,
+    showNewItems,
   };
 });
+

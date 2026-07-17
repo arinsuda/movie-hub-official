@@ -20,8 +20,9 @@ func (a *NotificationUserAdapter) FindByID(id uint) (*User, int, int, int, error
 func (a *NotificationUserAdapter) FindFollowerIDs(userID uint) ([]uint, error) {
 	var ids []uint
 	err := a.repo.db.
-		Table("follows").
-		Where("following_id = ?", userID).
+		Table("user_follows").
+		Where("followee_id = ? AND status = 'accepted'", userID).
 		Pluck("follower_id", &ids).Error
 	return ids, err
 }
+

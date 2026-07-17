@@ -14,6 +14,8 @@ export type NotificationType =
   | "email_verified"
   | "password_changed"
   | "welcome"
+  | "follow_requested"
+  | "follow_accepted"
 
 export type NotificationCategory = "system" | "social" | "media" | "achievement"
 
@@ -74,6 +76,8 @@ const TITLE_BY_TYPE: Record<NotificationType, string> = {
   email_verified: "ยืนยันอีเมลสำเร็จ",
   password_changed: "เปลี่ยนรหัสผ่านสำเร็จ",
   welcome: "ยินดีต้อนรับ",
+  follow_requested: "คำขอติดตามใหม่",
+  follow_accepted: "ยอมรับคำขอติดตาม",
 }
 
 export function getNotificationTitle(n: AppNotification): string {

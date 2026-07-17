@@ -38,4 +38,11 @@ export const feedApi = {
   // PATCH /me/activity-settings
   updateSettings: (data: UpdateActivitySettingsRequest) =>
     api.patch<ActivitySettingsResponse>("/me/activity-settings", data),
+
+  // GET /feed/new-count — นับกิจกรรมใหม่ตั้งแต่ after_id
+  getNewCount: (afterId: number) =>
+    api.get<{ count: number }>("/feed/new-count", {
+      params: { after_id: afterId },
+    }),
 };
+
