@@ -343,7 +343,6 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount } from "vue"
 import { useRouter } from "vue-router"
 import { useAuthStore } from "@/stores/auth"
-import { useI18n } from "vue-i18n"
 import { bmolApi, movieApi } from "@/api/api"
 import type { BMOLItemResponse, Movie, TVSeries } from "@/types"
 import { Search, Film, Trophy, ChevronLeft } from "lucide-vue-next"
@@ -355,7 +354,10 @@ const props = defineProps<{
 
 const router = useRouter()
 const auth = useAuthStore()
-const { t } = useI18n()
+
+function goToDetail(id: number, type: string) {
+  router.push(type === "tv" ? `/tv/${id}` : `/movies/${id}`)
+}
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
@@ -487,8 +489,8 @@ async function saveSpotlightItems() {
     return {
       id: Date.now() + Math.random(),
       rank: rank,
-      media_id: media.id,
       media_type: subTab.value,
+      created_at: new Date().toISOString(),
       media: {
         id: media.id,
         title: getMediaTitle(media),
@@ -511,9 +513,9 @@ async function saveSpotlightItems() {
       const errorWithResponse = err as { response?: { status: number } }
       if (errorWithResponse.response?.status === 409) {
         // Rollback only this item since it's duplicate
-        bmolItems.value = bmolItems.value.filter(i => i.media_id !== media.id)
+        bmolItems.value = bmolItems.value.filter(i => i.media.id !== media.id)
       } else {
-        bmolItems.value = bmolItems.value.filter(i => i.media_id !== media.id)
+        bmolItems.value = bmolItems.value.filter(i => i.media.id !== media.id)
         console.error("Failed to add spotlight item:", err)
       }
     }
