@@ -1,0 +1,11 @@
+{
+  "title": "Notifications",
+  "panelTitle": "All Notifications",
+  "markAllAsRead": "Mark All as Read",
+  "empty": "No notifications at this time",
+  "types": {
+    "like": "{username} liked your review for {mediaTitle}",
+    "comment": "{username} commented on your review for {mediaTitle}",
+    "follow": "{username} started following you"
+  }
+}

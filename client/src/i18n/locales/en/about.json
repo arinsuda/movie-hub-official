@@ -1,0 +1,75 @@
+{
+  "eyebrow": "About Us",
+  "title": {
+    "line1": "Made for",
+    "line2": "Movie Lovers"
+  },
+  "sub": "REMOV is a place to search, review, and track the movies and series you love all in one place.",
+  "stats": {
+    "movies": "Movies",
+    "tv": "Series",
+    "reviews": "Reviews"
+  },
+  "mission": {
+    "label": "Story",
+    "title": "Why we created REMOV",
+    "paragraph1": "REMOV started from my own passion for movies. Whenever I watched something great, I wanted to share my feelings and reviews with others who shared the same interest. But the issue was, we didn't know what kind of movies our friends liked, whether they watched the same things, or had similar tastes.",
+    "paragraph2": "So I wanted to create REMOV as a platform for movie lovers, allowing users to save what they watch, write reviews, share thoughts, discover new titles easily, and connect with people who have similar tastes."
+  },
+  "features": {
+    "label": "Features",
+    "title": "What you can do on REMOV",
+    "items": {
+      "reviews": {
+        "title": "Reviews & Ratings",
+        "desc": "Write reviews and rate movies/series you watch. Share opinions with the community."
+      },
+      "watchlist": {
+        "title": "Watchlist",
+        "desc": "Save titles you want to watch and track what you've seen. Organize your collection."
+      },
+      "achievements": {
+        "title": "Achievement",
+        "desc": "Unlock achievements based on your viewing habits, collect awards, and challenge yourself."
+      },
+      "community": {
+        "title": "Community",
+        "desc": "Follow other users and see their reviews on your activity feed. Discover new perspectives."
+      },
+      "metadata": {
+        "title": "Full Information",
+        "desc": "Access details for thousands of titles from TMDB, complete with ratings, cast, and trailers."
+      },
+      "removScore": {
+        "title": "REMOV Score",
+        "desc": "Rating scores aggregated from the REMOV user community, providing a separate perspective."
+      }
+    }
+  },
+  "tech": {
+    "label": "Tech Stack",
+    "title": "Behind the Development",
+    "desc": "REMOV is developed using Go (Fiber, GORM, PostgreSQL) on the Backend, and Vue 3 (Composition API, TypeScript, Pinia, TanStack Query) on the Frontend.",
+    "roles": {
+      "backendRuntime": "Backend Runtime",
+      "httpFramework": "HTTP Framework",
+      "orm": "ORM",
+      "database": "Database",
+      "frontendFramework": "Frontend Framework",
+      "typeSystem": "Type System",
+      "stateManagement": "State Management",
+      "dataFetching": "Data Fetching"
+    }
+  },
+  "creator": {
+    "label": "Developer",
+    "role": "Founder & Developer",
+    "name": "Arin Sudakijjathorn",
+    "bio": "IT student passionate about building Full-stack products and watching movies"
+  },
+  "cta": {
+    "title": "Like REMOV?",
+    "desc": "If you would like to support the development of this project, click the button below.",
+    "btn": "Support Developer"
+  }
+}

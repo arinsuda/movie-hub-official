@@ -11,31 +11,31 @@
           to="/"
           class="nav-link"
           :class="{ active: route.name === 'home' }"
-          >HOME</RouterLink
+          >{{ $t("navigation.home") }}</RouterLink
         >
         <RouterLink
           to="/movies"
           class="nav-link"
           :class="{ active: route.path.startsWith('/movies') }"
-          >MOVIES</RouterLink
+          >{{ $t("navigation.movies") }}</RouterLink
         >
         <RouterLink
           to="/tv"
           class="nav-link"
           :class="{ active: route.path.startsWith('/tv') }"
-          >TV SERIES</RouterLink
+          >{{ $t("navigation.tvSeries") }}</RouterLink
         >
         <RouterLink
           to="/upcoming"
           class="nav-link"
           :class="{ active: route.name?.toString().startsWith('upcoming') }"
-          >UPCOMING</RouterLink
+          >{{ $t("navigation.upcoming") }}</RouterLink
         >
         <RouterLink
           to="/about-us"
           class="nav-link"
           :class="{ active: route.name?.toString().startsWith('aboutUs') }"
-          >ABOUT US</RouterLink
+          >{{ $t("navigation.aboutUs") }}</RouterLink
         >
       </nav>
 
@@ -49,7 +49,7 @@
             ref="searchInput"
             v-model="searchQuery"
             class="search-input"
-            placeholder="Search movies, series..."
+            :placeholder="$t('navigation.searchPlaceholder')"
             @keydown.enter="doSearch"
             @keydown.escape="closeSearch"
           />
@@ -68,7 +68,7 @@
             class="search-suggestions"
           >
             <div v-if="searchLoading" class="search-suggestion-loading">
-              กำลังค้นหา...
+              {{ $t("navigation.searching") }}
             </div>
 
             <button
@@ -86,7 +86,7 @@
                 <span class="suggestion-title">{{ item.title }}</span>
                 <div class="suggestion-meta">
                   <span class="suggestion-type">{{
-                    item.type === "movie" ? "หนัง" : "ซีรีส์"
+                    item.type === "movie" ? $t("navigation.movie") : $t("navigation.series")
                   }}</span>
                   <span v-if="item.rating" class="suggestion-rating">
                     <Star :size="11" fill="#f5c518" color="#f5c518" />
@@ -101,10 +101,20 @@
               class="search-suggestion-viewall"
               @click="doSearch"
             >
-              ดูผลลัพธ์ทั้งหมดสำหรับ "{{ searchQuery }}"
+              {{ $t("navigation.viewAllResults", { query: searchQuery }) }}
             </button>
           </div>
         </div>
+
+        <!-- Language Switcher -->
+        <button
+          class="lang-btn"
+          @click="localeStore.toggleLocale()"
+          :disabled="localeStore.isSwitchingLocale.value"
+          :aria-label="$t('navigation.switchLang')"
+        >
+          {{ localeStore.locale.value === "th" ? "EN" : "TH" }}
+        </button>
 
         <div class="notification-wrapper">
           <button
@@ -156,35 +166,35 @@
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <UserIcon :size="14" />Profile
+                <UserIcon :size="14" />{{ $t("navigation.profile") }}
               </RouterLink>
               <RouterLink
                 :to="`/users/${authStore.user.id}/library`"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <BookMarked :size="14" />My Library
+                <BookMarked :size="14" />{{ $t("navigation.myLibrary") }}
               </RouterLink>
               <RouterLink
                 :to="`/users/${authStore.user.id}/achievements`"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <Trophy :size="14" />Achievement
+                <Trophy :size="14" />{{ $t("navigation.achievement") }}
               </RouterLink>
               <RouterLink
                 :to="{ name: 'feed' }"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <Rss :size="14" />Feed
+                <Rss :size="14" />{{ $t("navigation.feed") }}
               </RouterLink>
               <div class="dropdown-divider" />
               <button
                 class="dropdown-item dropdown-item--danger"
                 @click="handleLogout"
               >
-                <LogOut :size="14" />Log out
+                <LogOut :size="14" />{{ $t("navigation.logout") }}
               </button>
             </div>
           </Transition>
@@ -217,36 +227,44 @@
             class="mobile-nav-link"
             :class="{ active: route.name === 'home' }"
             @click="closeMobileMenu"
-            >HOME</RouterLink
+            >{{ $t("navigation.home") }}</RouterLink
           >
           <RouterLink
             to="/movies"
             class="mobile-nav-link"
             :class="{ active: route.path.startsWith('/movies') }"
             @click="closeMobileMenu"
-            >MOVIES</RouterLink
+            >{{ $t("navigation.movies") }}</RouterLink
           >
           <RouterLink
             to="/tv"
             class="mobile-nav-link"
             :class="{ active: route.path.startsWith('/tv') }"
             @click="closeMobileMenu"
-            >TV SERIES</RouterLink
+            >{{ $t("navigation.tvSeries") }}</RouterLink
           >
           <RouterLink
             to="/upcoming"
             class="mobile-nav-link"
             :class="{ active: route.name?.toString().startsWith('upcoming') }"
             @click="closeMobileMenu"
-            >UPCOMING</RouterLink
+            >{{ $t("navigation.upcoming") }}</RouterLink
           >
           <RouterLink
             to="/about-us"
             class="mobile-nav-link"
             :class="{ active: route.name?.toString().startsWith('aboutUs') }"
             @click="closeMobileMenu"
-            >ABOUT US</RouterLink
+            >{{ $t("navigation.aboutUs") }}</RouterLink
           >
+
+          <button
+            class="mobile-nav-link"
+            @click="localeStore.toggleLocale()"
+            :disabled="localeStore.isSwitchingLocale.value"
+          >
+            {{ $t("navigation.switchLang") }} ({{ localeStore.locale.value === "th" ? "English" : "ไทย" }})
+          </button>
 
           <div class="mobile-menu-divider" />
 
@@ -256,35 +274,34 @@
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <UserIcon :size="16" />Profile
+              <UserIcon :size="16" />{{ $t("navigation.profile") }}
             </RouterLink>
             <RouterLink
               :to="`/users/${authStore.user.id}/library`"
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <BookMarked :size="16" />My Library
+              <BookMarked :size="16" />{{ $t("navigation.myLibrary") }}
             </RouterLink>
             <RouterLink
               :to="`/users/${authStore.user.id}/achievements`"
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <Trophy :size="16" />Achievement
+              <Trophy :size="16" />{{ $t("navigation.achievement") }}
             </RouterLink>
             <RouterLink
               :to="{ name: 'feed' }"
-              ป
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <Rss :size="16" />Feed
+              <Rss :size="16" />{{ $t("navigation.feed") }}
             </RouterLink>
             <button
               class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--danger"
               @click="handleLogout"
             >
-              <LogOut :size="16" />Log out
+              <LogOut :size="16" />{{ $t("navigation.logout") }}
             </button>
           </template>
         </nav>
@@ -302,10 +319,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notification";
+import { useLocale } from "@/i18n";
 import ToastContainer from "@/components/common/ToastContainer.vue";
 import NotificationPanel from "@/components/common/NotificationPanel.vue";
 import { movieApi } from "@/api/endpoints/movie";
@@ -336,6 +354,7 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const notificationStore = useNotificationStore();
+const localeStore = useLocale();
 
 const scrolled = ref(false);
 const searchOpen = ref(false);
@@ -787,6 +806,28 @@ onUnmounted(() => {
   100% {
     transform: scale(1);
   }
+}
+
+.lang-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  color: #a3a3a3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.lang-btn:hover {
+  color: #fff;
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Icon button */

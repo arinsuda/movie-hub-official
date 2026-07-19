@@ -1,0 +1,26 @@
+{
+  "title": "Achievements & Honors",
+  "subtitle": "Complete criteria to unlock custom badges as a movie buff",
+  "points": "{count} points",
+  "unlockedAt": "Unlocked on {date}",
+  "locked": "Locked",
+  "badge": "Badge",
+  "items": {
+    "first_review": {
+      "name": "Novice Critic",
+      "desc": "Write your first movie or series review"
+    },
+    "movie_buff": {
+      "name": "True Movie Buff",
+      "desc": "Mark 10 titles as watched"
+    },
+    "serial_watcher": {
+      "name": "Marathon Watcher",
+      "desc": "Mark 5 TV series titles as watched"
+    },
+    "social_butterfly": {
+      "name": "Social Butterfly",
+      "desc": "Follow 3 or more other users"
+    }
+  }
+}

@@ -9,9 +9,10 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "lint": "run-s lint:*",
-    "lint:oxlint": "oxlint . --fix",
-    "lint:eslint": "eslint . --fix --cache",
+    "verify-locales": "node scripts/verify-locales.js",
+    "lint": "run-s verify-locales lint:*",
+    "lint:oxlint": "oxlint src --fix",
+    "lint:eslint": "eslint src --fix --cache",
     "format": "prettier --write --experimental-cli src/",
     "test": "vitest run"
   },

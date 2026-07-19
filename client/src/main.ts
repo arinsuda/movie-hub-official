@@ -11,11 +11,14 @@ import "@vuepic/vue-datepicker/dist/main.css"
 import "./assets/styles/main.css"
 import "primeicons/primeicons.css"
 import PrimeVue from "primevue/config"
-import Aura from "@primevue/themes/aura"
-import { i18n } from "./i18n"
+import { i18n, getSavedLocale, setLocale } from "./i18n"
 
 async function bootstrap() {
   const app = createApp(App)
+
+  // set saved or default locale
+  const savedLocale = getSavedLocale()
+  await setLocale(savedLocale)
 
   const pinia = createPinia()
   app.use(pinia)

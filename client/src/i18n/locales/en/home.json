@@ -1,0 +1,14 @@
+{
+  "hero": {
+    "playTrailer": "Play Trailer",
+    "viewDetail": "View Details"
+  },
+  "sections": {
+    "popularMovies": "Popular Movies",
+    "topRatedMovies": "Top Rated Movies",
+    "popularTV": "Popular TV Series",
+    "topRatedTV": "Top Rated TV Series",
+    "nowPlaying": "Now Playing",
+    "upcoming": "Upcoming Movies"
+  }
+}

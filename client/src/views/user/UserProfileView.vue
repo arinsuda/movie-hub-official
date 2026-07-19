@@ -149,16 +149,15 @@
         </div>
       </Transition>
     </Teleport>
+    <ConfirmModal
+      v-model="showUnfollowConfirm"
+      list-type="unfollow"
+      :item-name="user?.display_name || user?.username"
+      :confirm-disabled="followLoading"
+      @confirm="confirmUnfollow"
+      @cancel="showUnfollowConfirm = false"
+    />
   </div>
-
-  <ConfirmModal
-    v-model="showUnfollowConfirm"
-    list-type="unfollow"
-    :item-name="user?.display_name || user?.username"
-    :confirm-disabled="followLoading"
-    @confirm="confirmUnfollow"
-    @cancel="showUnfollowConfirm = false"
-  />
 </template>
 
 <script setup lang="ts">

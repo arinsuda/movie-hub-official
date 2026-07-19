@@ -1,0 +1,19 @@
+{
+  "home": "Home",
+  "movies": "Movies",
+  "tvSeries": "TV Series",
+  "upcoming": "Upcoming",
+  "aboutUs": "About Us",
+  "donate": "Donate",
+  "profile": "Profile",
+  "myLibrary": "My Library",
+  "achievement": "Achievement",
+  "feed": "Activity Feed",
+  "logout": "Log Out",
+  "switchLang": "Switch Language",
+  "searchPlaceholder": "Search movies, series...",
+  "searching": "Searching...",
+  "viewAllResults": "View all results for \"{query}\"",
+  "movie": "Movie",
+  "series": "Series"
+}

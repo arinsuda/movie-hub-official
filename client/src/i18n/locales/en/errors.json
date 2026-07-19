@@ -1,0 +1,19 @@
+{
+  "generic": "Something went wrong. Please try again later.",
+  "network": "Cannot connect to the server. Please check your internet connection.",
+  "auth": {
+    "invalidCredentials": "Invalid email or password",
+    "emailAlreadyExists": "This email is already registered",
+    "usernameAlreadyExists": "This username is already taken",
+    "unauthorized": "Please log in first",
+    "forbidden": "You do not have permission to access this page",
+    "sessionExpired": "Your session has expired. Please log in again."
+  },
+  "review": {
+    "alreadyExists": "You have already created a review for this movie or series",
+    "invalidRating": "Rating must be between 0.5 and 5.0 stars"
+  },
+  "media": {
+    "notFound": "The requested movie or series could not be found"
+  }
+}

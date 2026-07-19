@@ -1,0 +1,18 @@
+{
+  "title": "Movie Lovers Activity Feed",
+  "subtitle": "See recent reviews and activities from friends and the community",
+  "settings": {
+    "title": "Feed Settings",
+    "allActivity": "Show all system-wide activities",
+    "followingOnly": "Show only activities from users you follow",
+    "save": "Save Settings",
+    "success": "Feed settings saved successfully"
+  },
+  "empty": "No activity on your feed yet. Try following other users to update your feed!",
+  "activity": {
+    "review": "reviewed {title}",
+    "like": "liked {title}",
+    "watchlist": "added {title} to watchlist",
+    "watched": "marked {title} as watched"
+  }
+}

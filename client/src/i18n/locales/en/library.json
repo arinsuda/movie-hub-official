@@ -1,0 +1,10 @@
+{
+  "title": "Personal Library",
+  "subtitle": "A collection of movies and series you saved in each list state",
+  "tabs": {
+    "all": "All",
+    "watched": "Watched",
+    "watchlist": "Watchlist"
+  },
+  "empty": "No movies or TV series found in this list"
+}

@@ -1,0 +1,1 @@
+import{c as e}from"./auth-Zy5ipj4v.js";var t={getMediaStats:(t,n)=>e.get(`/stats/${t}/${n}`),recordMediaView:(t,n)=>e.post(`/stats/${t}/${n}/view`),getLikeByUserId:t=>e.get(`/users/${t}/likes`),likeMedia:(t,n)=>e.post(`/stats/${t}/${n}/like`),unlikeMedia:(t,n)=>e.delete(`/stats/${t}/${n}/like`)};export{t};

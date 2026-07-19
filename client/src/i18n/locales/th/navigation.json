@@ -1,0 +1,19 @@
+{
+  "home": "หน้าหลัก",
+  "movies": "ภาพยนตร์",
+  "tvSeries": "ซีรีส์",
+  "upcoming": "เร็วๆ นี้",
+  "aboutUs": "เกี่ยวกับเรา",
+  "donate": "สนับสนุน",
+  "profile": "โปรไฟล์",
+  "myLibrary": "คลังส่วนตัว",
+  "achievement": "เกียรติยศ",
+  "feed": "ฟีดกิจกรรม",
+  "logout": "ออกจากระบบ",
+  "switchLang": "เปลี่ยนภาษา",
+  "searchPlaceholder": "ค้นหาภาพยนตร์, ซีรีส์...",
+  "searching": "กำลังค้นหา...",
+  "viewAllResults": "ดูผลลัพธ์ทั้งหมดสำหรับ \"{query}\"",
+  "movie": "หนัง",
+  "series": "ซีรีส์"
+}

@@ -1,0 +1,61 @@
+{
+  "types": {
+    "movie": "ภาพยนตร์",
+    "tv": "ซีรีส์",
+    "all": "ทั้งหมด"
+  },
+  "filters": {
+    "genre": "หมวดหมู่",
+    "sortBy": "เรียงตาม",
+    "sortOptions": {
+      "popularity": "ความนิยม",
+      "rating": "คะแนนเฉลี่ย",
+      "releaseDate": "วันที่ฉาย",
+      "title": "ชื่อเรื่อง"
+    },
+    "allGenres": "ทุกประเภท"
+  },
+  "detail": {
+    "tabs": {
+      "info": "ข้อมูลทั่วไป",
+      "reviews": "รีวิว ({count})",
+      "cast": "นักแสดง",
+      "trailers": "วิดีโอ & ตัวอย่าง",
+      "similar": "ภาพยนตร์แนะนำ"
+    },
+    "meta": {
+      "releaseDate": "วันที่เข้าฉาย",
+      "runtime": "ความยาว",
+      "runtimeMinutes": "{minutes} นาที",
+      "genres": "หมวดหมู่",
+      "status": "สถานะการฉาย",
+      "rating": "เรตติ้ง",
+      "voteCount": "({count} รีวิว)",
+      "tmdbRating": "TMDB Rating",
+      "removRating": "REMOV Rating",
+      "firstAirDate": "เริ่มออกอากาศ"
+    },
+    "actions": {
+      "like": "ถูกใจ",
+      "liked": "ถูกใจแล้ว",
+      "watchlist": "อยากดู",
+      "inWatchlist": "อยากดูแล้ว",
+      "watched": "ดูแล้ว",
+      "inWatched": "ดูแล้ว",
+      "writeReview": "เขียนรีวิวของคุณ",
+      "playTrailer": "ดูตัวอย่าง"
+    },
+    "noOverview": "ไม่มีเรื่องย่ออย่างเป็นทางการ",
+    "noCast": "ไม่พบข้อมูลนักแสดงสำหรับเรื่องนี้",
+    "noTrailers": "ไม่มีตัวอย่างวิดีโอให้บริการ",
+    "noSimilar": "ไม่พบเรื่องอื่นที่คล้ายกัน"
+  },
+  "search": {
+    "title": "ผลการค้นหาสำหรับ \"{query}\"",
+    "searching": "กำลังค้นหาข้อมูล...",
+    "empty": "ไม่พบข้อมูลภาพยนตร์หรือซีรีส์ที่ค้นหา ลองพิมพ์ตัวสะกดใหม่อีกครั้ง",
+    "moviesTab": "ภาพยนตร์ ({count})",
+    "tvTab": "ซีรีส์ ({count})",
+    "peopleTab": "บุคคล ({count})"
+  }
+}
