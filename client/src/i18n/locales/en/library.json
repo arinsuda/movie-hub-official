@@ -42,5 +42,32 @@
       "titleAZ": "Title (A - Z)",
       "titleZA": "Title (Z - A)"
     }
+  },
+  "bmol": {
+    "title": "Best of Life (BMOL)",
+    "description": "Rank the best movies and TV series of your life. Customize ranks and add new records.",
+    "movieTitle": "Best Movies of Life",
+    "tvTitle": "Best TV Series of Life",
+    "empty": "You haven't ranked any media yet. Add some above!",
+    "addMedia": "Add New Item",
+    "searchPlaceholder": "Type to search movies or TV series...",
+    "selectRank": "Select Rank",
+    "save": "Save Rank",
+    "rank": "Rank #{rank}",
+    "rankNumber": "Rank {rank}",
+    "increaseRank": "Move Up",
+    "decreaseRank": "Move Down",
+    "deleteConfirm": "Are you sure you want to remove this item from your Best of Life?",
+    "errorDuplicate": "This media is already ranked!",
+    "errorEmptySearch": "No search results found",
+    "showAll": "Show All",
+    "showLess": "Show Less",
+    "filterPlaceholder": "Search within this rank...",
+    "backToList": "Back to List",
+    "selectMultiple": "Select Multiple",
+    "addSelected": "Add Selected ({count})",
+    "addMovie": "Add Movie to Ranking",
+    "addTV": "Add TV Series to Ranking",
+    "moreItems": "+{count} more"
   }
 }

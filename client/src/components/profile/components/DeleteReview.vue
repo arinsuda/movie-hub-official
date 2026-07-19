@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref } from "vue"
+  import { ref, onMounted, onBeforeUnmount } from "vue"
   import { Trash2 } from "lucide-vue-next"
   import { reviewApi } from "@/api/api"
   import type { ReviewResponse } from "@/types"
@@ -67,6 +67,17 @@
       deleting.value = false
     }
   }
+
+  onMounted(() => {
+    document.body.style.overflow = "hidden"
+  })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>

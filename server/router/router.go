@@ -7,6 +7,7 @@ import (
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/analytics_module"
 	"github.com/arinsuda/movie-hub/internal/auth_module"
+	"github.com/arinsuda/movie-hub/internal/bmol_module"
 	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
@@ -76,6 +77,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
 	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
 	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	bmol_module.RegisterRoutes(protected, db)
 
 	analytics_module.RegisterRoutes(protected, db)
 	ratingRepo := review_module.NewRatingStatsReader(db)

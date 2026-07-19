@@ -46,11 +46,11 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from "vue"
-  import { Heart, Bookmark, Eye, Mail, UserMinus } from "lucide-vue-next"
+  import { computed, watch, onBeforeUnmount } from "vue"
+  import { Heart, Bookmark, Eye, Mail, UserMinus, Trash2 } from "lucide-vue-next"
   import type { ListType } from "@/types"
 
-  type ConfirmModalType = ListType | "email_change" | "unfollow"
+  type ConfirmModalType = ListType | "email_change" | "unfollow" | "bmol_delete"
 
   const props = defineProps<{
     modelValue: boolean
@@ -128,9 +128,37 @@
       confirmLabel: "Unfollow",
       confirmClass: "confirm-red",
     },
+    bmol_delete: {
+      icon: Trash2,
+      iconClass: "icon-trash",
+      ariaLabel: "Delete BMOL item confirmation",
+      title: "Remove from Best Movies?",
+      description: "Remove",
+      descriptionSuffix: " from your Best Movies of Life list.",
+      confirmLabel: "Remove",
+      confirmClass: "confirm-red",
+    },
   }
 
   const config = computed(() => configs[props.listType])
+
+  watch(() => props.modelValue, (newVal) => {
+    if (newVal) {
+      document.body.style.overflow = "hidden"
+    } else {
+      const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+      if (activeBackdrops.length <= 1) {
+        document.body.style.overflow = ""
+      }
+    }
+  }, { immediate: true })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>
@@ -316,6 +344,11 @@
     background: rgba(225, 37, 27, 0.12);
     color: #e1251b;
     border: 1px solid rgba(225, 37, 27, 0.2);
+  }
+  .icon-trash {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
   }
 
   .btn-confirm:disabled,

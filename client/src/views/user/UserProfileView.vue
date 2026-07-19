@@ -112,6 +112,14 @@
               }}</span>
             </button>
           </nav>
+
+          <!-- Badges Section in Sidebar -->
+          <div class="sidebar-badges">
+            <p class="nav-eyebrow" style="margin-top: 24px;">Badges</p>
+            <slot name="badges">
+              <p class="badges-empty">No badges unlocked yet.</p>
+            </slot>
+          </div>
         </aside>
 
         <!-- Center: Tab Content -->
@@ -124,14 +132,6 @@
             />
           </Transition>
         </main>
-
-        <!-- Right: Badges -->
-        <aside class="badges-aside">
-          <p class="nav-eyebrow">Badges</p>
-          <slot name="badges">
-            <p class="badges-empty">No badges unlocked yet.</p>
-          </slot>
-        </aside>
       </div>
     </div>
 
@@ -165,7 +165,7 @@
   import { useAuthStore } from "@/stores/auth"
   import type { UserProfile } from "@/types/user"
   import type { ListType } from "@/types"
-  import { computed, ref, watch } from "vue"
+  import { computed, ref, watch, onBeforeUnmount } from "vue"
   import { useRoute } from "vue-router"
 
   import Avatar from "primevue/avatar"
@@ -182,6 +182,7 @@
     Clock,
     Monitor,
     TvMinimalPlay,
+    Award,
   } from "lucide-vue-next"
 
   import ProfileInfo from "@/components/profile/ProfileInfo.vue"
@@ -190,6 +191,7 @@
   import UserWatched from "@/components/profile/UserWatched.vue"
   import UserLikes from "@/components/profile/UserLikes.vue"
   import UserAchievements from "@/components/profile/UserAchievements.vue"
+  import UserBmol from "@/components/profile/UserBmol.vue"
   import EditProfile from "@/components/profile/EditProfile.vue"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
@@ -246,6 +248,7 @@
     | "watchlist"
     | "likes"
     | "watched"
+    | "bmol"
     | "achievements"
 
   const activeTab = ref<TabKey>("reviews")
@@ -255,6 +258,7 @@
     { key: "watchlist" as TabKey, label: "Watchlist", icon: Bookmark },
     { key: "likes" as TabKey, label: "Likes", icon: Heart, count: undefined },
     { key: "watched" as TabKey, label: "Watched", icon: TvMinimalPlay },
+    { key: "bmol" as TabKey, label: "BMOL", icon: Award },
     { key: "achievements" as TabKey, label: "Achievements", icon: Trophy },
   ])
 
@@ -264,6 +268,7 @@
     watchlist: UserWatchlist,
     likes: UserLikes,
     watched: UserWatched,
+    bmol: UserBmol,
     achievements: UserAchievements,
   }
 
@@ -411,6 +416,24 @@
   }
 
   watch(viewedUserId, loadProfilePage, { immediate: true })
+
+  watch(showEdit, (newVal) => {
+    if (newVal) {
+      document.body.style.overflow = "hidden"
+    } else {
+      const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+      if (activeBackdrops.length <= 1) {
+        document.body.style.overflow = ""
+      }
+    }
+  })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>
@@ -752,7 +775,7 @@
   /* ─────────── Content Grid ─────────── */
   .content-grid {
     display: grid;
-    grid-template-columns: 188px 1fr 188px;
+    grid-template-columns: 188px 1fr;
     gap: 0;
     min-height: 480px;
   }
@@ -762,6 +785,8 @@
     border-right: 1px solid var(--c-border);
     padding-right: 20px;
     padding-top: 4px;
+    display: flex;
+    flex-direction: column;
   }
 
   .nav-eyebrow {
@@ -814,16 +839,16 @@
     padding: 0 28px;
   }
 
-  /* Badges Aside */
-  .badges-aside {
-    border-left: 1px solid var(--c-border);
-    padding-left: 20px;
-    padding-top: 4px;
+  /* Sidebar Badges */
+  .sidebar-badges {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--c-border);
   }
   .badges-empty {
     font-size: 0.78rem;
     color: var(--c-muted);
-    margin: 0;
+    margin: 0 0 0 8px;
   }
 
   /* ─────────── Transitions ─────────── */
@@ -915,12 +940,10 @@
     .nav-item {
       width: auto;
     }
-    .badges-aside {
-      border-left: none;
-      border-top: 1px solid var(--c-border);
-      padding-left: 0;
-      padding-top: 20px;
-      margin-top: 24px;
+    .sidebar-badges {
+      border-top: none;
+      margin-top: 16px;
+      padding-top: 0;
     }
     .content-main {
       padding: 0;
