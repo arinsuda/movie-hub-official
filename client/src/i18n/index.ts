@@ -1,17 +1,19 @@
-import { createI18n } from "vue-i18n";
-import { datetimeFormats, numberFormats } from "./formats";
-import { DEFAULT_LOCALE } from "./types";
-import thMessages from "./locales/th/index";
+import { createI18n } from "vue-i18n"
 
-// Eagerly load English in test mode so Vitest specs work without async load
-const messages: Record<string, unknown> = {
+import { datetimeFormats, numberFormats } from "./formats"
+import { DEFAULT_LOCALE } from "./types"
+import thMessages from "./locales/th/index"
+
+type MessageSchema = typeof thMessages
+
+const messages: Record<string, MessageSchema> = {
   th: thMessages,
-};
+}
 
 if (import.meta.env.MODE === "test") {
-  // @ts-expect-error: English is lazy-loaded in production but imported synchronously in tests
-  const enModule = await import("./locales/en/index");
-  messages.en = enModule.default;
+  const { default: enMessages } = await import("./locales/en/index")
+
+  messages.en = enMessages
 }
 
 export const i18n = createI18n({
@@ -23,9 +25,9 @@ export const i18n = createI18n({
   numberFormats,
   missingWarn: !import.meta.env.PROD,
   fallbackWarn: !import.meta.env.PROD,
-});
+})
 
-export * from "./types";
-export * from "./locale";
-export * from "./useLocale";
-export * from "./formats";
+export * from "./types"
+export * from "./locale"
+export * from "./useLocale"
+export * from "./formats"
