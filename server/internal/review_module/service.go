@@ -275,22 +275,25 @@ func (s *Service) GetMediaRating(mediaID int, mediaType string) (*RatingResponse
 		return nil, ErrInvalidMediaID
 	}
 
-	row, err := s.repo.GetMediaRating(mediaID, mediaType)
+	stats, err := s.repo.GetMediaRating(context.Background(), shared.MediaIdentity{
+		ID:   mediaID,
+		Type: shared.MediaType(mediaType),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	hasRating := row.ReviewCount > 0
+	hasRating := stats.Count > 0
 	avg := float32(0)
-	if hasRating {
-		avg = float32(math.Round(float64(row.AvgRating)*10) / 10)
+	if hasRating && stats.Average != nil {
+		avg = float32(math.Round(*stats.Average*10) / 10)
 	}
 
 	return &RatingResponse{
 		MediaID:       mediaID,
 		MediaType:     mediaType,
 		AverageRating: avg,
-		ReviewCount:   row.ReviewCount,
+		ReviewCount:   stats.Count,
 		HasRating:     hasRating,
 	}, nil
 }
@@ -511,7 +514,7 @@ func (s *Service) getUserSummary(userID uint) (*users.User, error) {
 }
 
 func validateReviewRequest(req CreateReviewRequest) error {
-	if req.Rating < 0.5 || req.Rating > 5 || math.Mod(float64(req.Rating)*2, 1) != 0 {
+	if !shared.IsValidRating(req.Rating) {
 		return ErrInvalidRating
 	}
 	if req.MediaType != "movie" && req.MediaType != "tv" {
@@ -531,7 +534,7 @@ func validateReviewRequest(req CreateReviewRequest) error {
 
 func validateUpdateReviewRequest(req UpdateReviewRequest) error {
 	if req.Rating != nil {
-		if *req.Rating < 0.5 || *req.Rating > 5.0 || math.Mod(float64(*req.Rating)*2, 1) != 0 {
+		if !shared.IsValidRating(*req.Rating) {
 			return ErrInvalidRating
 		}
 	}

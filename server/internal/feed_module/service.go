@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/arinsuda/movie-hub/internal/movie_module"
 	noti "github.com/arinsuda/movie-hub/internal/notification_module"
 	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
@@ -299,17 +298,17 @@ func toFeedItemResponse(row feedRow, minio *storage.MinIOClient) FeedItemRespons
 	if row.MediaID != nil && row.MediaType != nil {
 		media := shared.MediaSummary{
 			ID:        *row.MediaID,
-			MediaType: movie_module.MediaType(*row.MediaType),
+			MediaType: shared.MediaType(*row.MediaType),
 		}
-		switch movie_module.MediaType(*row.MediaType) {
-		case movie_module.MediaMovie:
+		switch shared.MediaType(*row.MediaType) {
+		case shared.MediaTypeMovie:
 			if details, err := tmdbmodule.GetMovieByID(*row.MediaID); err == nil && details != nil {
 				media.Title = details.Title
 				media.PosterURL = tmdbmodule.ImageURL(details.PosterPath)
 				media.Genres = details.Genres
 				media.VoteAverage = float32(details.VoteAverage)
 			}
-		case movie_module.MediaSeries:
+		case shared.MediaTypeTV:
 			if details, err := tmdbmodule.GetSeriesByID(*row.MediaID); err == nil && details != nil {
 				media.Title = details.Name
 				media.PosterURL = tmdbmodule.ImageURL(details.PosterPath)

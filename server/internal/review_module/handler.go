@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/shared"
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 )
@@ -387,6 +388,8 @@ func parseCommentID(c fiber.Ctx) (uint, error) {
 
 func handleError(c fiber.Ctx, err error) error {
 	switch {
+	case shared.IsPgUniqueViolationOn(err, "uq_active_user_media_review"):
+		return shared.WriteAPIError(c, fiber.StatusConflict, shared.ErrorCodeDuplicateReview, "you have already reviewed this media")
 	case errors.Is(err, ErrReviewNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "review not found"})
 	case errors.Is(err, ErrCommentNotFound):
@@ -404,7 +407,7 @@ func handleError(c fiber.Ctx, err error) error {
 	case errors.Is(err, ErrInvalidWatchedAt):
 		return badRequest(c, "invalid watched_at format, use YYYY-MM-DD")
 	case errors.Is(err, ErrInvalidRating):
-		return badRequest(c, "rating must be between 0 and 10")
+		return shared.WriteAPIError(c, fiber.StatusBadRequest, shared.ErrorCodeInvalidRating, "rating must be between 0.5 and 5.0 with step 0.5")
 	case errors.Is(err, ErrInvalidMediaType):
 		return badRequest(c, "media_type must be 'movie' or 'tv'")
 	case errors.Is(err, ErrInvalidMediaID):

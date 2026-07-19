@@ -129,7 +129,7 @@ func (s *Service) GetLikes(ctx context.Context, ownerID, requesterID uint) ([]Li
 	for i, like := range likes {
 		media := shared.MediaSummary{
 			ID:        like.MediaID,
-			MediaType: like.MediaType,
+			MediaType: shared.MediaType(like.MediaType),
 		}
 
 		switch like.MediaType {

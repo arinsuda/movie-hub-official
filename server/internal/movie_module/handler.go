@@ -9,16 +9,18 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-type Handler struct{}
+type Handler struct {
+	svc *MovieService
+}
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(svc *MovieService) *Handler {
+	return &Handler{svc: svc}
 }
 
 func (h *Handler) GetPopular(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetPopular(page)
+	result, err := h.svc.GetPopular(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -28,7 +30,7 @@ func (h *Handler) GetPopular(c fiber.Ctx) error {
 func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetNowPlaying(page)
+	result, err := h.svc.GetNowPlaying(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -38,7 +40,7 @@ func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 func (h *Handler) GetTopRated(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetTopRated(page)
+	result, err := h.svc.GetTopRated(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -48,13 +50,13 @@ func (h *Handler) GetTopRated(c fiber.Ctx) error {
 func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetUpcoming(page)
+	result, err := h.svc.GetUpcoming(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
 
 	today := time.Now().Truncate(24 * time.Hour)
-	var upcomingOnly []tmdb.Movie
+	var upcomingOnly []MovieDTO
 
 	for _, movie := range result.Results {
 		if len(movie.ReleaseDate) < 10 {
@@ -165,7 +167,7 @@ func (h *Handler) Search(c fiber.Ctx) error {
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.SearchMovies(query, page)
+	result, err := h.svc.SearchMovies(c.Context(), query, page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ค้นหาไม่สำเร็จ"})
 	}
@@ -186,7 +188,7 @@ func (h *Handler) GetByID(c fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
 	}
 
-	movie, err := tmdb.GetMovieByID(id)
+	movie, err := h.svc.GetMovieByID(c.Context(), id)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "ไม่พบหนัง"})
 	}

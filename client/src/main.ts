@@ -12,6 +12,7 @@ import "./assets/styles/main.css"
 import "primeicons/primeicons.css"
 import PrimeVue from "primevue/config"
 import Aura from "@primevue/themes/aura"
+import { i18n } from "./i18n"
 
 async function bootstrap() {
   const app = createApp(App)
@@ -19,6 +20,7 @@ async function bootstrap() {
   const pinia = createPinia()
   app.use(pinia)
   app.use(PrimeVue, { ripple: true })
+  app.use(i18n)
   app.component("VueDatePicker", VueDatePicker)
 
   // restore session

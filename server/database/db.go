@@ -1,8 +1,12 @@
 package database
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
@@ -52,7 +56,7 @@ func Connect(cfg *config.Config) {
 		log.Fatalf("❌ AutoMigrate failed: %v", err)
 	}
 
-	if err := runSQLMigrations(db); err != nil {
+	if err := runSQLMigrations(db, cfg); err != nil {
 		log.Fatalf("❌ SQL migrations failed: %v", err)
 	}
 
@@ -139,7 +143,7 @@ func runMigrationWithHistory(db *gorm.DB, version string, sql string) error {
 	})
 }
 
-func runSQLMigrations(db *gorm.DB) error {
+func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 	log.Println("Running SQL migrations...")
 
 	migrations := []struct {
@@ -204,6 +208,106 @@ func runSQLMigrations(db *gorm.DB) error {
 	`
 
 	if err := runMigrationWithHistory(db, "activity_feed_privacy_system_v1", privacyMigrationSQL); err != nil {
+		return err
+	}
+
+	err := runMigrationWithHistoryTx(db, "review_unique_constraint_v1", cfg.DB.MigrationLockTimeoutMs, cfg.DB.MigrationStatementTimeoutMs, func(tx *gorm.DB) error {
+		// 1. Strict validation of existing index
+		var indexDef string
+		err := tx.Raw(`SELECT indexdef FROM pg_indexes WHERE indexname = 'uq_active_user_media_review'`).Row().Scan(&indexDef)
+		if err == nil {
+			indexDefUpper := strings.ToUpper(indexDef)
+			hasUnique := strings.Contains(indexDefUpper, "UNIQUE")
+			collapsedDef := strings.ReplaceAll(indexDefUpper, " ", "")
+			hasCols := strings.Contains(collapsedDef, "(USER_ID,MEDIA_ID,MEDIA_TYPE)")
+			hasPredicate := strings.Contains(indexDefUpper, "WHERE (DELETED_AT IS NULL)") || 
+							strings.Contains(collapsedDef, "WHERE(DELETED_ATISNULL)")
+			
+			if hasUnique && hasCols && hasPredicate {
+				log.Println("Index 'uq_active_user_media_review' already exists with matching definition.")
+				return nil
+			} else {
+				return fmt.Errorf("mismatched index 'uq_active_user_media_review' exists: %s", indexDef)
+			}
+		}
+
+		// 2. Duplicate preflight checks
+		type dupGroup struct {
+			UserID      uint            `gorm:"column:user_id"`
+			MediaID     int             `gorm:"column:media_id"`
+			MediaType   string          `gorm:"column:media_type"`
+			ReviewIDsJS json.RawMessage `gorm:"column:review_agg"`
+		}
+
+		rows, err := tx.Raw(`
+			SELECT user_id, media_id, media_type, json_agg(id ORDER BY created_at DESC, id DESC) AS review_agg
+			FROM reviews
+			WHERE deleted_at IS NULL
+			GROUP BY user_id, media_id, media_type
+			HAVING COUNT(*) > 1`).Rows()
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		var groups []DuplicateReviewGroup
+		for rows.Next() {
+			var dg dupGroup
+			if err := rows.Scan(&dg.UserID, &dg.MediaID, &dg.MediaType, &dg.ReviewIDsJS); err != nil {
+				return err
+			}
+			var ids []uint
+			if err := json.Unmarshal(dg.ReviewIDsJS, &ids); err != nil {
+				return err
+			}
+			groups = append(groups, DuplicateReviewGroup{
+				UserID:    dg.UserID,
+				MediaID:   dg.MediaID,
+				MediaType: dg.MediaType,
+				ReviewIDs: ids,
+			})
+		}
+		if err = rows.Err(); err != nil {
+			return err
+		}
+
+		if len(groups) > 0 {
+			return &ErrActiveDuplicateReviews{Groups: groups}
+		}
+
+		// 3. Perform step-constraint verification on historical ratings
+		var invalidCount int64
+		err = tx.Table("reviews").Where("deleted_at IS NULL AND (rating < 0.5 OR rating > 5.0 OR (rating * 2.0) != ROUND(rating * 2.0))").Count(&invalidCount).Error
+		if err != nil {
+			return err
+		}
+		if invalidCount > 0 {
+			return fmt.Errorf("active historical ratings violate step constraint: %d rows", invalidCount)
+		}
+
+		// 4. Create the partial unique index
+		if err := tx.Exec(`
+			CREATE UNIQUE INDEX uq_active_user_media_review
+			ON reviews (user_id, media_id, media_type)
+			WHERE deleted_at IS NULL`).Error; err != nil {
+			return err
+		}
+
+		// 5. Add the database-level check constraint for rating step and bounds
+		return tx.Exec(`
+			ALTER TABLE reviews ADD CONSTRAINT chk_reviews_rating_step
+			CHECK (rating >= 0.5 AND rating <= 5.0 AND (rating * 2.0) = ROUND(rating * 2.0))`).Error
+	})
+
+	if err != nil {
+		var dupErr *ErrActiveDuplicateReviews
+		if errors.As(err, &dupErr) {
+			groupsJS, marshalErr := json.Marshal(dupErr.Groups)
+			if marshalErr != nil {
+				log.Fatalf("❌ Migration failed: active duplicate reviews exist (unserializable groups: %v)", marshalErr)
+			}
+			log.Fatalf("❌ Migration failed: active duplicate reviews exist: %s", string(groupsJS))
+		}
 		return err
 	}
 

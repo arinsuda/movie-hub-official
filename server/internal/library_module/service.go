@@ -318,7 +318,7 @@ func validateAddItemRequest(req AddItemRequest) error {
 func fetchMediaSummaryHelper(mediaID int, mediaType movie_module.MediaType) shared.MediaSummary {
 	media := shared.MediaSummary{
 		ID:        mediaID,
-		MediaType: mediaType,
+		MediaType: shared.MediaType(mediaType),
 	}
 	switch mediaType {
 	case movie_module.MediaMovie:

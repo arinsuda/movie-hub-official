@@ -1,10 +1,12 @@
 package review_module
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/shared"
 	"gorm.io/gorm"
 )
 
@@ -103,24 +105,68 @@ func (r *repository) DeleteReview(reviewID uint) error {
 	return result.Error
 }
 
-// ── In-app Rating Aggregate ───────────────────────────────────────
 
-// mediaRatingRow เป็น struct รับผลจาก raw query
-type mediaRatingRow struct {
-	AvgRating   float32
-	ReviewCount int
-}
 
 // GetMediaRating คืน average rating และจำนวน review ของ media นั้น
 // นับเฉพาะ public reviews และ deleted_at IS NULL (soft-delete safe)
-func (r *repository) GetMediaRating(mediaID int, mediaType string) (*mediaRatingRow, error) {
-	var row mediaRatingRow
-	err := r.db.Model(&Review{}).
-		Select("COALESCE(AVG(rating), 0) AS avg_rating, COUNT(*) AS review_count").
+func (r *repository) GetMediaRating(ctx context.Context, id shared.MediaIdentity) (shared.RatingStats, error) {
+	type row struct {
+		AvgRating   *float64
+		ReviewCount int
+	}
+	var res row
+	err := r.db.WithContext(ctx).Model(&Review{}).
+		Select("AVG(rating) AS avg_rating, COUNT(*) AS review_count").
 		Where("media_id = ? AND media_type = ? AND is_public = true AND deleted_at IS NULL",
-			mediaID, mediaType).
-		Scan(&row).Error
-	return &row, err
+			id.ID, string(id.Type)).
+		Scan(&res).Error
+	return shared.RatingStats{Average: res.AvgRating, Count: res.ReviewCount}, err
+}
+
+func (r *repository) GetBatchMediaRatings(ctx context.Context, ids []shared.MediaIdentity) (map[shared.MediaKey]shared.RatingStats, error) {
+	result := make(map[shared.MediaKey]shared.RatingStats)
+	if len(ids) == 0 {
+		return result, nil
+	}
+
+	q := r.db.WithContext(ctx).Model(&Review{}).
+		Select("media_id, media_type, AVG(rating) AS avg_rating, COUNT(*) AS review_count").
+		Where("is_public = true AND deleted_at IS NULL").
+		Group("media_id, media_type")
+
+	type row struct {
+		MediaID     int
+		MediaType   string
+		AvgRating   *float64
+		ReviewCount int
+	}
+
+	var conds []string
+	var args []any
+	for _, id := range ids {
+		conds = append(conds, "(media_id = ? AND media_type = ?)")
+		args = append(args, id.ID, string(id.Type))
+	}
+
+	orCond := strings.Join(conds, " OR ")
+	q = q.Where(orCond, args...)
+
+	var rows []row
+	if err := q.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, id := range ids {
+		key := shared.MediaKey{ID: id.ID, Type: id.Type}
+		result[key] = shared.RatingStats{Average: nil, Count: 0}
+	}
+
+	for _, rw := range rows {
+		key := shared.MediaKey{ID: rw.MediaID, Type: shared.MediaType(rw.MediaType)}
+		result[key] = shared.RatingStats{Average: rw.AvgRating, Count: rw.ReviewCount}
+	}
+
+	return result, nil
 }
 
 // ── Like ──────────────────────────────────────────────────────────
@@ -282,6 +328,9 @@ func (r *repository) DeleteComment(commentID uint, reviewID uint) error {
 // ── Helpers ───────────────────────────────────────────────────────
 
 func isDuplicateError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "UNIQUE constraint")
+	return shared.IsPgUniqueViolation(err)
+}
+
+func NewRatingStatsReader(db *gorm.DB) shared.RatingStatsReader {
+	return &repository{db: db}
 }

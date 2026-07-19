@@ -53,9 +53,10 @@
       >
         <h3 class="popup__title">{{ displayTitle }}</h3>
       </RouterLink>
-      <div class="popup__rating">
-        <Star :size="11" class="popup__star" />
-        <span>{{ movie.vote_average?.toFixed(1) }}</span>
+      <div class="popup__rating" :class="{ 'popup__rating--unrated': !ratingInfo.available }">
+        <RemovRatingIcon v-if="ratingInfo.available && ratingInfo.isRemov" :size="12" class="popup__star" />
+        <Star v-else-if="ratingInfo.available" :size="11" class="popup__star" />
+        <span>{{ ratingInfo.display }}</span>
       </div>
     </div>
 
@@ -137,6 +138,8 @@ import type { ResolvedTrailer } from "@/composables/useTrailerPreview";
 import { libraryApi } from "@/api/endpoints/library";
 import { useAuthStore } from "@/stores/auth";
 import { mediaApi } from "@/api/endpoints/media";
+import RemovRatingIcon from "./RemovRatingIcon.vue";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   movie: Movie | TVSeries;
@@ -209,6 +212,45 @@ onMounted(() => {
   }
 });
 
+const { t } = useI18n();
+
+// ─── Computed Rating Info ──────────────────────────────────────────────────
+const ratingInfo = computed(() => {
+  const m = props.movie as any;
+  if (m.ratings) {
+    if (m.ratings.remov && m.ratings.remov.available) {
+      return {
+        available: true,
+        isRemov: true,
+        display: `${m.ratings.remov.average.toFixed(1)}/5`
+      };
+    }
+    if (m.ratings.tmdb && m.ratings.tmdb.available) {
+      return {
+        available: true,
+        isRemov: false,
+        display: `${m.ratings.tmdb.average.toFixed(1)}`
+      };
+    }
+  }
+
+  // Fallback to legacy vote_average
+  const legacyAvg = m.vote_average ?? m.voteAverage;
+  if (typeof legacyAvg === "number" && legacyAvg > 0) {
+    return {
+      available: true,
+      isRemov: false,
+      display: legacyAvg.toFixed(1)
+    };
+  }
+
+  return {
+    available: false,
+    isRemov: false,
+    display: t("reviews.errors.notRated")
+  };
+});
+
 // ─── Reactive Stats State ─────────────────────────────────────────────────
 const stats = ref({
   view_count: 0,
@@ -220,24 +262,28 @@ const isLiked = ref(false);
 const isInWatchlist = ref(false);
 const watchlistItemId = ref<number | null>(null);
 
+// Populate stats and like status from props reactively
+watch(
+  () => props.movie,
+  (newMovie: any) => {
+    if (newMovie) {
+      const s = newMovie.stats;
+      stats.value = {
+        view_count: s?.view_count ?? newMovie.view_count ?? 0,
+        like_count: s?.like_count ?? newMovie.like_count ?? 0,
+        review_count: s?.review_count ?? newMovie.review_count ?? 0,
+        watchlist_count: s?.watchlist_count ?? newMovie.watchlist_count ?? 0,
+      };
+      isLiked.value = !!(s?.liked_at ?? newMovie.liked_at);
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   try {
-    const resStats = await mediaApi.getMediaStats(mt.value, props.movie.id);
-    const s = resStats.data?.stats || (resStats.data as any)?.stats;
-
-    if (s) {
-      stats.value = {
-        view_count: s.view_count || 0,
-        like_count: s.like_count || 0,
-        review_count: s.review_count || 0,
-        watchlist_count: s.watchlist_count || 0,
-      };
-      isLiked.value = !!s.liked_at;
-    }
-
     if (!currentUserId.value) return;
 
-    const userId = currentUserId.value;
     const resLibrary = await libraryApi.getOwnMediaStatus(
       props.movie.id,
       mt.value,
@@ -251,7 +297,7 @@ onMounted(async () => {
       watchlistItemId.value = watchlistInfo.item_id;
     }
   } catch (err) {
-    console.error("ไม่สามารถโหลดสถิติจริงจากระบบหลังบ้านได้:", err);
+    console.error("ไม่สามารถโหลดสถานะไลบรารีจากระบบหลังบ้านได้:", err);
   }
 });
 

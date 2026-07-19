@@ -1,9 +1,13 @@
 package movie_module
 
-import "github.com/gofiber/fiber/v3"
+import (
+	"github.com/arinsuda/movie-hub/internal/shared"
+	"github.com/gofiber/fiber/v3"
+)
 
-func RegisterRoutes(router fiber.Router) {
-	h := NewHandler()
+func RegisterRoutes(router fiber.Router, ratingRepo shared.RatingStatsReader) {
+	svc := NewMovieService(ratingRepo)
+	h := NewHandler(svc)
 
 	movies := router.Group("/movies")
 	movies.Get("/popular", h.GetPopular)

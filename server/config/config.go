@@ -24,11 +24,13 @@ type CORSConfig struct {
 }
 
 type DBConfig struct {
-	Host     string
-	User     string
-	Password string
-	Name     string
-	Port     string
+	Host                        string
+	User                        string
+	Password                    string
+	Name                        string
+	Port                        string
+	MigrationLockTimeoutMs      int
+	MigrationStatementTimeoutMs int
 }
 
 type TMDBConfig struct {
@@ -67,6 +69,8 @@ type MinIOConfig struct {
 
 func Load() (*Config, error) {
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	migrationLockTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_LOCK_TIMEOUT_MS", "10000"))
+	migrationStatementTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_STATEMENT_TIMEOUT_MS", "15000"))
 
 	return &Config{
 		Port:       getEnv("PORT", "8080"),
@@ -75,11 +79,13 @@ func Load() (*Config, error) {
 			AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
 		},
 		DB: DBConfig{
-			Host:     requireEnv("POSTGRES_HOST"),
-			User:     requireEnv("POSTGRES_USER"),
-			Password: requireEnv("POSTGRES_PASSWORD"),
-			Name:     requireEnv("POSTGRES_DB"),
-			Port:     getEnv("POSTGRES_PORT", "5432"),
+			Host:                        requireEnv("POSTGRES_HOST"),
+			User:                        requireEnv("POSTGRES_USER"),
+			Password:                    requireEnv("POSTGRES_PASSWORD"),
+			Name:                        requireEnv("POSTGRES_DB"),
+			Port:                        getEnv("POSTGRES_PORT", "5432"),
+			MigrationLockTimeoutMs:      migrationLockTimeoutMs,
+			MigrationStatementTimeoutMs: migrationStatementTimeoutMs,
 		},
 		TMDB: TMDBConfig{
 			BaseURL: requireEnv("THE_MOVIE_BASE_API"),
