@@ -107,11 +107,11 @@
             </span>
             <span class="meta-badge rating-tmdb" v-if="movie.vote_average">
               <i class="pi pi-star-fill"></i>
-              TMDB: {{ movie.vote_average.toFixed(2) }}
+              TMDB: {{ movie.vote_average.toFixed(1) }}
             </span>
-            <span class="meta-badge rating-remov">
-              <i class="pi pi-heart-fill"></i>
-              REMOV: {{ removStats.average_rating.toFixed(2) }}
+            <span class="meta-badge rating-remov" v-if="removStats.average_rating > 0">
+              <RemovRatingIcon :size="12" style="margin-right: 4px;" />
+              REMOV: {{ removStats.average_rating.toFixed(1) }}/5
             </span>
           </div>
 
@@ -255,6 +255,7 @@
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
   import { mediaApi } from "@/api/endpoints/media"
+  import RemovRatingIcon from "@/components/movie/RemovRatingIcon.vue"
 
   const route = useRoute()
   const router = useRouter()
