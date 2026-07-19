@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import {
   QrCode,
   Landmark,
@@ -34,23 +34,6 @@ const copyAccountNumber = async () => {
     console.error('Failed to copy text: ', err)
   }
 }
-
-onMounted(() => {
-  // visibility observer to pause animations when hidden
-  const spheres = document.querySelectorAll('.gradient-sphere')
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      const el = e.target as HTMLElement
-      if (e.isIntersecting) {
-        el.style.animationPlayState = 'running'
-      } else {
-        el.style.animationPlayState = 'paused'
-      }
-    })
-  }, { threshold: 0.1 })
-
-  spheres.forEach(s => observer.observe(s))
-})
 </script>
 
 <template>
@@ -213,7 +196,7 @@ onMounted(() => {
   justify-content: center;
 }
 
-/* Background Animations */
+/* Background */
 .background-animation {
   position: fixed;
   top: 0;
@@ -229,14 +212,15 @@ onMounted(() => {
 .gradient-sphere {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
+  opacity: 0.8;
   will-change: transform;
-  animation: float 20s infinite ease-in-out alternate;
+  transform: translate3d(0, 0, 0);
+  pointer-events: none;
+  animation: float-gpu 20s infinite ease-in-out alternate;
 }
 
 .sphere-1 {
-  background: radial-gradient(circle, #e1251b 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(225, 37, 27, 0.3) 0%, rgba(225, 37, 27, 0.1) 40%, rgba(225, 37, 27, 0.02) 70%, transparent 100%);
   width: 50vw;
   height: 50vw;
   top: -10%;
@@ -245,7 +229,7 @@ onMounted(() => {
 }
 
 .sphere-2 {
-  background: radial-gradient(circle, #ffb800 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 184, 0, 0.2) 0%, rgba(255, 184, 0, 0.07) 40%, rgba(255, 184, 0, 0.01) 70%, transparent 100%);
   width: 40vw;
   height: 40vw;
   bottom: -10%;
@@ -255,13 +239,19 @@ onMounted(() => {
 }
 
 .sphere-3 {
-  background: radial-gradient(circle, #8a1612 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(138, 22, 18, 0.25) 0%, rgba(138, 22, 18, 0.08) 40%, rgba(138, 22, 18, 0.01) 70%, transparent 100%);
   width: 45vw;
   height: 45vw;
   top: 40%;
   left: 30%;
   animation-delay: -10s;
   animation-duration: 30s;
+}
+
+@keyframes float-gpu {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6vw, 4vh, 0) scale(1.05); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
 .grid-overlay {
@@ -273,13 +263,6 @@ onMounted(() => {
   background-size: 40px 40px;
   mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
   -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
-}
-
-@keyframes float {
-  0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(5%, 5%) scale(1.05); }
-  66% { transform: translate(-2%, 8%) scale(0.95); }
-  100% { transform: translate(0, 0) scale(1); }
 }
 
 /* Layout */
@@ -307,23 +290,8 @@ onMounted(() => {
   border-radius: 50%;
   margin-bottom: 1.5rem;
   border: 1px solid rgba(225, 37, 27, 0.2);
+  box-shadow: 0 0 30px rgba(225, 37, 27, 0.25);
   color: #e1251b;
-  position: relative;
-}
-
-.hero-icon-wrapper::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow: 0 0 30px rgba(225, 37, 27, 0.5);
-  will-change: opacity;
-  animation: pulse-glow-opacity 3s infinite;
-}
-
-@keyframes pulse-glow-opacity {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
 }
 
 .hero-title {
@@ -479,7 +447,6 @@ onMounted(() => {
   height: 4px;
   background: rgba(225, 37, 27, 0.5);
   box-shadow: 0 0 10px rgba(225, 37, 27, 0.8);
-  animation: scan 3s infinite linear;
   z-index: 3;
   opacity: 0;
   border-radius: 4px;
@@ -488,6 +455,7 @@ onMounted(() => {
 
 .qr-container:hover::before {
   opacity: 1;
+  animation: scan 3s infinite linear;
 }
 
 @keyframes scan {

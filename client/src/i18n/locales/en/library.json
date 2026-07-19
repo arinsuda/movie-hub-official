@@ -4,7 +4,43 @@
   "tabs": {
     "all": "All",
     "watched": "Watched",
-    "watchlist": "Watchlist"
+    "watchlist": "Watchlist",
+    "likes": "Favorites",
+    "reviews": "Reviews"
   },
-  "empty": "No movies or TV series found in this list"
+  "empty": "No movies or TV series found in this list",
+  "empty_reviews": "This user hasn't written any reviews yet",
+  "dashboard": {
+    "title": "Media Stats Dashboard",
+    "totalReviews": "Total Reviews",
+    "reviewsThisMonth": "Reviews This Month",
+    "vsLastMonth": "vs Last Month",
+    "moreThanLastMonth": "{count} more than last month",
+    "lessThanLastMonth": "{count} less than last month",
+    "equalLastMonth": "Same as last month",
+    "totalWatched": "Total Watched",
+    "watchlist": "Watchlist Items",
+    "favorites": "Favorites",
+    "averageRating": "Avg Rating Given",
+    "topGenre": "Top Favorite Genre",
+    "noWatchedData": "No watched media yet"
+  },
+  "filters": {
+    "search": "Search media...",
+    "mediaType": "Media Type",
+    "genre": "Genre",
+    "sortBy": "Sort By",
+    "allMedia": "All Media",
+    "movies": "Movies",
+    "tvSeries": "TV Series",
+    "allGenres": "All Genres",
+    "sort": {
+      "newest": "Date Saved (Newest)",
+      "oldest": "Date Saved (Oldest)",
+      "ratingHigh": "My Rating (High-Low)",
+      "ratingLow": "My Rating (Low-High)",
+      "titleAZ": "Title (A - Z)",
+      "titleZA": "Title (Z - A)"
+    }
+  }
 }

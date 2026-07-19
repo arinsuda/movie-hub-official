@@ -137,9 +137,7 @@
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.72);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -161,6 +159,7 @@
     box-shadow:
       0 24px 64px rgba(0, 0, 0, 0.6),
       0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    will-change: transform, opacity;
   }
 
   /* Icon */
@@ -235,7 +234,7 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
     font-family:
       -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     letter-spacing: 0.01em;

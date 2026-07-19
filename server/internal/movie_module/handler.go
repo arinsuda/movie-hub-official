@@ -3,6 +3,7 @@ package movie_module
 import (
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
@@ -15,6 +16,19 @@ type Handler struct {
 
 func NewHandler(svc *MovieService) *Handler {
 	return &Handler{svc: svc}
+}
+
+func resolveTMDBLanguage(acceptLanguage string) string {
+	normalized := strings.ToLower(strings.TrimSpace(acceptLanguage))
+
+	switch {
+	case strings.HasPrefix(normalized, "en"):
+		return "en-US"
+	case strings.HasPrefix(normalized, "th"):
+		return "th-TH"
+	default:
+		return "th-TH"
+	}
 }
 
 func (h *Handler) GetPopular(c fiber.Ctx) error {
@@ -30,7 +44,12 @@ func (h *Handler) GetPopular(c fiber.Ctx) error {
 func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := h.svc.GetNowPlaying(c.Context(), page)
+	options := tmdb.RequestOptions{
+		Language: resolveTMDBLanguage(c.Get("Accept-Language")),
+		Region:   "TH",
+	}
+
+	result, err := h.svc.GetNowPlaying(c.Context(), page, options)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -55,14 +74,21 @@ func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	location, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+	}
+
+	now := time.Now().In(location)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+
 	var upcomingOnly []MovieDTO
 
 	for _, movie := range result.Results {
 		if len(movie.ReleaseDate) < 10 {
 			continue
 		}
-		releaseDate, err := time.Parse("2006-01-02", movie.ReleaseDate)
+		releaseDate, err := time.ParseInLocation("2006-01-02", movie.ReleaseDate, location)
 		if err != nil {
 			continue
 		}
@@ -372,4 +398,3 @@ func (h *Handler) GetSeriesByActor(c fiber.Ctx) error {
 	}
 	return c.JSON(result)
 }
- 

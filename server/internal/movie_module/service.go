@@ -23,8 +23,8 @@ func (s *MovieService) GetPopular(ctx context.Context, page int) (*tmdb.Paginate
 	return s.enrichMovies(ctx, res)
 }
 
-func (s *MovieService) GetNowPlaying(ctx context.Context, page int) (*tmdb.PaginatedResult[MovieDTO], error) {
-	res, err := tmdb.GetNowPlaying(page)
+func (s *MovieService) GetNowPlaying(ctx context.Context, page int, options tmdb.RequestOptions) (*tmdb.PaginatedResult[MovieDTO], error) {
+	res, err := tmdb.GetNowPlaying(page, options)
 	if err != nil {
 		return nil, err
 	}

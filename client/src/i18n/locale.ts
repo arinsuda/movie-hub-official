@@ -61,6 +61,7 @@ export function getSavedLocale(): SupportedLocale {
 }
 
 export function updateDocumentTitle() {
+  if (import.meta.env.MODE === "test") return;
   import("@/router").then(({ default: router }) => {
     const currentRoute = router.currentRoute.value;
     if (currentRoute && currentRoute.meta && currentRoute.meta.titleKey) {
