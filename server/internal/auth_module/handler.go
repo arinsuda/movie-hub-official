@@ -3,6 +3,7 @@ package auth_module
 import (
 	"errors"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
@@ -241,7 +242,7 @@ func (h *Handler) GoogleCallback(c fiber.Ctx) error {
 	}
 
 	successURL := h.cfg.Google.FrontendSuccessURL
-	if returnURL != "" && returnURL != "/" {
+	if returnURL != "" && returnURL != "/" && strings.HasPrefix(returnURL, "/") && !strings.HasPrefix(returnURL, "//") && returnURL != "/q" {
 		if u, err := url.Parse(successURL); err == nil {
 			u.Path = returnURL
 			successURL = u.String()
