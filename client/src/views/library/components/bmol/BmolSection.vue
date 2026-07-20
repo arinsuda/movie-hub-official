@@ -561,8 +561,10 @@ async function submitBmolAdd() {
     const errorWithResponse = err as { response?: { status: number } }
     if (errorWithResponse.response?.status === 409) {
       emit("update:bmolItems", props.bmolItems.filter(i => i.media.id !== media.id || i.id !== tempItem.id))
+      window.$toast?.error(`"${getMediaTitle(media)}" ถูกจัดอันดับในที่สุดของชีวิตแล้ว`, "ข้อผิดพลาด")
     } else {
       emit("update:bmolItems", props.bmolItems.filter(i => i.id !== tempItem.id))
+      window.$toast?.error(`ไม่สามารถเพิ่ม "${getMediaTitle(media)}" ได้`, "ข้อผิดพลาด")
       console.error("Failed to add BMOL item:", err)
     }
   }
@@ -615,8 +617,10 @@ async function saveSpotlightItems(itemsToSave: Array<Movie | TVSeries>) {
       const errorWithResponse = err as { response?: { status: number } }
       if (errorWithResponse.response?.status === 409) {
         emit("update:bmolItems", props.bmolItems.filter(i => i.media.id !== media.id))
+        window.$toast?.error(`"${getMediaTitle(media)}" ถูกจัดอันดับในที่สุดของชีวิตแล้ว`, "ข้อผิดพลาด")
       } else {
         emit("update:bmolItems", props.bmolItems.filter(i => i.media.id !== media.id))
+        window.$toast?.error(`ไม่สามารถเพิ่ม "${getMediaTitle(media)}" ได้`, "ข้อผิดพลาด")
         console.error("Failed to add spotlight item:", err)
       }
     }

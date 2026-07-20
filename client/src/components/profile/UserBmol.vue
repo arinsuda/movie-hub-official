@@ -129,99 +129,202 @@
         <div class="loader-bar"><div class="loader-fill" /></div>
       </div>
 
-      <div v-else-if="groupedBmolItems.length > 0" class="bmol-ranks-list">
-        <div
-          v-for="group in groupedBmolItems"
-          :key="group.rank"
-          class="bmol-rank-group"
-        >
-          <div class="bmol-rank-header">
-            <span class="rank-number-tag">{{ $t("library.bmol.rank", { rank: group.rank }) }}</span>
-            <div class="rank-line" />
-            
-            <!-- Quick Add Button (Only for Owner) -->
-            <button
-              v-if="isOwner"
-              class="btn-quick-add"
-              :title="$t('library.bmol.addMedia')"
-              @click="openSpotlight(group.rank)"
-            >
-              + {{ $t("library.bmol.addMedia") }}
-            </button>
-          </div>
-
-          <div class="bmol-rank-items-row">
-            <!-- Render first 3 items -->
-            <div
-              v-for="item in getRankItemsToShow(group.items)"
-              :key="item.id"
-              class="bmol-item-card"
-            >
-              <div class="bmol-poster-frame" @click="goToDetail(item.media.id, item.media_type)">
-                <img
-                  v-if="item.media.poster_url"
-                  :src="`${TMDB_IMG}${item.media.poster_url}`"
-                  :alt="item.media.title"
-                  loading="lazy"
-                />
-                <div v-else class="poster-fallback">
-                  <Film :size="18" />
-                </div>
+      <div v-else>
+        <!-- ADD FORM: Search bar to add media to any rank (Owner only) -->
+        <div v-if="isOwner" class="bmol-add-card">
+          <h3 class="bmol-add-title">
+            {{ subTab === 'movie' ? $t("library.bmol.addMovie") : $t("library.bmol.addTV") }}
+          </h3>
+          <div class="bmol-add-form">
+            <!-- Search Input -->
+            <div v-if="!bmolAddSelected" class="bmol-add-search-wrapper">
+              <Search :size="15" class="bmol-add-search-icon" />
+              <input
+                v-model="bmolAddQuery"
+                type="text"
+                :placeholder="$t('library.bmol.searchPlaceholder')"
+                class="bmol-add-search-input"
+              />
+              <div v-if="bmolAddLoading" class="bmol-add-spinner">
+                <div class="small-ring" />
               </div>
 
-              <div class="bmol-meta">
-                <h4 class="bmol-title" @click="goToDetail(item.media.id, item.media_type)">
-                  {{ item.media.title }}
-                </h4>
-                <span class="bmol-rating">★ {{ item.media.vote_average.toFixed(1) }}</span>
-
-                <!-- Actions (Only for Owner) -->
-                <div v-if="isOwner" class="bmol-actions">
-                  <button
-                    class="bmol-action-btn"
-                    :title="$t('library.bmol.increaseRank')"
-                    :disabled="item.rank <= 1"
-                    @click="increaseRank(item)"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    class="bmol-action-btn"
-                    :title="$t('library.bmol.decreaseRank')"
-                    @click="decreaseRank(item)"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    class="bmol-action-btn bmol-action-btn--danger"
-                    @click="triggerRemoveBmolItem(item)"
-                  >
-                    ✕
-                  </button>
+              <!-- Search Results Dropdown -->
+              <div v-if="bmolAddResults.length > 0" class="bmol-add-dropdown">
+                <div
+                  v-for="res in bmolAddResults"
+                  :key="res.id"
+                  class="bmol-add-dropdown-item"
+                  @click="selectBmolAddResult(res)"
+                >
+                  <img
+                    v-if="res.poster_path"
+                    :src="`${TMDB_IMG}${res.poster_path}`"
+                    :alt="getMediaTitle(res)"
+                    class="bmol-add-dropdown-poster"
+                  />
+                  <div v-else class="bmol-add-dropdown-poster-fallback">
+                    <Film :size="12" />
+                  </div>
+                  <div class="bmol-add-dropdown-info">
+                    <p class="bmol-add-dropdown-title">{{ getMediaTitle(res) }}</p>
+                    <p class="bmol-add-dropdown-date">{{ getMediaDate(res) || '—' }}</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- "+ X More" Card (If more than 3 items exist in this rank) -->
-            <div
-              v-if="group.items.length > 3"
-              class="bmol-item-card bmol-more-card"
-              @click="openShowAllDetail(group.rank)"
-            >
-              <div class="more-card-inner">
-                <span class="more-count">
-                  {{ $t("library.bmol.moreItems", { count: group.items.length - 3 }) }}
-                </span>
-                <span class="more-sub">Click to view all</span>
+            <!-- Selected Preview -->
+            <div v-if="bmolAddSelected" class="bmol-add-selected">
+              <div class="bmol-add-selected-info">
+                <img
+                  v-if="bmolAddSelected.poster_path"
+                  :src="`${TMDB_IMG}${bmolAddSelected.poster_path}`"
+                  :alt="getMediaTitle(bmolAddSelected)"
+                  class="bmol-add-selected-poster"
+                />
+                <div class="bmol-add-selected-detail">
+                  <p class="bmol-add-selected-title">{{ getMediaTitle(bmolAddSelected) }}</p>
+                  <p class="bmol-add-selected-date">{{ getMediaDate(bmolAddSelected) || '—' }}</p>
+                </div>
+                <button class="bmol-add-clear-btn" @click="clearBmolAddSelection">✕</button>
+              </div>
+              <div class="bmol-add-rank-row">
+                <label class="bmol-add-rank-label">{{ $t("library.bmol.rank", { rank: '' }).replace('#', '') }}</label>
+                <input
+                  v-model.number="bmolAddRank"
+                  type="number"
+                  min="1"
+                  class="bmol-add-rank-input"
+                />
+                <button class="bmol-add-submit-btn" @click="submitBmolAdd">
+                  {{ $t("library.bmol.addMedia") }}
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div v-else class="state-empty">
-        <Trophy :size="28" :stroke-width="1.2" />
-        <p>{{ $t("library.bmol.empty") }}</p>
+        <!-- Paginated Ranks -->
+        <div v-if="groupedBmolItems.length > 0" class="bmol-ranks-list">
+          <div
+            v-for="group in paginatedBmolGroups"
+            :key="group.rank"
+            class="bmol-rank-group"
+          >
+            <div class="bmol-rank-header">
+              <span class="rank-number-tag">{{ $t("library.bmol.rank", { rank: group.rank }) }}</span>
+              <div class="rank-line" />
+              <!-- Quick Add Button (Only for Owner) -->
+              <button
+                v-if="isOwner"
+                class="btn-quick-add"
+                :title="$t('library.bmol.addMedia')"
+                @click="openSpotlight(group.rank)"
+              >
+                + {{ $t("library.bmol.addMedia") }}
+              </button>
+            </div>
+
+            <div class="bmol-rank-items-row">
+              <div
+                v-for="item in getRankItemsToShow(group.items)"
+                :key="item.id"
+                class="bmol-item-card"
+              >
+                <div class="bmol-poster-frame" @click="goToDetail(item.media.id, item.media_type)">
+                  <img
+                    v-if="item.media.poster_url"
+                    :src="`${TMDB_IMG}${item.media.poster_url}`"
+                    :alt="item.media.title"
+                    loading="lazy"
+                  />
+                  <div class="poster-fallback" v-else>
+                    <Film :size="18" />
+                  </div>
+                </div>
+
+                <div class="bmol-meta">
+                  <h4 class="bmol-title" @click="goToDetail(item.media.id, item.media_type)">
+                    {{ item.media.title }}
+                  </h4>
+                  <span class="bmol-rating">★ {{ item.media.vote_average.toFixed(1) }}</span>
+
+                  <!-- Actions (Only for Owner) -->
+                  <div v-if="isOwner" class="bmol-actions">
+                    <button
+                      class="bmol-action-btn"
+                      :title="$t('library.bmol.increaseRank')"
+                      :disabled="item.rank <= 1"
+                      @click="increaseRank(item)"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      class="bmol-action-btn"
+                      :title="$t('library.bmol.decreaseRank')"
+                      @click="decreaseRank(item)"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      class="bmol-action-btn bmol-action-btn--danger"
+                      @click="triggerRemoveBmolItem(item)"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- "+ X More" Card (If more than 3 items exist in this rank) -->
+              <div
+                v-if="group.items.length > 3"
+                class="bmol-item-card bmol-more-card"
+                @click="openShowAllDetail(group.rank)"
+              >
+                <div class="more-card-inner">
+                  <span class="more-count">
+                    {{ $t("library.bmol.moreItems", { count: group.items.length - 3 }) }}
+                  </span>
+                  <span class="more-sub">Click to view all</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pagination Controls -->
+          <div v-if="bmolTotalPages > 1" class="bmol-pagination">
+            <button
+              class="bmol-page-btn"
+              :disabled="bmolPage <= 1"
+              @click="setBmolPage(bmolPage - 1)"
+            >
+              ‹
+            </button>
+            <button
+              v-for="p in bmolTotalPages"
+              :key="p"
+              class="bmol-page-btn"
+              :class="{ 'bmol-page-btn--active': p === bmolPage }"
+              @click="setBmolPage(p)"
+            >
+              {{ p }}
+            </button>
+            <button
+              class="bmol-page-btn"
+              :disabled="bmolPage >= bmolTotalPages"
+              @click="setBmolPage(bmolPage + 1)"
+            >
+              ›
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="state-empty">
+          <Trophy :size="28" :stroke-width="1.2" />
+          <p>{{ $t("library.bmol.empty") }}</p>
+        </div>
       </div>
     </div>
 
@@ -410,6 +513,122 @@ const showDeleteConfirm = ref(false)
 const deleteItemId = ref<number | null>(null)
 const deleteItemName = ref("")
 
+// --- Pagination ---
+const BMOL_PER_PAGE = 5
+const bmolPage = ref(1)
+
+const bmolTotalPages = computed(() =>
+  Math.max(1, Math.ceil(groupedBmolItems.value.length / BMOL_PER_PAGE))
+)
+
+const paginatedBmolGroups = computed(() => {
+  const start = (bmolPage.value - 1) * BMOL_PER_PAGE
+  return groupedBmolItems.value.slice(start, start + BMOL_PER_PAGE)
+})
+
+function setBmolPage(page: number) {
+  if (page >= 1 && page <= bmolTotalPages.value) {
+    bmolPage.value = page
+  }
+}
+
+// --- Add Form (Search bar to add media to any rank) ---
+const bmolAddQuery = ref("")
+const bmolAddResults = ref<Array<Movie | TVSeries>>([])
+const bmolAddLoading = ref(false)
+const bmolAddSelected = ref<Movie | TVSeries | null>(null)
+const bmolAddRank = ref(1)
+let addDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function selectBmolAddResult(media: Movie | TVSeries) {
+  bmolAddSelected.value = media
+  bmolAddQuery.value = ""
+  bmolAddResults.value = []
+}
+
+function clearBmolAddSelection() {
+  bmolAddSelected.value = null
+}
+
+async function submitBmolAdd() {
+  if (!bmolAddSelected.value) return
+  const media = bmolAddSelected.value
+  const rank = bmolAddRank.value
+
+  const tempItem: BMOLItemResponse = {
+    id: Date.now() + Math.random(),
+    rank,
+    media_type: subTab.value,
+    created_at: new Date().toISOString(),
+    media: {
+      id: media.id,
+      title: getMediaTitle(media),
+      poster_url: media.poster_path || "",
+      vote_average: media.vote_average || 0
+    }
+  } as BMOLItemResponse
+
+  // Optimistic UI update
+  bmolItems.value = [...bmolItems.value, tempItem]
+  clearBmolAddSelection()
+
+  try {
+    await bmolApi.addItem({
+      media_id: media.id,
+      media_type: subTab.value,
+      rank
+    })
+    const res = await bmolApi.getUserBMOL(props.userId)
+    bmolItems.value = res.data.items
+  } catch (err: unknown) {
+    const errorWithResponse = err as { response?: { status: number } }
+    if (errorWithResponse.response?.status === 409) {
+      bmolItems.value = bmolItems.value.filter(i => i.media.id !== media.id || i.id !== tempItem.id)
+      window.$toast?.error(`"${getMediaTitle(media)}" ถูกจัดอันดับในที่สุดของชีวิตแล้ว`, "ข้อผิดพลาด")
+    } else {
+      bmolItems.value = bmolItems.value.filter(i => i.id !== tempItem.id)
+      window.$toast?.error(`ไม่สามารถเพิ่ม "${getMediaTitle(media)}" ได้`, "ข้อผิดพลาด")
+      console.error("Failed to add BMOL item:", err)
+    }
+  }
+}
+
+// watch queries to trigger searches
+watch(bmolAddQuery, (newQuery) => {
+  if (addDebounceTimer) clearTimeout(addDebounceTimer)
+  const query = newQuery.trim()
+  if (!query) {
+    bmolAddResults.value = []
+    return
+  }
+  bmolAddLoading.value = true
+  addDebounceTimer = setTimeout(async () => {
+    try {
+      if (subTab.value === "movie") {
+        const res = await movieApi.search(query)
+        bmolAddResults.value = res.data.results.slice(0, 6)
+      } else {
+        const res = await movieApi.searchSeries(query)
+        bmolAddResults.value = res.data.results.slice(0, 6)
+      }
+    } catch (err) {
+      console.error("Search failed:", err)
+    } finally {
+      bmolAddLoading.value = false
+    }
+  }, 300)
+})
+
+// clear queries when changing active subtab or userId
+watch([subTab, () => props.userId], () => {
+  clearBmolAddSelection()
+  bmolAddQuery.value = ""
+  bmolAddResults.value = []
+  bmolPage.value = 1
+  selectedRankDetail.value = null
+  rankFilterQuery.value = ""
+})
+
 function triggerRemoveBmolItem(item: BMOLItemResponse) {
   deleteItemId.value = item.id
   deleteItemName.value = item.media.title
@@ -514,8 +733,10 @@ async function saveSpotlightItems() {
       if (errorWithResponse.response?.status === 409) {
         // Rollback only this item since it's duplicate
         bmolItems.value = bmolItems.value.filter(i => i.media.id !== media.id)
+        window.$toast?.error(`"${getMediaTitle(media)}" ถูกจัดอันดับในที่สุดของชีวิตแล้ว`, "ข้อผิดพลาด")
       } else {
         bmolItems.value = bmolItems.value.filter(i => i.media.id !== media.id)
+        window.$toast?.error(`ไม่สามารถเพิ่ม "${getMediaTitle(media)}" ได้`, "ข้อผิดพลาด")
         console.error("Failed to add spotlight item:", err)
       }
     }
@@ -1458,5 +1679,321 @@ onMounted(async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ==============================
+   Manual Add Form Styling
+   ============================== */
+.bmol-add-card {
+  background: rgba(20, 20, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+  margin-bottom: 1.5rem;
+}
+
+.bmol-add-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e4e4e7;
+  margin: 0 0 14px 0;
+  padding-left: 10px;
+  border-left: 2px solid #e1251b;
+}
+
+.bmol-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bmol-add-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 42px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.bmol-add-search-wrapper:focus-within {
+  border-color: rgba(225, 37, 27, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bmol-add-search-icon {
+  color: #52525b;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.bmol-add-search-wrapper:focus-within .bmol-add-search-icon {
+  color: #e1251b;
+}
+
+.bmol-add-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #e4e4e7;
+  font-size: 0.85rem;
+  font-weight: 500;
+  width: 100%;
+}
+
+.bmol-add-search-input::placeholder {
+  color: #52525b;
+}
+
+.bmol-add-spinner {
+  flex-shrink: 0;
+}
+
+.bmol-add-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  z-index: 20;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.bmol-add-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.bmol-add-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.bmol-add-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.bmol-add-dropdown-poster {
+  width: 30px;
+  height: 45px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.bmol-add-dropdown-poster-fallback {
+  width: 30px;
+  height: 45px;
+  border-radius: 4px;
+  background: #27272a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #52525b;
+  flex-shrink: 0;
+}
+
+.bmol-add-dropdown-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bmol-add-dropdown-title {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #ffffff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bmol-add-dropdown-date {
+  font-size: 0.7rem;
+  color: #71717a;
+  margin: 3px 0 0;
+}
+
+.bmol-add-selected {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.bmol-add-selected-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bmol-add-selected-poster {
+  width: 40px;
+  height: 60px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.bmol-add-selected-detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.bmol-add-selected-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bmol-add-selected-date {
+  font-size: 0.72rem;
+  color: #71717a;
+  margin: 4px 0 0;
+}
+
+.bmol-add-clear-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #71717a;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.bmol-add-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.bmol-add-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bmol-add-rank-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  white-space: nowrap;
+}
+
+.bmol-add-rank-input {
+  width: 60px;
+  background: #1c1c1e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.bmol-add-rank-input:focus {
+  border-color: rgba(225, 37, 27, 0.4);
+}
+
+.bmol-add-rank-input::-webkit-inner-spin-button,
+.bmol-add-rank-input::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+.bmol-add-submit-btn {
+  margin-left: auto;
+  background: #e1251b;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.bmol-add-submit-btn:hover {
+  background: #b81d15;
+}
+
+.bmol-add-submit-btn:active {
+  transform: scale(0.97);
+}
+
+/* ==============================
+   BMOL Pagination Styling
+   ============================== */
+.bmol-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 1.5rem;
+  padding: 10px 0;
+}
+
+.bmol-page-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: #a1a1aa;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bmol-page-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.bmol-page-btn--active {
+  background: rgba(225, 37, 27, 0.12) !important;
+  color: #e1251b !important;
+  border-color: rgba(225, 37, 27, 0.3) !important;
+}
+
+.bmol-page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 </style>
