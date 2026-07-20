@@ -39,6 +39,7 @@ type DBConfig struct {
 	Password                    string
 	Name                        string
 	Port                        string
+	SSLMode                     string
 	MigrationLockTimeoutMs      int
 	MigrationStatementTimeoutMs int
 }
@@ -94,6 +95,7 @@ func Load() (*Config, error) {
 			Password:                    requireEnv("POSTGRES_PASSWORD"),
 			Name:                        requireEnv("POSTGRES_DB"),
 			Port:                        getEnv("POSTGRES_PORT", "5432"),
+			SSLMode:                     getEnv("POSTGRES_SSLMODE", ""),
 			MigrationLockTimeoutMs:      migrationLockTimeoutMs,
 			MigrationStatementTimeoutMs: migrationStatementTimeoutMs,
 		},
@@ -108,11 +110,11 @@ func Load() (*Config, error) {
 			RefreshTTL:    7 * 24 * time.Hour,
 		},
 		SMTP: SMTPConfig{
-			Host:     requireEnv("SMTP_HOST"),
+			Host:     getEnv("SMTP_HOST", "smtp.gmail.com"),
 			Port:     smtpPort,
-			Username: requireEnv("SMTP_USERNAME"),
-			Password: requireEnv("SMTP_PASSWORD"),
-			From:     requireEnv("SMTP_FROM"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", "noreply@remov.app"),
 		},
 		Cookie: CookieConfig{
 			Domain:   getEnv("COOKIE_DOMAIN", "localhost"),
@@ -120,9 +122,9 @@ func Load() (*Config, error) {
 			SameSite: getEnv("COOKIE_SAMESITE", "Strict"),
 		},
 		MinIO: MinIOConfig{
-			Endpoint:   requireEnv("MINIO_ENDPOINT"),
-			AccessKey:  requireEnv("MINIO_ROOT_USER"),
-			SecretKey:  requireEnv("MINIO_ROOT_PASSWORD"),
+			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
+			AccessKey:  getEnv("MINIO_ROOT_USER", "minioadmin"),
+			SecretKey:  getEnv("MINIO_ROOT_PASSWORD", "minioadmin"),
 			BucketName: getEnv("MINIO_BUCKET_NAME", "remov-private"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		},
@@ -146,9 +148,17 @@ func Load() (*Config, error) {
 }
 
 func (d DBConfig) DSN() string {
+	sslMode := d.SSLMode
+	if sslMode == "" {
+		if d.Host == "localhost" || d.Host == "127.0.0.1" {
+			sslMode = "disable"
+		} else {
+			sslMode = "require"
+		}
+	}
 	return fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Bangkok",
-		d.Host, d.User, d.Password, d.Name, d.Port,
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=Asia/Bangkok",
+		d.Host, d.User, d.Password, d.Name, d.Port, sslMode,
 	)
 }
 
