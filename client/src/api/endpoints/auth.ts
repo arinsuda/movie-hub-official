@@ -40,9 +40,15 @@ export const authApi = {
   resetPassword: (data: ResetPasswordRequest) =>
     api.post("auth/reset-password", data),
 
-  // Google OAuth 2.0
-  getGoogleLoginUrl: (returnUrl: string = "/") =>
-    `/api/auth/google/login?return_url=${encodeURIComponent(returnUrl)}`,
+  getGoogleLoginUrl: (returnUrl: string = "/") => {
+    const envUrl = import.meta.env.VITE_API_BASE_URL
+    const apiBase = envUrl
+      ? envUrl.replace(/\/+$/, "").endsWith("/api")
+        ? envUrl.replace(/\/+$/, "")
+        : `${envUrl.replace(/\/+$/, "")}/api`
+      : "/api"
+    return `${apiBase}/auth/google/login?return_url=${encodeURIComponent(returnUrl)}`
+  },
 
   startGoogleLink: (returnUrl: string = "/") =>
     api.post<{ authorization_url: string }>("/auth/google/link", { return_url: returnUrl }),
