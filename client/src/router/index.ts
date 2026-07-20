@@ -204,11 +204,11 @@ router.beforeEach(async to => {
   const authStore = useAuthStore()
   const adminStore = useAdminStore()
 
-  if (!authStore.isInitialized && to.meta.requiresAuth) {
+  if (!authStore.isInitialized) {
     try {
       await authStore.fetchMe()
     } catch (error) {
-      console.error(error)
+      /* guest user, ignore error */
     }
   }
 

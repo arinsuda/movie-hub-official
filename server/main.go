@@ -16,6 +16,7 @@ import (
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/arinsuda/movie-hub/router"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/joho/godotenv"
 )
 
@@ -43,6 +44,13 @@ func main() {
 		AppName:      "movie-hub v1.0",
 		ErrorHandler: customErrorHandler,
 	})
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{cfg.CORS.AllowedOrigin, "http://localhost:3000", "http://localhost:5173", "https://movie-hub-official.pages.dev"},
+		AllowCredentials: true,
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	}))
 
 	m := mailer.New(cfg.SMTP)
 	notifHub := router.Register(app, database.DB, cfg, m)

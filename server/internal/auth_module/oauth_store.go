@@ -144,5 +144,8 @@ func ValidateRelativeReturnURL(url string) string {
 	if !strings.HasPrefix(url, "/") {
 		return "/"
 	}
+	if url == "/login" || url == "/register" || url == "/q" || strings.HasPrefix(url, "/q") || strings.HasPrefix(url, "/login?") || strings.HasPrefix(url, "/register?") {
+		return "/"
+	}
 	return url
 }
