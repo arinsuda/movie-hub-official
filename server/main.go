@@ -49,7 +49,7 @@ func main() {
 		AllowOrigins:     []string{cfg.CORS.AllowedOrigin, "http://localhost:3000", "http://localhost:5173", "https://movie-hub-official.pages.dev"},
 		AllowCredentials: true,
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
 
 	m := mailer.New(cfg.SMTP)
