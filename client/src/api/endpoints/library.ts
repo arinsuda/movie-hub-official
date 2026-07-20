@@ -1,49 +1,54 @@
-// client/src/api/endpoints/library.ts
 import api from "../index"
 import type {
   AddItemRequest,
   LibraryItemResponse,
   MediaStatusResponse,
-} from "@/types/movie"
+} from "@/types"
 
 export const libraryApi = {
   /**
-   * ตรวจสอบว่าหนัง/ซีรีส์เรื่องนี้อยู่ในลิสต์ไหนของยูสเซอร์บ้าง (ได้ item_id กลับมาด้วย)
-   * GET /api/v3/users/:userId/library/status?media_id=xxx&media_type=xxx
-   */
-  getMediaStatus: (
-    userId: number,
-    mediaId: number,
-    mediaType: "movie" | "tv",
-  ) =>
-    api.get<MediaStatusResponse>(`/users/${userId}/library/status`, {
-      params: { media_id: mediaId, media_type: mediaType },
-      withCredentials: true,
-    }),
-
-  /**
    * เพิ่มไอเทมเข้าคลังภาพยนตร์ (Watchlist / Watched / Favorite)
-   * POST /api/v3/users/:userId/library
+   * POST /api/library
    */
-  addItem: (userId: number, data: AddItemRequest) =>
-    api.post<{ item: LibraryItemResponse }>(`/users/${userId}/library`, data),
+  addItem: (data: AddItemRequest) =>
+    api.post<{ item: LibraryItemResponse }>("/library", data),
 
   /**
-   * ลบไอเทมออกจากคลังภาพยนตร์ (Unwatchlist / Unwatched)
-   * DELETE /api/v3/users/:userId/library/:itemId
+   * ดึงรายการหนังในคลังของยูสเซอร์คนอื่น/ตัวเองแบบผ่าน Visibility Policy
+   * GET /api/library/user/:userId
    */
-  removeItem: (userId: number, itemId: number) =>
-    api.delete(`/users/${userId}/library/${itemId}`),
-
-  /**
-   * ดึงรายการหนังทั้งหมดในคลังแยกตามประเภทลิสต์
-   * GET /api/v3/users/:userId/library?list_type=watchlist
-   */
-  getLibrary: (
+  getVisibleUserLibrary: (
     userId: number,
     params?: { list_type?: string; media_type?: string },
   ) =>
-    api.get<{ items: LibraryItemResponse[] }>(`/users/${userId}/library`, {
+    api.get<{ items: LibraryItemResponse[] }>(`/library/user/${userId}`, {
       params,
     }),
+
+  /**
+   * ตรวจสอบสถานะสื่อของตัวเอง
+   * GET /api/library/media/:mediaType/:mediaId
+   */
+  getOwnMediaStatus: (
+    mediaId: number,
+    mediaType: "movie" | "tv",
+  ) =>
+    api.get<MediaStatusResponse>(`/library/media/${mediaType}/${mediaId}`),
+
+  /**
+   * อัปเดตไอเทมในคลัง (watched_at, tags, note)
+   * PATCH /api/library/:itemId
+   */
+  updateItem: (
+    itemId: number,
+    data: { watched_at?: string | null; tags?: string[]; note?: string | null },
+  ) =>
+    api.patch<{ item: LibraryItemResponse }>(`/library/${itemId}`, data),
+
+  /**
+   * ลบไอเทมออกจากคลัง
+   * DELETE /api/library/:itemId
+   */
+  removeItem: (itemId: number) =>
+    api.delete(`/library/${itemId}`),
 }

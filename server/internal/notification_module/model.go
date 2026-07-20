@@ -7,37 +7,79 @@ import (
 	"gorm.io/gorm"
 )
 
-// NotificationType กำหนดประเภทของ notification ทั้งหมดในระบบ
 type NotificationType string
 
 const (
-	// Social notifications
-	NotifFollowedYou NotificationType = "followed_you" // มีคน follow เรา
+	NotifWelcome NotificationType = "welcome"
 
-	// Watchlist notifications
-	NotifMovieNowPlaying NotificationType = "movie_now_playing" // หนังใน watchlist เข้าฉายแล้ว
+	NotifFollowedYou NotificationType = "followed_you"
 
-	// Following activity notifications
-	NotifFollowingReviewed       NotificationType = "following_reviewed"        // คนที่เราติดตาม review หนัง
-	NotifFollowingLikedReview    NotificationType = "following_liked_review"    // คนที่เราติดตาม like review
-	NotifFollowingAddedWatchlist NotificationType = "following_added_watchlist" // คนที่เราติดตามเพิ่มหนังใน watchlist
+	NotifMovieNowPlaying NotificationType = "movie_now_playing"
+
+	NotifFollowingReviewed       NotificationType = "following_reviewed"
+	NotifFollowingLikedReview    NotificationType = "following_liked_review"
+	NotifFollowingAddedWatchlist NotificationType = "following_added_watchlist"
 	NotifFollowingAddedWatched   NotificationType = "following_added_watched"
+	NotifFollowingMarkedHelpful  NotificationType = "following_marked_helpful"
+	NotifFollowingCommented      NotificationType = "following_commented"
+	NotifFollowingLikedMedia     NotificationType = "following_liked_media"
+
+	NotifReviewLiked         NotificationType = "review_liked"
+	NotifReviewCommented     NotificationType = "review_commented"
+	NotifReviewMarkedHelpful NotificationType = "review_marked_helpful"
+
+	NotifAchievementUnlocked NotificationType = "achievement_unlocked"
+
+	NotifEmailVerified   NotificationType = "email_verified"
+	NotifPasswordChanged NotificationType = "password_changed"
+
+	NotifFollowRequested NotificationType = "follow_requested"
+	NotifFollowAccepted  NotificationType = "follow_accepted"
 )
 
-// Notification เก็บ notification แต่ละรายการของ user
-//
-// ActorID   = user ที่เป็นต้นเหตุของ notification (อาจเป็น nil สำหรับ system notification เช่น movie release)
-// TargetID  = id ของ entity ที่เกี่ยวข้อง เช่น movie_id, review_id
-// TargetRef = ชนิดของ entity ("movie", "review", "user") ใช้คู่กับ TargetID เพื่อสร้าง deep-link
+type NotificationCategory string
+
+const (
+	CategorySystem      NotificationCategory = "system"
+	CategorySocial      NotificationCategory = "social"
+	CategoryMedia       NotificationCategory = "media"
+	CategoryAchievement NotificationCategory = "achievement"
+)
+
+var categoryByType = map[NotificationType]NotificationCategory{
+	NotifWelcome:                 CategorySystem,
+	NotifFollowedYou:             CategorySocial,
+	NotifFollowRequested:         CategorySocial,
+	NotifFollowAccepted:          CategorySocial,
+	NotifFollowingReviewed:       CategorySocial,
+	NotifFollowingLikedReview:    CategorySocial,
+	NotifFollowingAddedWatchlist: CategorySocial,
+	NotifFollowingAddedWatched:   CategorySocial,
+	NotifFollowingMarkedHelpful:  CategorySocial,
+	NotifFollowingCommented:      CategorySocial,
+	NotifFollowingLikedMedia:     CategorySocial,
+	NotifReviewLiked:             CategorySocial,
+	NotifReviewCommented:         CategorySocial,
+	NotifReviewMarkedHelpful:     CategorySocial,
+
+	NotifMovieNowPlaying: CategoryMedia,
+
+	NotifAchievementUnlocked: CategoryAchievement,
+
+	NotifEmailVerified:   CategorySystem,
+	NotifPasswordChanged: CategorySystem,
+}
+
 type Notification struct {
 	gorm.Model
-	UserID    uint             `gorm:"not null;index"` // เจ้าของ notification
-	User      users.User       `gorm:"foreignKey:UserID;contraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-	ActorID   *uint            `gorm:"index"` // ผู้กระทำ (nil = system)
-	Type      NotificationType `gorm:"type:varchar(50);not null;index"`
-	TargetID  *uint            // id ของ entity ที่เกี่ยวข้อง
-	TargetRef *string          `gorm:"type:varchar(50)"` // "movie" | "review" | "user"
-	Message   string           `gorm:"type:text;not null"`
-	IsRead    bool             `gorm:"default:false;index"`
+	UserID    uint                 `gorm:"not null;index"`
+	User      users.User           `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ActorID   *uint                `gorm:"index"`
+	Type      NotificationType     `gorm:"type:varchar(50);not null;index"`
+	Category  NotificationCategory `gorm:"type:varchar(20);not null;index"`
+	TargetID  *uint
+	TargetRef *string `gorm:"type:varchar(50)"`
+	Message   string  `gorm:"type:text;not null"`
+	IsRead    bool    `gorm:"default:false;index"`
 	ReadAt    *time.Time
 }

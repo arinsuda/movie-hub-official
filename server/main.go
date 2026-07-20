@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/database"
@@ -17,7 +20,7 @@ import (
 )
 
 func main() {
-	// Load .env (dev only — production ควรใช้ env จาก system โดยตรง)
+
 	if err := godotenv.Load("../.env"); err != nil {
 		log.Println("⚠️  No .env file found, falling back to system env")
 	}
@@ -42,15 +45,36 @@ func main() {
 	})
 
 	m := mailer.New(cfg.SMTP)
-	router.Register(app, database.DB, cfg, m)
+	notifHub := router.Register(app, database.DB, cfg, m)
 
-	// Graceful shutdown
+	socketAddr := ":8081"
+	socketSrv := &http.Server{
+		Addr: socketAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			notifHub.Handler().ServeHTTP(w, r)
+		}),
+	}
+
+	go func() {
+		log.Printf("📡 Notification socket.io running on %s", socketAddr)
+		if err := socketSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("❌ Socket.io server error: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		<-quit
 		log.Println("🛑 Shutting down server...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := socketSrv.Shutdown(ctx); err != nil {
+			log.Printf("❌ Socket.io shutdown error: %v", err)
+		}
+
 		if err := app.Shutdown(); err != nil {
 			log.Printf("❌ Shutdown error: %v", err)
 		}

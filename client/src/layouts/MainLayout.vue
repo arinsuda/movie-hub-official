@@ -11,31 +11,31 @@
           to="/"
           class="nav-link"
           :class="{ active: route.name === 'home' }"
-          >HOME</RouterLink
+          >{{ $t("navigation.home") }}</RouterLink
         >
         <RouterLink
           to="/movies"
           class="nav-link"
           :class="{ active: route.path.startsWith('/movies') }"
-          >MOVIES</RouterLink
+          >{{ $t("navigation.movies") }}</RouterLink
         >
         <RouterLink
           to="/tv"
           class="nav-link"
           :class="{ active: route.path.startsWith('/tv') }"
-          >TV SERIES</RouterLink
+          >{{ $t("navigation.tvSeries") }}</RouterLink
         >
         <RouterLink
           to="/upcoming"
           class="nav-link"
           :class="{ active: route.name?.toString().startsWith('upcoming') }"
-          >UPCOMING</RouterLink
+          >{{ $t("navigation.upcoming") }}</RouterLink
         >
         <RouterLink
           to="/about-us"
           class="nav-link"
           :class="{ active: route.name?.toString().startsWith('aboutUs') }"
-          >ABOUT US</RouterLink
+          >{{ $t("navigation.aboutUs") }}</RouterLink
         >
       </nav>
 
@@ -49,7 +49,7 @@
             ref="searchInput"
             v-model="searchQuery"
             class="search-input"
-            placeholder="Search movies, series..."
+            :placeholder="$t('navigation.searchPlaceholder')"
             @keydown.enter="doSearch"
             @keydown.escape="closeSearch"
           />
@@ -68,7 +68,7 @@
             class="search-suggestions"
           >
             <div v-if="searchLoading" class="search-suggestion-loading">
-              กำลังค้นหา...
+              {{ $t("navigation.searching") }}
             </div>
 
             <button
@@ -86,7 +86,7 @@
                 <span class="suggestion-title">{{ item.title }}</span>
                 <div class="suggestion-meta">
                   <span class="suggestion-type">{{
-                    item.type === "movie" ? "หนัง" : "ซีรีส์"
+                    item.type === "movie" ? $t("navigation.movie") : $t("navigation.series")
                   }}</span>
                   <span v-if="item.rating" class="suggestion-rating">
                     <Star :size="11" fill="#f5c518" color="#f5c518" />
@@ -101,24 +101,44 @@
               class="search-suggestion-viewall"
               @click="doSearch"
             >
-              ดูผลลัพธ์ทั้งหมดสำหรับ "{{ searchQuery }}"
+              {{ $t("navigation.viewAllResults", { query: searchQuery }) }}
             </button>
           </div>
         </div>
 
+        <!-- Language Switcher -->
+        <button
+          class="lang-btn"
+          @click="localeStore.toggleLocale()"
+          :disabled="localeStore.isSwitchingLocale.value"
+          :aria-label="$t('navigation.switchLang')"
+        >
+          {{ localeStore.locale.value === "th" ? "EN" : "TH" }}
+        </button>
+
         <div class="notification-wrapper">
           <button
             class="icon-btn"
-            :class="{ 'has-unread': hasNotifications }"
-            @click="clearNotifications"
+            :class="{ 'has-unread': notificationStore.unreadCount > 0 }"
+            @click.stop="toggleNotificationPanel"
           >
             <Bell :size="18" />
-            <span v-if="notificationCount > 0" class="bell-badge">{{
-              notificationCount
+            <span v-if="notificationStore.unreadCount > 0" class="bell-badge">{{
+              notificationStore.unreadCount > 99
+                ? "99+"
+                : notificationStore.unreadCount
             }}</span>
           </button>
 
-          <ToastContainer @toast-added="incrementNotification" />
+          <Transition name="dropdown">
+            <NotificationPanel
+              v-if="notificationStore.isPanelOpen"
+              @close="notificationStore.closePanel()"
+            />
+          </Transition>
+
+          <!-- Toast แบบ ephemeral (สไลด์เด้ง 4 วิ) แยกจากศูนย์การแจ้งเตือนถาวรด้านบน -->
+          <ToastContainer />
         </div>
 
         <div class="user-menu" v-if="authStore.user" ref="userMenuRef">
@@ -146,35 +166,44 @@
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <UserIcon :size="14" />Profile
+                <UserIcon :size="14" />{{ $t("navigation.profile") }}
               </RouterLink>
               <RouterLink
                 :to="`/users/${authStore.user.id}/library`"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <BookMarked :size="14" />My Library
+                <BookMarked :size="14" />{{ $t("navigation.myLibrary") }}
               </RouterLink>
               <RouterLink
                 :to="`/users/${authStore.user.id}/achievements`"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <Trophy :size="14" />Achievement
+                <Trophy :size="14" />{{ $t("navigation.achievement") }}
               </RouterLink>
               <RouterLink
-                :to="`/users/${authStore.user.id}/feed`"
+                :to="{ name: 'feed' }"
                 class="dropdown-item"
                 @click="userMenuOpen = false"
               >
-                <Rss :size="14" />Feed
+                <Rss :size="14" />{{ $t("navigation.feed") }}
               </RouterLink>
+              <template v-if="authStore.isAdmin">
+                <div class="dropdown-divider" />
+                <button
+                  class="dropdown-item dropdown-item--admin"
+                  @click="handleEnterAdmin"
+                >
+                  <Shield :size="14" />{{ $t("navigation.adminMode") }}
+                </button>
+              </template>
               <div class="dropdown-divider" />
               <button
                 class="dropdown-item dropdown-item--danger"
                 @click="handleLogout"
               >
-                <LogOut :size="14" />Log out
+                <LogOut :size="14" />{{ $t("navigation.logout") }}
               </button>
             </div>
           </Transition>
@@ -207,36 +236,44 @@
             class="mobile-nav-link"
             :class="{ active: route.name === 'home' }"
             @click="closeMobileMenu"
-            >HOME</RouterLink
+            >{{ $t("navigation.home") }}</RouterLink
           >
           <RouterLink
             to="/movies"
             class="mobile-nav-link"
             :class="{ active: route.path.startsWith('/movies') }"
             @click="closeMobileMenu"
-            >MOVIES</RouterLink
+            >{{ $t("navigation.movies") }}</RouterLink
           >
           <RouterLink
             to="/tv"
             class="mobile-nav-link"
             :class="{ active: route.path.startsWith('/tv') }"
             @click="closeMobileMenu"
-            >TV SERIES</RouterLink
+            >{{ $t("navigation.tvSeries") }}</RouterLink
           >
           <RouterLink
             to="/upcoming"
             class="mobile-nav-link"
             :class="{ active: route.name?.toString().startsWith('upcoming') }"
             @click="closeMobileMenu"
-            >UPCOMING</RouterLink
+            >{{ $t("navigation.upcoming") }}</RouterLink
           >
           <RouterLink
             to="/about-us"
             class="mobile-nav-link"
             :class="{ active: route.name?.toString().startsWith('aboutUs') }"
             @click="closeMobileMenu"
-            >ABOUT US</RouterLink
+            >{{ $t("navigation.aboutUs") }}</RouterLink
           >
+
+          <button
+            class="mobile-nav-link"
+            @click="localeStore.toggleLocale()"
+            :disabled="localeStore.isSwitchingLocale.value"
+          >
+            {{ $t("navigation.switchLang") }} ({{ localeStore.locale.value === "th" ? "English" : "ไทย" }})
+          </button>
 
           <div class="mobile-menu-divider" />
 
@@ -246,34 +283,41 @@
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <UserIcon :size="16" />Profile
+              <UserIcon :size="16" />{{ $t("navigation.profile") }}
             </RouterLink>
             <RouterLink
               :to="`/users/${authStore.user.id}/library`"
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <BookMarked :size="16" />My Library
+              <BookMarked :size="16" />{{ $t("navigation.myLibrary") }}
             </RouterLink>
             <RouterLink
               :to="`/users/${authStore.user.id}/achievements`"
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <Trophy :size="16" />Achievement
+              <Trophy :size="16" />{{ $t("navigation.achievement") }}
             </RouterLink>
             <RouterLink
-              :to="`/users/${authStore.user.id}/feed`"
+              :to="{ name: 'feed' }"
               class="mobile-nav-link mobile-nav-link--sub"
               @click="closeMobileMenu"
             >
-              <Rss :size="16" />Feed
+              <Rss :size="16" />{{ $t("navigation.feed") }}
             </RouterLink>
+            <button
+              v-if="authStore.isAdmin"
+              class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--admin"
+              @click="handleEnterAdmin"
+            >
+              <Shield :size="16" />{{ $t("navigation.adminMode") }}
+            </button>
             <button
               class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--danger"
               @click="handleLogout"
             >
-              <LogOut :size="16" />Log out
+              <LogOut :size="16" />{{ $t("navigation.logout") }}
             </button>
           </template>
         </nav>
@@ -281,16 +325,24 @@
     </Transition>
 
     <main class="page-content">
-      <RouterView />
+      <RouterView v-slot="{ Component }">
+        <Transition name="page" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </RouterView>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useAdminStore } from "@/stores/admin";
+import { useNotificationStore } from "@/stores/notification";
+import { useLocale } from "@/i18n";
 import ToastContainer from "@/components/common/ToastContainer.vue";
+import NotificationPanel from "@/components/common/NotificationPanel.vue";
 import { movieApi } from "@/api/endpoints/movie";
 import { getTmdbImageUrl } from "@/utils/image";
 import type { Movie, TVSeries } from "@/types";
@@ -305,6 +357,7 @@ import {
   LogOut,
   Star,
   X,
+  Shield,
 } from "lucide-vue-next";
 
 interface SearchSuggestion {
@@ -318,6 +371,9 @@ interface SearchSuggestion {
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
+const notificationStore = useNotificationStore();
+const localeStore = useLocale();
 
 const scrolled = ref(false);
 const searchOpen = ref(false);
@@ -349,6 +405,12 @@ function mapSeries(s: TVSeries): SearchSuggestion {
     poster_path: s.poster_path ? getTmdbImageUrl(s.poster_path) : null,
     rating: s.vote_average,
   };
+}
+
+function toggleNotificationPanel() {
+  userMenuOpen.value = false;
+  mobileMenuOpen.value = false;
+  notificationStore.togglePanel();
 }
 
 async function fetchSuggestions(query: string) {
@@ -393,17 +455,6 @@ function goToItem(item: SearchSuggestion) {
   closeSearch();
 }
 
-const notificationCount = ref(0);
-const hasNotifications = computed(() => notificationCount.value > 0);
-
-function incrementNotification() {
-  notificationCount.value++;
-}
-
-function clearNotifications() {
-  notificationCount.value = 0;
-}
-
 function onScroll() {
   scrolled.value = window.scrollY > 20;
 }
@@ -438,12 +489,18 @@ function closeMobileMenu() {
 // ไม่งั้นจะเห็น dropdown เล็ก + mobile menu เต็มจอซ้อนกัน (ตามที่เจอในภาพ)
 function toggleUserMenu() {
   userMenuOpen.value = !userMenuOpen.value;
-  if (userMenuOpen.value) mobileMenuOpen.value = false;
+  if (userMenuOpen.value) {
+    mobileMenuOpen.value = false;
+    notificationStore.closePanel();
+  }
 }
 
 function toggleMobileMenu() {
   mobileMenuOpen.value = !mobileMenuOpen.value;
-  if (mobileMenuOpen.value) userMenuOpen.value = false;
+  if (mobileMenuOpen.value) {
+    userMenuOpen.value = false;
+    notificationStore.closePanel();
+  }
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -455,8 +512,17 @@ function onClickOutside(e: MouseEvent) {
 async function handleLogout() {
   userMenuOpen.value = false;
   mobileMenuOpen.value = false;
+  adminStore.reset();
+  notificationStore.reset(); // ปิด socket + เคลียร์ notification ของ user เดิม
   await authStore.logout();
   router.push({ name: "login" });
+}
+
+function handleEnterAdmin() {
+  userMenuOpen.value = false;
+  mobileMenuOpen.value = false;
+  adminStore.enterAdminMode();
+  router.push("/admin");
 }
 
 // ปิดเมนูมือถืออัตโนมัติเมื่อขยายจอกลับมาเป็นเดสก์ท็อป
@@ -470,6 +536,21 @@ function onResize() {
 watch(mobileMenuOpen, (open) => {
   document.body.style.overflow = open ? "hidden" : "";
 });
+
+// ต่อ/ตัด socket ตามสถานะล็อกอิน (ครอบทั้งกรณีโหลดหน้าแรกตอน user
+// ยังไม่พร้อม เพราะ fetchMe() ยังทำงานอยู่ใน router guard)
+watch(
+  () => authStore.user?.id,
+  (userId) => {
+    if (userId) {
+      notificationStore.fetchUnreadCount();
+      notificationStore.bindSocket();
+    } else {
+      notificationStore.reset();
+    }
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   window.addEventListener("scroll", onScroll, { passive: true });
@@ -754,6 +835,28 @@ onUnmounted(() => {
   }
 }
 
+.lang-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  color: #a3a3a3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.lang-btn:hover {
+  color: #fff;
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Icon button */
 .icon-btn {
   background: none;
@@ -770,6 +873,7 @@ onUnmounted(() => {
     color 0.2s,
     background 0.2s;
   flex-shrink: 0;
+  position: relative;
 }
 .icon-btn:hover,
 .has-unread {
@@ -987,7 +1091,6 @@ onUnmounted(() => {
    - ≤420px      : มือถือจอมาตรฐาน/เล็ก (iPhone SE ฯลฯ)
    ════════════════════════════════════════════════════════════ */
 
-/* ── จอใหญ่พิเศษ (จอ Desktop / iMac ขนาดใหญ่) ────────── */
 @media (min-width: 1440px) {
   .navbar {
     padding: 0 3rem;
@@ -1002,7 +1105,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── Notebook / Laptop ทั่วไป (1200–1439px) ───────────── */
 @media (max-width: 1439px) {
   .navbar {
     padding: 0 1.75rem;
@@ -1010,7 +1112,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── Notebook เล็ก / iPad Pro แนวนอน (1025–1199px) ────── */
 @media (max-width: 1199px) {
   .navbar {
     gap: 1rem;
@@ -1033,9 +1134,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── iPad / Tablet แนวนอน (901–1024px) ─────────────────
-   จุดนี้เริ่มแน่นเกินไปสำหรับเมนูเต็ม -> ซ่อน nav-links หลัก
-   แล้วสลับไปใช้ hamburger menu แทน                     */
 @media (max-width: 1024px) {
   .nav-links {
     display: none;
@@ -1050,7 +1148,7 @@ onUnmounted(() => {
     width: 180px;
   }
   .user-name {
-    display: none; /* โชว์เฉพาะ avatar เพื่อประหยัดพื้นที่ */
+    display: none;
   }
   .user-trigger {
     padding: 0.3rem;
@@ -1060,15 +1158,11 @@ onUnmounted(() => {
   .user-trigger svg:last-child {
     display: none;
   }
-  /* ลิงก์ Profile/Library/Achievement/Feed/Logout ย้ายไปอยู่ใน
-     mobile-menu-panel แล้ว จึงปิด dropdown เล็กของ avatar บนจอแคบ
-     เพื่อไม่ให้เปิดซ้อนกันสองเมนู */
   .dropdown-menu {
     display: none !important;
   }
 }
 
-/* ── Tablet แนวตั้ง / iPad Mini (769–900px) ───────────── */
 @media (max-width: 900px) {
   .navbar {
     padding: 0 1.25rem;
@@ -1091,7 +1185,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── Tablet เล็ก / Mobile แนวนอน (577–768px) ──────────── */
 @media (max-width: 768px) {
   .navbar {
     padding: 0 1rem;
@@ -1100,8 +1193,6 @@ onUnmounted(() => {
   .nav-right {
     gap: 0.25rem;
   }
-
-  /* ให้ช่องค้นหาขยายเต็มระหว่างโลโก้กับปุ่มอื่น ๆ ตอนเปิด */
   .search-box--open {
     position: absolute;
     left: 0.75rem;
@@ -1123,14 +1214,12 @@ onUnmounted(() => {
     right: 0;
     min-width: 0;
   }
-
   .icon-btn {
     width: 32px;
     height: 32px;
   }
 }
 
-/* ── มือถือจอใหญ่ (421–576px) ─────────────────────────── */
 @media (max-width: 576px) {
   .navbar {
     padding: 0 0.75rem;
@@ -1174,7 +1263,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── มือถือจอเล็ก (≤420px, เช่น iPhone SE) ────────────── */
 @media (max-width: 420px) {
   .navbar {
     gap: 0.35rem;
@@ -1207,14 +1295,12 @@ onUnmounted(() => {
   }
 }
 
-/* ── รองรับจอความละเอียดสูง / Retina (Mac, iPad Pro) ──── */
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
   .navbar {
     border-bottom-width: 0.5px;
   }
 }
 
-/* ── รองรับแนวนอนของมือถือที่จอเตี้ยมาก (landscape height เล็ก) ── */
 @media (max-height: 420px) and (orientation: landscape) {
   .mobile-menu-panel {
     max-height: calc(100vh - 56px);
@@ -1228,7 +1314,6 @@ onUnmounted(() => {
   }
 }
 
-/* ── ผู้ใช้ที่ตั้งค่าลด motion ในระบบ ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .navbar,
   .hamburger-line,

@@ -42,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref } from "vue"
+  import { ref, onMounted, onBeforeUnmount } from "vue"
   import { Trash2 } from "lucide-vue-next"
   import { reviewApi } from "@/api/api"
   import type { ReviewResponse } from "@/types"
@@ -59,7 +59,7 @@
     if (deleting.value) return
     try {
       deleting.value = true
-      await reviewApi.deleteReview(props.userId, props.review.id)
+      await reviewApi.deleteReview(props.review.id)
       emit("deleted", props.review.id)
     } catch (err) {
       console.error("Delete review failed:", err)
@@ -67,6 +67,17 @@
       deleting.value = false
     }
   }
+
+  onMounted(() => {
+    document.body.style.overflow = "hidden"
+  })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>

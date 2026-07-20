@@ -49,7 +49,7 @@ export function useReviewForm(mediaId: number, mediaType: MediaType) {
 
     isSubmitting.value = true
     try {
-      const res = await reviewApi.createReview(auth.user!.id, {
+      const res = await reviewApi.createReview({
         media_id: mediaId,
         media_type: mediaType,
         rating: rating.value,

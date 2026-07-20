@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	trendingLimit        = 20 // top N ที่ใช้คำนวณ "is_trending"
+	trendingLimit        = 20
 	weightWatchlist      = 1.0
 	weightFavorite       = 2.0
 	weightWatched        = 3.0
@@ -22,7 +22,6 @@ func NewService(db *gorm.DB) *Service {
 	return &Service{repo: newRepository(db)}
 }
 
-// GetMediaAnalytics คืน stats ครบของ media หนึ่ง
 func (s *Service) GetMediaAnalytics(mediaID int, mediaType string) (*MediaAnalyticsResponse, error) {
 	if err := validateMedia(mediaID, mediaType); err != nil {
 		return nil, err
@@ -40,10 +39,9 @@ func (s *Service) GetMediaAnalytics(mediaID int, mediaType string) (*MediaAnalyt
 
 	score := trendingScore(libStats.WatchlistCount, libStats.FavoriteCount, libStats.WatchedCount, 0)
 
-	// ดึง trending list เพื่อเช็คว่า media นี้อยู่ใน top N ไหม
 	isTrending, err := s.isInTrending(mediaID, mediaType)
 	if err != nil {
-		// ถ้า query พัง ก็ไม่ block ผลหลัก
+
 		isTrending = false
 	}
 
@@ -65,7 +63,6 @@ func (s *Service) GetMediaAnalytics(mediaID int, mediaType string) (*MediaAnalyt
 	}, nil
 }
 
-// GetTrending คืน list ของ media ที่ trending ใน mediaType นั้น
 func (s *Service) GetTrending(mediaType string) ([]TrendingItem, error) {
 	if mediaType != "movie" && mediaType != "tv" {
 		return nil, ErrInvalidMediaType
@@ -90,8 +87,6 @@ func (s *Service) GetTrending(mediaType string) ([]TrendingItem, error) {
 	return items, nil
 }
 
-// ── helpers ───────────────────────────────────────────────────────
-
 func trendingScore(watchlist, favorite, watched, recent int) float64 {
 	return float64(watchlist)*weightWatchlist +
 		float64(favorite)*weightFavorite +
@@ -99,7 +94,6 @@ func trendingScore(watchlist, favorite, watched, recent int) float64 {
 		float64(recent)*weightRecentActivity
 }
 
-// isInTrending ตรวจว่า mediaID อยู่ใน top trending list หรือเปล่า
 func (s *Service) isInTrending(mediaID int, mediaType string) (bool, error) {
 	rows, err := s.repo.GetTrending(mediaType, trendingLimit)
 	if err != nil {

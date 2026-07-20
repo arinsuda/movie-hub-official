@@ -1,0 +1,42 @@
+{
+  "title": "User Profile",
+  "stats": {
+    "movies": "Movies Watched",
+    "reviews": "Total Reviews",
+    "watchlist": "Watchlist Count",
+    "followers": "Followers",
+    "following": "Following"
+  },
+  "tabs": {
+    "reviews": "Reviews",
+    "watched": "Watched",
+    "watchlist": "Watchlist",
+    "likes": "Likes",
+    "achievements": "Achievements"
+  },
+  "editProfile": {
+    "title": "Edit Profile Information",
+    "avatarLabel": "Profile Image",
+    "avatarUrl": "Avatar URL",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "bioLabel": "Short Bio",
+    "bioPlaceholder": "Tell us a bit about yourself...",
+    "emailLabel": "Email (Cannot be modified)",
+    "save": "Save Changes",
+    "success": "Your profile information has been successfully updated!"
+  },
+  "actions": {
+    "follow": "Follow",
+    "unfollow": "Unfollow",
+    "following": "Following",
+    "pending": "Requested"
+  },
+  "empty": {
+    "reviews": "Has not written any reviews yet.",
+    "watched": "Has not marked any movies as watched yet.",
+    "watchlist": "Has not added any movies to their watchlist yet.",
+    "likes": "Has not liked any movies yet.",
+    "achievements": "No achievements unlocked yet."
+  }
+}

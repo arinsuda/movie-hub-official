@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/shared"
 	mw "github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 )
@@ -20,12 +21,11 @@ func NewHandler(svc *Service) *Handler {
 // ── Review ────────────────────────────────────────────────────────
 
 func (h *Handler) CreateReview(c fiber.Ctx) error {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return badRequest(c, "invalid user id")
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req CreateReviewRequest
@@ -33,7 +33,7 @@ func (h *Handler) CreateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.CreateReview(userID, req)
+	review, err := h.svc.CreateReview(c.Context(), claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -59,7 +59,7 @@ func (h *Handler) GetUserReviews(c fiber.Ctx) error {
 		return badRequest(c, err.Error())
 	}
 
-	reviews, err := h.svc.GetUserReviews(userID, claims.UserID, filter)
+	reviews, err := h.svc.GetUserReviews(c.Context(), userID, claims.UserID, filter)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -78,7 +78,7 @@ func (h *Handler) GetMediaReviews(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	reviews, err := h.svc.GetMediaReviews(mediaID, mt, claims.UserID)
+	reviews, err := h.svc.GetMediaReviews(c.Context(), mediaID, mt, claims.UserID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -86,12 +86,16 @@ func (h *Handler) GetMediaReviews(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateReview(c fiber.Ctx) error {
-	userID, reviewID, err := parseIDs(c)
+	reviewID, err := parseReviewID(c)
 	if err != nil {
-		return badRequest(c, err.Error())
+		return badRequest(c, "invalid review id")
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req UpdateReviewRequest
@@ -99,7 +103,7 @@ func (h *Handler) UpdateReview(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	review, err := h.svc.UpdateReview(reviewID, userID, req)
+	review, err := h.svc.UpdateReview(c.Context(), reviewID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -107,15 +111,19 @@ func (h *Handler) UpdateReview(c fiber.Ctx) error {
 }
 
 func (h *Handler) DeleteReview(c fiber.Ctx) error {
-	userID, reviewID, err := parseIDs(c)
+	reviewID, err := parseReviewID(c)
 	if err != nil {
-		return badRequest(c, err.Error())
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+		return badRequest(c, "invalid review id")
 	}
 
-	if err := h.svc.DeleteReview(reviewID, userID); err != nil {
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
+	}
+
+	if err := h.svc.DeleteReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -156,7 +164,7 @@ func (h *Handler) LikeReview(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.LikeReview(reviewID, claims.UserID); err != nil {
+	if err := h.svc.LikeReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -169,7 +177,7 @@ func (h *Handler) UnlikeReview(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.UnlikeReview(reviewID, claims.UserID); err != nil {
+	if err := h.svc.UnlikeReview(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -189,7 +197,7 @@ func (h *Handler) CreateComment(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	comment, err := h.svc.CreateComment(reviewID, claims.UserID, req)
+	comment, err := h.svc.CreateComment(c.Context(), reviewID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -203,7 +211,7 @@ func (h *Handler) GetComments(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	comments, err := h.svc.GetComments(reviewID, claims.UserID)
+	comments, err := h.svc.GetComments(c.Context(), reviewID, claims.UserID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -211,10 +219,6 @@ func (h *Handler) GetComments(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateComment(c fiber.Ctx) error {
-	reviewID, err := parseReviewID(c)
-	if err != nil {
-		return badRequest(c, "invalid review id")
-	}
 	commentID, err := parseCommentID(c)
 	if err != nil {
 		return badRequest(c, "invalid comment id")
@@ -226,8 +230,7 @@ func (h *Handler) UpdateComment(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	_ = reviewID
-	comment, err := h.svc.UpdateComment(commentID, claims.UserID, req)
+	comment, err := h.svc.UpdateComment(c.Context(), commentID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -245,7 +248,7 @@ func (h *Handler) DeleteComment(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.DeleteComment(commentID, reviewID, claims.UserID); err != nil {
+	if err := h.svc.DeleteComment(c.Context(), commentID, reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -260,7 +263,7 @@ func (h *Handler) MarkHelpful(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.MarkHelpful(reviewID, claims.UserID); err != nil {
+	if err := h.svc.MarkHelpful(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -273,7 +276,7 @@ func (h *Handler) UnmarkHelpful(c fiber.Ctx) error {
 	}
 	claims := mw.GetClaims(c)
 
-	if err := h.svc.UnmarkHelpful(reviewID, claims.UserID); err != nil {
+	if err := h.svc.UnmarkHelpful(c.Context(), reviewID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -350,9 +353,9 @@ func parseReviewFilter(c fiber.Ctx) (ReviewFilter, error) {
 //	"series" → "tv"
 func routeToMediaType(route string) string {
 	switch route {
-	case "movies":
+	case "movies", "movie":
 		return "movie"
-	case "series":
+	case "series", "tv":
 		return "tv"
 	default:
 		return ""
@@ -383,25 +386,10 @@ func parseCommentID(c fiber.Ctx) (uint, error) {
 	return uint(id), nil
 }
 
-func parseIDs(c fiber.Ctx) (uint, uint, error) {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return 0, 0, err
-	}
-	reviewID, err := parseReviewID(c)
-	return userID, reviewID, err
-}
-
-func assertSelf(c fiber.Ctx, targetUserID uint) error {
-	claims := mw.GetClaims(c)
-	if claims == nil || claims.UserID != targetUserID {
-		return ErrForbidden
-	}
-	return nil
-}
-
 func handleError(c fiber.Ctx, err error) error {
 	switch {
+	case shared.IsPgUniqueViolationOn(err, "uq_active_user_media_review"):
+		return shared.WriteAPIError(c, fiber.StatusConflict, shared.ErrorCodeDuplicateReview, "you have already reviewed this media")
 	case errors.Is(err, ErrReviewNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "review not found"})
 	case errors.Is(err, ErrCommentNotFound):
@@ -419,7 +407,7 @@ func handleError(c fiber.Ctx, err error) error {
 	case errors.Is(err, ErrInvalidWatchedAt):
 		return badRequest(c, "invalid watched_at format, use YYYY-MM-DD")
 	case errors.Is(err, ErrInvalidRating):
-		return badRequest(c, "rating must be between 0 and 10")
+		return shared.WriteAPIError(c, fiber.StatusBadRequest, shared.ErrorCodeInvalidRating, "rating must be between 0.5 and 5.0 with step 0.5")
 	case errors.Is(err, ErrInvalidMediaType):
 		return badRequest(c, "media_type must be 'movie' or 'tv'")
 	case errors.Is(err, ErrInvalidMediaID):

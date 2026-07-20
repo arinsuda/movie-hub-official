@@ -18,12 +18,11 @@ func NewHandler(svc *Service) *Handler {
 }
 
 func (h *Handler) AddItem(c fiber.Ctx) error {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return badRequest(c, "invalid user id")
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req AddItemRequest
@@ -31,7 +30,7 @@ func (h *Handler) AddItem(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	item, err := h.svc.AddItem(userID, req)
+	item, err := h.svc.AddItem(c.Context(), claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -44,9 +43,7 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 	if err != nil {
 		return badRequest(c, "invalid user id")
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
-	}
+	claims := mw.GetClaims(c)
 
 	var listType *movie_module.ListType
 	if q := c.Query("list_type"); q != "" {
@@ -60,7 +57,12 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 		mediaType = &mt
 	}
 
-	items, err := h.svc.GetLibrary(userID, listType, mediaType)
+	var requesterID uint
+	if claims != nil {
+		requesterID = claims.UserID
+	}
+
+	items, err := h.svc.GetLibrary(c.Context(), userID, requesterID, listType, mediaType)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -69,15 +71,19 @@ func (h *Handler) GetLibrary(c fiber.Ctx) error {
 }
 
 func (h *Handler) RemoveItem(c fiber.Ctx) error {
-	userID, itemID, err := parseIDs(c)
+	itemID, err := parseItemID(c)
 	if err != nil {
 		return badRequest(c, err.Error())
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
-	if err := h.svc.RemoveItem(itemID, userID); err != nil {
+	if err := h.svc.RemoveItem(c.Context(), itemID, claims.UserID); err != nil {
 		return handleError(c, err)
 	}
 
@@ -85,12 +91,16 @@ func (h *Handler) RemoveItem(c fiber.Ctx) error {
 }
 
 func (h *Handler) UpdateItem(c fiber.Ctx) error {
-	userID, itemID, err := parseIDs(c)
+	itemID, err := parseItemID(c)
 	if err != nil {
 		return badRequest(c, err.Error())
 	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
 	var req UpdateItemRequest
@@ -98,7 +108,7 @@ func (h *Handler) UpdateItem(c fiber.Ctx) error {
 		return badRequest(c, "invalid request body")
 	}
 
-	item, err := h.svc.UpdateItem(itemID, userID, req)
+	item, err := h.svc.UpdateItem(c.Context(), itemID, claims.UserID, req)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -107,33 +117,30 @@ func (h *Handler) UpdateItem(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetMediaStatus(c fiber.Ctx) error {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return badRequest(c, "invalid user id")
-	}
-	if err := assertSelf(c, userID); err != nil {
-		return forbidden(c)
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "unauthorized",
+		})
 	}
 
-	mediaID, err := strconv.Atoi(c.Query("media_id"))
+	mediaID, err := strconv.Atoi(c.Params("mediaId"))
 	if err != nil || mediaID <= 0 {
 		return badRequest(c, "invalid media_id")
 	}
 
-	mediaType := movie_module.MediaType(c.Query("media_type"))
+	mediaType := movie_module.MediaType(c.Params("mediaType"))
 	if mediaType != movie_module.MediaMovie && mediaType != movie_module.MediaSeries {
 		return badRequest(c, "invalid media_type")
 	}
 
-	status, err := h.svc.GetMediaStatus(userID, mediaID, mediaType)
+	status, err := h.svc.GetMediaStatus(claims.UserID, mediaID, mediaType)
 	if err != nil {
 		return handleError(c, err)
 	}
 
 	return c.JSON(status)
 }
-
-// — helpers —
 
 func parseUserID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("userId"))
@@ -149,23 +156,6 @@ func parseItemID(c fiber.Ctx) (uint, error) {
 		return 0, errors.New("invalid item id")
 	}
 	return uint(id), nil
-}
-
-func parseIDs(c fiber.Ctx) (uint, uint, error) {
-	userID, err := parseUserID(c)
-	if err != nil {
-		return 0, 0, err
-	}
-	itemID, err := parseItemID(c)
-	return userID, itemID, err
-}
-
-func assertSelf(c fiber.Ctx, targetUserID uint) error {
-	claims := mw.GetClaims(c)
-	if claims == nil || claims.UserID != targetUserID {
-		return ErrForbidden
-	}
-	return nil
 }
 
 func handleError(c fiber.Ctx, err error) error {

@@ -1,0 +1,14 @@
+{
+  "hero": {
+    "playTrailer": "เล่นทีเซอร์",
+    "viewDetail": "ดูรายละเอียด"
+  },
+  "sections": {
+    "popularMovies": "ภาพยนตร์ยอดนิยม",
+    "topRatedMovies": "ภาพยนตร์ยอดเยี่ยม",
+    "popularTV": "ซีรีส์ยอดนิยม",
+    "topRatedTV": "ซีรีส์ยอดเยี่ยม",
+    "nowPlaying": "กำลังฉายในโรง",
+    "upcoming": "ภาพยนตร์เร็วๆ นี้"
+  }
+}

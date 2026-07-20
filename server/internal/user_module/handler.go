@@ -163,10 +163,6 @@ func (h *Handler) VerifyEmailChange(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"user": profile})
 }
 
-// ── Password ──────────────────────────────────────────────────────────
-
-// ChangePassword: Case 1 — จำรหัสผ่านเดิมได้
-// PATCH /users/:userId/password
 func (h *Handler) ChangePassword(c fiber.Ctx) error {
 	targetID, err := parseUserID(c)
 	if err != nil {
@@ -195,8 +191,6 @@ func (h *Handler) ChangePassword(c fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"message": "password changed successfully"})
 }
-
-// ── error handlers ────────────────────────────────────────────────────
 
 func handlePasswordError(c fiber.Ctx, err error) error {
 	switch {
@@ -237,8 +231,6 @@ func handleEmailChangeError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 }
-
-// ── form helpers ──────────────────────────────────────────────────────
 
 type multipartFile struct {
 	file   multipart.File

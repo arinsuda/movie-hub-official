@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// Mailer interface ทำให้ test ง่าย (mock ได้)
 type Mailer interface {
 	SendOTP(toEmail, otp string) error
 }
@@ -53,8 +52,6 @@ func (m *smtpMailer) SendOTP(toEmail, otp string) error {
 	return nil
 }
 
-// buildOTPEmailBody: OTP แสดงด้วย CSS letter-spacing (ไม่แทรก &nbsp; ระหว่างตัวเลข)
-// เพื่อให้ user select/copy ได้ text สะอาด ตรงกับค่า otp เป๊ะๆ ไม่มี space แถมมา
 func buildOTPEmailBody(otp string) string {
 	return fmt.Sprintf(`
 <!DOCTYPE html>

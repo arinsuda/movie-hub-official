@@ -20,29 +20,25 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// libraryStatsRow รับผลจาก aggregate query ของ library
 type libraryStatsRow struct {
 	WatchlistCount int
 	FavoriteCount  int
 	WatchedCount   int
 }
 
-// reviewStatsRow รับผลจาก aggregate query ของ review
 type reviewStatsRow struct {
 	ReviewCount   int
 	AverageRating float32
 }
 
-// trendingRow ใช้ใน query trending list
 type trendingRow struct {
 	MediaID        int
 	WatchlistCount int
 	FavoriteCount  int
 	WatchedCount   int
-	RecentActivity int // จำนวน action ใน 7 วันที่ผ่านมา
+	RecentActivity int
 }
 
-// GetLibraryStats คืน watchlist / favorite / watched count ของ media นั้น
 func (r *repository) GetLibraryStats(mediaID int, mediaType string) (*libraryStatsRow, error) {
 	type row struct {
 		ListType string
@@ -73,7 +69,6 @@ func (r *repository) GetLibraryStats(mediaID int, mediaType string) (*librarySta
 	return result, nil
 }
 
-// GetReviewStats คืน review count และ average rating ของ media นั้น (public reviews)
 func (r *repository) GetReviewStats(mediaID int, mediaType string) (*reviewStatsRow, error) {
 	var result reviewStatsRow
 	err := r.db.Table("reviews").
@@ -84,12 +79,9 @@ func (r *repository) GetReviewStats(mediaID int, mediaType string) (*reviewStats
 	return &result, err
 }
 
-// GetTrending คืน top N media ของ mediaType โดยเรียงตาม trending score
-// Trending score = watchlist×1 + favorite×2 + watched×3 + recent_activity×1.5
 func (r *repository) GetTrending(mediaType string, limit int) ([]trendingRow, error) {
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
-	// Sub-query: นับ activity ใน 7 วัน
 	recentSQL := r.db.Table("library_items").
 		Select("media_id, COUNT(*) AS recent_activity").
 		Where("media_type = ? AND deleted_at IS NULL AND created_at >= ?", mediaType, sevenDaysAgo).

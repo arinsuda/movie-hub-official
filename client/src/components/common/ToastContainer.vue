@@ -82,14 +82,6 @@
       warning: (msg: string, title?: string) =>
         addToast({ message: msg, title, type: "warning" }),
     }
-
-    // เทสระบบจำลอง: ส่งข้อความต้อนรับหลังจากเปิดเว็บ 1.5 วินาที
-    setTimeout(() => {
-      ;(window as any).$toast.success(
-        "ยินดีต้อนรับกลับเข้าสู่คลังภาพยนตร์รีวิว!",
-        "REMOV HUB",
-      )
-    }, 1500)
   })
 
   onUnmounted(() => {

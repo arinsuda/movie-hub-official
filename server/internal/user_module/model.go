@@ -28,11 +28,28 @@ const (
 	GenderOther  GenderType = "other"
 )
 
+type AuthProvider string
+
+const (
+	ProviderGoogle AuthProvider = "google"
+)
+
+type UserIdentity struct {
+	ID              uint         `gorm:"primarykey;autoIncrement"`
+	UserID          uint         `gorm:"not null;index"`
+	User            User         `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Provider        AuthProvider `gorm:"type:varchar(50);not null"`
+	ProviderSubject string       `gorm:"type:varchar(255);not null"`
+	ProviderEmail   string       `gorm:"type:varchar(255);not null"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type User struct {
 	gorm.Model
-	Username        string `gorm:"type:varchar(50);uniqueIndex;not null"`
-	Password        string `gorm:"not null"`
-	Email           string `gorm:"type:varchar(100);uniqueIndex;not null"`
+	Username        string  `gorm:"type:varchar(50);uniqueIndex;not null"`
+	Password        *string `gorm:"type:varchar(255);default:null"`
+	Email           string  `gorm:"type:varchar(100);uniqueIndex;not null"`
 	VerifiedEmailAt *time.Time
 	DisplayName     *string `gorm:"type:varchar(100)"`
 	Bio             *string `gorm:"type:text"`
@@ -45,6 +62,7 @@ type User struct {
 	FavoriteGenres  *string    `gorm:"type:text"`
 	IsPrivate       bool       `gorm:"default:false"`
 	IsActive        bool       `gorm:"default:true"`
+	FirstLoginAt    *time.Time `gorm:"default:null"`
 }
 
 type EmailVerification struct {

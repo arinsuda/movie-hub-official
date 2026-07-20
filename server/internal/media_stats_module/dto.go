@@ -5,6 +5,7 @@ import (
 
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 )
+
 type StatsResponse struct {
 	MediaID        int                    `json:"media_id"`
 	MediaType      movie_module.MediaType `json:"media_type"`
@@ -12,8 +13,8 @@ type StatsResponse struct {
 	ViewCount      int                    `json:"view_count"`
 	ReviewCount    int                    `json:"review_count"`
 	WatchlistCount int                    `json:"watchlist_count"`
-	AverageRating  float32                `json:"average_rating"` 
-	HasRating      bool                   `json:"has_rating"`    
+	AverageRating  float32                `json:"average_rating"`
+	HasRating      bool                   `json:"has_rating"`
 	LikedAt        *time.Time             `json:"liked_at,omitempty"`
 	WatchlistedAt  *time.Time             `json:"watchlisted_at,omitempty"`
 }

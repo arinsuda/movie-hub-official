@@ -1,12 +1,8 @@
 package notification_module
 
-import (
-	"github.com/gofiber/fiber/v3"
-	"gorm.io/gorm"
-)
+import "github.com/gofiber/fiber/v3"
 
-func RegisterRoutes(router fiber.Router, db *gorm.DB, userProvider UserProvider) {
-	svc := NewService(db, userProvider)
+func RegisterRoutes(router fiber.Router, svc *Service, hub *Hub) fiber.Router {
 	h := NewHandler(svc)
 
 	notif := router.Group("/notifications")
@@ -14,4 +10,6 @@ func RegisterRoutes(router fiber.Router, db *gorm.DB, userProvider UserProvider)
 	notif.Get("/unread-count", h.GetUnreadCount)
 	notif.Patch("/read", h.MarkRead)
 	notif.Delete("/", h.DeleteNotifications)
+
+	return router
 }

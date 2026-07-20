@@ -12,11 +12,6 @@ const (
 	StatusAccepted FollowStatus = "accepted"
 )
 
-// UserFollow เก็บความสัมพันธ์ follower → followee
-//
-// Logic:
-//   - followee เป็น public  → status = accepted ทันที
-//   - followee เป็น private → status = pending รอ approve
 type UserFollow struct {
 	ID         uint         `gorm:"primarykey;autoIncrement"`
 	FollowerID uint         `gorm:"not null;uniqueIndex:idx_follow_pair"`

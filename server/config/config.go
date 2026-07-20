@@ -10,20 +10,37 @@ import (
 type Config struct {
 	Port       string
 	AppBaseURL string
+	CORS       CORSConfig
 	DB         DBConfig
 	TMDB       TMDBConfig
 	JWT        JWTConfig
 	SMTP       SMTPConfig
 	Cookie     CookieConfig
 	MinIO      MinIOConfig
+	Google     GoogleConfig
+}
+
+type GoogleConfig struct {
+	Enabled            bool
+	ClientID           string
+	ClientSecret       string
+	RedirectURL        string
+	FrontendSuccessURL string
+	FrontendErrorURL   string
+}
+
+type CORSConfig struct {
+	AllowedOrigin string
 }
 
 type DBConfig struct {
-	Host     string
-	User     string
-	Password string
-	Name     string
-	Port     string
+	Host                        string
+	User                        string
+	Password                    string
+	Name                        string
+	Port                        string
+	MigrationLockTimeoutMs      int
+	MigrationStatementTimeoutMs int
 }
 
 type TMDBConfig struct {
@@ -62,16 +79,23 @@ type MinIOConfig struct {
 
 func Load() (*Config, error) {
 	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	migrationLockTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_LOCK_TIMEOUT_MS", "10000"))
+	migrationStatementTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_STATEMENT_TIMEOUT_MS", "15000"))
 
-	return &Config{
+	cfg := &Config{
 		Port:       getEnv("PORT", "8080"),
 		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:8080"),
+		CORS: CORSConfig{
+			AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
+		},
 		DB: DBConfig{
-			Host:     requireEnv("POSTGRES_HOST"),
-			User:     requireEnv("POSTGRES_USER"),
-			Password: requireEnv("POSTGRES_PASSWORD"),
-			Name:     requireEnv("POSTGRES_DB"),
-			Port:     getEnv("POSTGRES_PORT", "5432"),
+			Host:                        requireEnv("POSTGRES_HOST"),
+			User:                        requireEnv("POSTGRES_USER"),
+			Password:                    requireEnv("POSTGRES_PASSWORD"),
+			Name:                        requireEnv("POSTGRES_DB"),
+			Port:                        getEnv("POSTGRES_PORT", "5432"),
+			MigrationLockTimeoutMs:      migrationLockTimeoutMs,
+			MigrationStatementTimeoutMs: migrationStatementTimeoutMs,
 		},
 		TMDB: TMDBConfig{
 			BaseURL: requireEnv("THE_MOVIE_BASE_API"),
@@ -102,7 +126,23 @@ func Load() (*Config, error) {
 			BucketName: getEnv("MINIO_BUCKET_NAME", "remov-private"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		},
-	}, nil
+		Google: GoogleConfig{
+			Enabled:            getEnv("GOOGLE_OAUTH_ENABLED", "false") == "true",
+			ClientID:           getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret:       getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURL:        getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
+			FrontendSuccessURL: getEnv("GOOGLE_FRONTEND_SUCCESS_URL", "http://localhost:5173/"),
+			FrontendErrorURL:   getEnv("GOOGLE_FRONTEND_ERROR_URL", "http://localhost:5173/login"),
+		},
+	}
+
+	if cfg.Google.Enabled {
+		if cfg.Google.ClientID == "" || cfg.Google.ClientSecret == "" || cfg.Google.RedirectURL == "" || cfg.Google.FrontendSuccessURL == "" || cfg.Google.FrontendErrorURL == "" {
+			return nil, fmt.Errorf("GOOGLE_OAUTH_ENABLED is true but missing required Google OAuth configuration variables")
+		}
+	}
+
+	return cfg, nil
 }
 
 func (d DBConfig) DSN() string {

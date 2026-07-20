@@ -33,9 +33,10 @@
             <button
               class="btn-confirm"
               :class="config.confirmClass"
+              :disabled="confirmDisabled"
               @click="emit('confirm')"
             >
-              {{ config.confirmLabel }}
+              {{ confirmDisabled ? "Processing..." : config.confirmLabel }}
             </button>
           </div>
         </div>
@@ -45,14 +46,17 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from "vue"
-  import { Heart, Bookmark, Eye, Mail } from "lucide-vue-next"
+  import { computed, watch, onBeforeUnmount } from "vue"
+  import { Heart, Bookmark, Eye, Mail, UserMinus, Trash2 } from "lucide-vue-next"
   import type { ListType } from "@/types"
+
+  type ConfirmModalType = ListType | "email_change" | "unfollow" | "bmol_delete"
 
   const props = defineProps<{
     modelValue: boolean
-    listType: ListType
+    listType: ConfirmModalType
     itemName?: string
+    confirmDisabled?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -62,7 +66,7 @@
   }>()
 
   const configs: Record<
-    ListType,
+    ConfirmModalType,
     {
       icon: unknown
       iconClass: string
@@ -114,18 +118,54 @@
       confirmLabel: "Send OTP",
       confirmClass: "confirm-blue",
     },
+    unfollow: {
+      icon: UserMinus,
+      iconClass: "icon-user-minus",
+      ariaLabel: "Unfollow confirmation",
+      title: "Unfollow User?",
+      description: "You're about to unfollow",
+      descriptionSuffix: ". You can follow them again at any time.",
+      confirmLabel: "Unfollow",
+      confirmClass: "confirm-red",
+    },
+    bmol_delete: {
+      icon: Trash2,
+      iconClass: "icon-trash",
+      ariaLabel: "Delete BMOL item confirmation",
+      title: "Remove from Best Movies?",
+      description: "Remove",
+      descriptionSuffix: " from your Best Movies of Life list.",
+      confirmLabel: "Remove",
+      confirmClass: "confirm-red",
+    },
   }
 
   const config = computed(() => configs[props.listType])
+
+  watch(() => props.modelValue, (newVal) => {
+    if (newVal) {
+      document.body.style.overflow = "hidden"
+    } else {
+      const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+      if (activeBackdrops.length <= 1) {
+        document.body.style.overflow = ""
+      }
+    }
+  }, { immediate: true })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.72);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -147,6 +187,7 @@
     box-shadow:
       0 24px 64px rgba(0, 0, 0, 0.6),
       0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    will-change: transform, opacity;
   }
 
   /* Icon */
@@ -221,7 +262,7 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: background-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
     font-family:
       -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     letter-spacing: 0.01em;
@@ -298,5 +339,22 @@
     background: #0071e3;
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(10, 132, 255, 0.35);
+  }
+  .icon-user-minus {
+    background: rgba(225, 37, 27, 0.12);
+    color: #e1251b;
+    border: 1px solid rgba(225, 37, 27, 0.2);
+  }
+  .icon-trash {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .btn-confirm:disabled,
+  .btn-cancel:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
   }
 </style>

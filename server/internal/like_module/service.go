@@ -1,13 +1,16 @@
 package like_module
 
 import (
+	"context"
 	"errors"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
+	"github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
-	usermodule "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
 
@@ -17,44 +20,103 @@ type Service struct {
 	repo       *repository
 	db         *gorm.DB
 	achieveSvc achievementsmodule.Service
+	notifSvc   *notification_module.Service
+	feedSvc    feed_module.Service
+	policy     privacy_policy.UserAccessPolicy
 }
 
-func NewService(db *gorm.DB, achieve achievementsmodule.Service) *Service {
+func NewService(
+	db *gorm.DB,
+	achieve achievementsmodule.Service,
+	notif *notification_module.Service,
+	feed feed_module.Service,
+	policy privacy_policy.UserAccessPolicy,
+) *Service {
 	return &Service{
 		repo:       newRepository(db),
 		db:         db,
 		achieveSvc: achieve,
+		notifSvc:   notif,
+		feedSvc:    feed,
+		policy:     policy,
 	}
 }
 
-func (s *Service) Like(userID uint, mediaID int, mediaType movie_module.MediaType) error {
+func (s *Service) Like(ctx context.Context, userID uint, mediaID int, mediaType movie_module.MediaType) error {
+	if mediaType != movie_module.MediaMovie && mediaType != movie_module.MediaSeries {
+		return errors.New("invalid media type")
+	}
+	if mediaID <= 0 {
+		return errors.New("invalid media id")
+	}
+
 	if err := s.repo.Create(userID, mediaID, mediaType); err != nil {
 		return err
 	}
 
-	// ── Achievement: like_count ───────────────────────────────────
 	var count int64
-	s.db.Model(&MediaLike{}).
+	s.db.WithContext(ctx).Model(&MediaLike{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&count)
-	_, _ = s.achieveSvc.Track(userID, "like_count", int(count))
+	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "like_count", int(count))
+	s.createAchievementFeedActivities(ctx, userID, unlocked)
+
+	if s.notifSvc != nil {
+		if actor, err := s.getUserSummary(userID); err == nil {
+			var title string
+			switch mediaType {
+			case movie_module.MediaMovie:
+				if details, err := tmdbmodule.GetMovieByID(mediaID); err == nil && details != nil {
+					title = details.Title
+				}
+			case movie_module.MediaSeries:
+				if details, err := tmdbmodule.GetSeriesByID(mediaID); err == nil && details != nil {
+					title = details.Name
+				}
+			}
+			_ = s.notifSvc.PushFollowingLikedMedia(
+				ctx,
+				userID,
+				actor.Username,
+				uint(mediaID),
+				title,
+			)
+		}
+	}
+
+	if s.feedSvc != nil {
+		mt := string(mediaType)
+		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityMediaLiked, feed_module.ActivityPayload{
+			MediaID:   &mediaID,
+			MediaType: &mt,
+		})
+	}
 
 	return nil
 }
 
-func (s *Service) Unlike(userID uint, mediaID int, mediaType movie_module.MediaType) error {
-	return s.repo.Delete(userID, mediaID, mediaType)
-}
-
-func (s *Service) GetLikes(ownerID, requesterID uint) ([]LikeResponse, error) {
-	userRepo := usermodule.NewPublicRepository(s.db)
-	owner, _, _, _, err := userRepo.FindByID(ownerID)
-	if err != nil {
-		return nil, err
+func (s *Service) Unlike(ctx context.Context, userID uint, mediaID int, mediaType movie_module.MediaType) error {
+	if err := s.repo.Delete(userID, mediaID, mediaType); err != nil {
+		return err
 	}
 
-	if owner.IsPrivate && ownerID != requesterID {
-		return nil, ErrForbidden
+	if s.feedSvc != nil {
+		mt := string(mediaType)
+		_ = s.feedSvc.DeleteMediaActivity(ctx, userID, feed_module.ActivityMediaLiked, mediaID, mt)
+	}
+
+	return nil
+}
+
+func (s *Service) GetLikes(ctx context.Context, ownerID, requesterID uint) ([]LikeResponse, error) {
+	if s.policy != nil {
+		canView, err := s.policy.CanViewProfileSection(ctx, requesterID, ownerID, privacy_policy.SectionLibrary)
+		if err != nil {
+			return nil, err
+		}
+		if !canView {
+			return nil, ErrForbidden
+		}
 	}
 
 	likes, err := s.repo.FindByUser(ownerID)
@@ -66,7 +128,7 @@ func (s *Service) GetLikes(ownerID, requesterID uint) ([]LikeResponse, error) {
 	for i, like := range likes {
 		media := shared.MediaSummary{
 			ID:        like.MediaID,
-			MediaType: like.MediaType,
+			MediaType: shared.MediaType(like.MediaType),
 		}
 
 		switch like.MediaType {
@@ -95,4 +157,28 @@ func (s *Service) GetLikes(ownerID, requesterID uint) ([]LikeResponse, error) {
 	}
 
 	return responses, nil
+}
+
+func (s *Service) createAchievementFeedActivities(ctx context.Context, userID uint, unlocked []shared.NeutralUnlocked) {
+	if s.feedSvc == nil {
+		return
+	}
+	for _, u := range unlocked {
+		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityAchievementUnlocked, feed_module.ActivityPayload{
+			AchievementID: &u.ID,
+			Message:       u.Name,
+		})
+	}
+}
+
+type UserSummary struct {
+	Username string
+}
+
+func (s *Service) getUserSummary(userID uint) (*UserSummary, error) {
+	var u struct {
+		Username string
+	}
+	err := s.db.Table("users").Where("id = ?", userID).Select("username").First(&u).Error
+	return &UserSummary{Username: u.Username}, err
 }

@@ -61,7 +61,6 @@ func (r *repository) ListUserAchievements(userID uint, filter UserAchievementFil
 	var list []UserAchievement
 	var total int64
 
-	// สร้าง query ใหม่ทุกครั้งที่เรียก เพื่อไม่ให้ clause ไปติดกันระหว่าง Count กับ Find
 	buildQuery := func() *gorm.DB {
 		q := r.db.Table("achievements").
 			Joins(`LEFT JOIN user_achievements
@@ -78,7 +77,7 @@ func (r *repository) ListUserAchievements(userID uint, filter UserAchievementFil
 			if *filter.Unlocked {
 				q = q.Where("user_achievements.is_unlocked = true")
 			} else {
-				// ยังไม่ unlock = ไม่มีแถวใน user_achievements เลย หรือมีแต่ is_unlocked = false
+
 				q = q.Where("COALESCE(user_achievements.is_unlocked, false) = false")
 			}
 		}
@@ -110,7 +109,6 @@ func (r *repository) ListUserAchievements(userID uint, filter UserAchievementFil
 		ids[i] = a.ID
 	}
 
-	// ดึง progress จริงของ user เฉพาะ achievement ที่อยู่ในหน้านี้
 	var uas []UserAchievement
 	if err := r.db.
 		Where("user_id = ? AND achievement_id IN ?", userID, ids).
@@ -123,7 +121,6 @@ func (r *repository) ListUserAchievements(userID uint, filter UserAchievementFil
 		uaMap[ua.AchievementID] = ua
 	}
 
-	// merge: ถ้า user ยังไม่มีแถว -> ใส่ default locked, current_count = 0
 	list = make([]UserAchievement, len(achievements))
 	for i, a := range achievements {
 		if ua, ok := uaMap[a.ID]; ok {

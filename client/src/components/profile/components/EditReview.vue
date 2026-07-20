@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-  import { reactive, ref } from "vue"
+  import { reactive, ref, onMounted, onBeforeUnmount } from "vue"
   import { Star, Film, X } from "lucide-vue-next"
   import { reviewApi } from "@/api/api"
   import type { ReviewResponse } from "@/types"
@@ -168,7 +168,7 @@
     if (saving.value) return
     try {
       saving.value = true
-      const res = await reviewApi.updateReview(props.userId, props.review.id, {
+      const res = await reviewApi.updateReview(props.review.id, {
         rating: form.rating,
         body: form.body,
       })
@@ -179,6 +179,17 @@
       saving.value = false
     }
   }
+
+  onMounted(() => {
+    document.body.style.overflow = "hidden"
+  })
+
+  onBeforeUnmount(() => {
+    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
+    if (activeBackdrops.length <= 1) {
+      document.body.style.overflow = ""
+    }
+  })
 </script>
 
 <style scoped>

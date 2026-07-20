@@ -1,0 +1,9 @@
+{
+  "reviews": {
+    "errors": {
+      "alreadyExists": "You have already reviewed this media",
+      "invalidRating": "Rating must be between 0.5 and 5.0",
+      "notRated": "NR"
+    }
+  }
+}

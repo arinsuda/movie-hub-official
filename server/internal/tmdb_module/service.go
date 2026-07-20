@@ -3,13 +3,64 @@ package tmdbmodule
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
+const defaultRegion = "TH"
+
+func normalizePage(page int) int {
+	if page < 1 {
+		return 1
+	}
+
+	if page > 500 {
+		return 500
+	}
+
+	return page
+}
+
 func pageParams(page int) url.Values {
-	p := url.Values{}
-	p.Set("page", fmt.Sprintf("%d", page))
-	return p
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(normalizePage(page)))
+	return params
+}
+
+func regionalPageParams(page int) url.Values {
+	params := pageParams(page)
+	params.Set("region", defaultRegion)
+	return params
+}
+
+type RequestOptions struct {
+	Language string
+	Region   string
+}
+
+func (o RequestOptions) apply(params url.Values) url.Values {
+	if params == nil {
+		params = url.Values{}
+	}
+
+	if o.Language != "" {
+		params.Set("language", o.Language)
+	}
+
+	region := o.Region
+	if region == "" {
+		region = defaultRegion
+	}
+	params.Set("region", region)
+
+	return params
+}
+
+func listParams(page int, options RequestOptions) url.Values {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(normalizePage(page)))
+
+	return options.apply(params)
 }
 
 func GetPopular(page int) (*PaginatedResult[Movie], error) {
@@ -20,11 +71,22 @@ func GetPopular(page int) (*PaginatedResult[Movie], error) {
 	return &result, nil
 }
 
-func GetNowPlaying(page int) (*PaginatedResult[Movie], error) {
+func GetNowPlaying(
+	page int,
+	options RequestOptions,
+) (*PaginatedResult[Movie], error) {
 	var result PaginatedResult[Movie]
-	if err := get("/movie/now_playing", pageParams(page), &result); err != nil {
+
+	params := listParams(page, options)
+
+	if err := get(
+		"/movie/now_playing",
+		params,
+		&result,
+	); err != nil {
 		return nil, fmt.Errorf("GetNowPlaying: %w", err)
 	}
+
 	return &result, nil
 }
 
@@ -38,9 +100,15 @@ func GetTopRated(page int) (*PaginatedResult[Movie], error) {
 
 func GetUpcoming(page int) (*PaginatedResult[Movie], error) {
 	var result PaginatedResult[Movie]
-	if err := get("/movie/upcoming", pageParams(page), &result); err != nil {
+
+	if err := get(
+		"/movie/upcoming",
+		regionalPageParams(page),
+		&result,
+	); err != nil {
 		return nil, fmt.Errorf("GetUpcoming: %w", err)
 	}
+
 	return &result, nil
 }
 
@@ -218,7 +286,6 @@ func GetSeriesGenres() ([]Genre, error) {
 
 func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error) {
 	params := pageParams(page)
-	// ✅ เปลี่ยน , เป็น | เพื่อให้ TMDB ใช้ OR แทน AND
 	orGenres := strings.ReplaceAll(withGenres, ",", "|")
 	params.Set("with_genres", orGenres)
 	params.Set("sort_by", "popularity.desc")
@@ -226,6 +293,64 @@ func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error
 	var result PaginatedResult[Movie]
 	if err := get("/discover/movie", params, &result); err != nil {
 		return nil, fmt.Errorf("DiscoverMovies: %w", err)
+	}
+	return &result, nil
+}
+
+func SearchPerson(query string, page int) (*PaginatedResult[Person], error) {
+	params := pageParams(page)
+	params.Set("query", query)
+
+	var result PaginatedResult[Person]
+	if err := get("/search/person", params, &result); err != nil {
+		return nil, fmt.Errorf("SearchPerson(%q): %w", query, err)
+	}
+	return &result, nil
+}
+
+func GetPersonMovieCredits(personID int) (*PersonMovieCredits, error) {
+	var result PersonMovieCredits
+	path := fmt.Sprintf("/person/%d/movie_credits", personID)
+
+	if err := get(path, nil, &result); err != nil {
+		return nil, fmt.Errorf("GetPersonMovieCredits(%d): %w", personID, err)
+	}
+	return &result, nil
+}
+
+func GetPersonTVCredits(personID int) (*PersonTVCredits, error) {
+	var result PersonTVCredits
+	path := fmt.Sprintf("/person/%d/tv_credits", personID)
+
+	if err := get(path, nil, &result); err != nil {
+		return nil, fmt.Errorf("GetPersonTVCredits(%d): %w", personID, err)
+	}
+	return &result, nil
+}
+
+type MovieReleaseDate struct {
+	Certification string `json:"certification"`
+	ReleaseDate   string `json:"release_date"`
+	Type          int    `json:"type"`
+	Note          string `json:"note"`
+}
+
+type CountryReleaseDates struct {
+	CountryCode  string             `json:"iso_3166_1"`
+	ReleaseDates []MovieReleaseDate `json:"release_dates"`
+}
+
+type MovieReleaseDatesResult struct {
+	ID      int                   `json:"id"`
+	Results []CountryReleaseDates `json:"results"`
+}
+
+func GetMovieReleaseDates(tmdbID int) (*MovieReleaseDatesResult, error) {
+	var result MovieReleaseDatesResult
+	path := fmt.Sprintf("/movie/%d/release_dates", tmdbID)
+
+	if err := get(path, nil, &result); err != nil {
+		return nil, fmt.Errorf("GetMovieReleaseDates(%d): %w", tmdbID, err)
 	}
 	return &result, nil
 }

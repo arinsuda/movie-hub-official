@@ -3,22 +3,38 @@ package movie_module
 import (
 	"math/rand/v2"
 	"strconv"
+	"strings"
 	"time"
 
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/gofiber/fiber/v3"
 )
 
-type Handler struct{}
+type Handler struct {
+	svc *MovieService
+}
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(svc *MovieService) *Handler {
+	return &Handler{svc: svc}
+}
+
+func resolveTMDBLanguage(acceptLanguage string) string {
+	normalized := strings.ToLower(strings.TrimSpace(acceptLanguage))
+
+	switch {
+	case strings.HasPrefix(normalized, "en"):
+		return "en-US"
+	case strings.HasPrefix(normalized, "th"):
+		return "th-TH"
+	default:
+		return "th-TH"
+	}
 }
 
 func (h *Handler) GetPopular(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetPopular(page)
+	result, err := h.svc.GetPopular(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -28,7 +44,12 @@ func (h *Handler) GetPopular(c fiber.Ctx) error {
 func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetNowPlaying(page)
+	options := tmdb.RequestOptions{
+		Language: resolveTMDBLanguage(c.Get("Accept-Language")),
+		Region:   "TH",
+	}
+
+	result, err := h.svc.GetNowPlaying(c.Context(), page, options)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -38,7 +59,7 @@ func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 func (h *Handler) GetTopRated(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.GetTopRated(page)
+	result, err := h.svc.GetTopRated(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
@@ -46,24 +67,28 @@ func (h *Handler) GetTopRated(c fiber.Ctx) error {
 }
 
 func (h *Handler) GetUpcoming(c fiber.Ctx) error {
-	// 1. รับค่า page จาก query string ตามจริง (ถ้าไม่ส่งมาให้เป็นหน้า 1)
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	// 2. ยิงไปขอข้อมูลจาก TMDB ตรงๆ ตาม page นั้นๆ
-	result, err := tmdb.GetUpcoming(page)
+	result, err := h.svc.GetUpcoming(c.Context(), page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
-	var upcomingOnly []tmdb.Movie
+	location, err := time.LoadLocation("Asia/Bangkok")
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+	}
 
-	// 3. กรองเอาเฉพาะเรื่องที่ "ยังไม่ฉาย" หรือ "ฉายวันนี้" จริงๆ (กันเรื่องฉายแล้วหลุดเข้ามา)
+	now := time.Now().In(location)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+
+	var upcomingOnly []MovieDTO
+
 	for _, movie := range result.Results {
 		if len(movie.ReleaseDate) < 10 {
 			continue
 		}
-		releaseDate, err := time.Parse("2006-01-02", movie.ReleaseDate)
+		releaseDate, err := time.ParseInLocation("2006-01-02", movie.ReleaseDate, location)
 		if err != nil {
 			continue
 		}
@@ -73,7 +98,6 @@ func (h *Handler) GetUpcoming(c fiber.Ctx) error {
 		}
 	}
 
-	// 4. ส่งกลับไปใน Format เดิมของ TMDB เพื่อให้ Frontend เอาเลข page ไปเล่นต่อได้
 	return c.JSON(fiber.Map{
 		"page":          result.Page,
 		"results":       upcomingOnly,
@@ -169,7 +193,7 @@ func (h *Handler) Search(c fiber.Ctx) error {
 
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 
-	result, err := tmdb.SearchMovies(query, page)
+	result, err := h.svc.SearchMovies(c.Context(), query, page)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "ค้นหาไม่สำเร็จ"})
 	}
@@ -190,7 +214,7 @@ func (h *Handler) GetByID(c fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
 	}
 
-	movie, err := tmdb.GetMovieByID(id)
+	movie, err := h.svc.GetMovieByID(c.Context(), id)
 	if err != nil {
 		return c.Status(404).JSON(fiber.Map{"error": "ไม่พบหนัง"})
 	}
@@ -308,7 +332,6 @@ func (h *Handler) GetRecommended(c fiber.Ctx) error {
 		return h.GetPopular(c)
 	}
 
-	// ดึงหลาย page แล้วรวมกัน เพื่อให้ได้หนังมากพอ
 	var allResults []tmdb.Movie
 
 	for page := 1; page <= 3; page++ {
@@ -334,4 +357,44 @@ func (h *Handler) GetRecommended(c fiber.Ctx) error {
 		"results":       allResults,
 		"total_results": len(allResults),
 	})
+}
+
+func (h *Handler) SearchActor(c fiber.Ctx) error {
+	query := c.Query("q")
+	if query == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "กรุณาระบุคำค้นหา"})
+	}
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+
+	result, err := tmdb.SearchPerson(query, page)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ค้นหานักแสดงไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetMoviesByActor(c fiber.Ctx) error {
+	personID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	result, err := tmdb.GetPersonMovieCredits(personID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลผลงานไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
+func (h *Handler) GetSeriesByActor(c fiber.Ctx) error {
+	personID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	result, err := tmdb.GetPersonTVCredits(personID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลผลงานไม่สำเร็จ"})
+	}
+	return c.JSON(result)
 }

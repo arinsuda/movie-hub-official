@@ -1,0 +1,38 @@
+{
+  "eyebrow": "Support Developer",
+  "title": "Support REMOV Development",
+  "subtitle": "Your support is a huge motivation that helps us develop and maintain this platform to make it even better.",
+  "promptpay": {
+    "title": "Scan QR Code",
+    "name": "PromptPay",
+    "hint": "Scan with your bank app to transfer via PromptPay",
+    "fallback": "Could not load QR Code"
+  },
+  "bank": {
+    "title": "Bank Transfer",
+    "name": "Kasikorn Bank",
+    "accountName": "Mr. Arin Sudakijjathorn",
+    "copy": "Copy",
+    "copied": "Copied",
+    "fallback": "Could not load bank logo"
+  },
+  "impact": {
+    "title": "How does your support help?",
+    "server": {
+      "title": "Server Costs",
+      "desc": "Helps keep the website running smoothly and quickly at all times"
+    },
+    "features": {
+      "title": "New Features",
+      "desc": "Develop and add new capabilities that meet users' needs"
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "desc": "Fix issues and improve security for a better experience"
+    }
+  },
+  "thanks": {
+    "title": "Thank you for your support",
+    "subtitle": "We promise to develop REMOV into the best platform for everyone."
+  }
+}

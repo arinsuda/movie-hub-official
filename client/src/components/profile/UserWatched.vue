@@ -62,8 +62,8 @@
               item.genres.slice(0, 2).join(" · ")
             }}</span>
             <div class="overlay-bottom">
-              <span class="overlay-rating"
-                >⭐ {{ item.rating.toFixed(1) }}</span
+              <span class="overlay-rating flex items-center gap-0.5"
+                ><Star :size="9" class="fill-amber-500 text-amber-500" /> {{ item.rating.toFixed(1) }}</span
               >
               <span class="overlay-date"
                 ><Clock :size="9" /> {{ item.addedAt }}</span
@@ -87,7 +87,7 @@
 
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
-  import { Bookmark, Film, X, Clock } from "lucide-vue-next"
+  import { Bookmark, Film, X, Clock, Star } from "lucide-vue-next"
   import { libraryApi } from "@/api/api"
   import { useRouter } from "vue-router"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
@@ -126,7 +126,7 @@
   onMounted(async () => {
     try {
       loading.value = true
-      const response = await libraryApi.getLibrary(props.userId, {
+      const response = await libraryApi.getVisibleUserLibrary(props.userId, {
         list_type: "watched",
       })
 
@@ -171,7 +171,7 @@
     if (pendingId.value == null || !pendingType.value) return
 
     try {
-      await libraryApi.removeItem(props.userId, pendingId.value)
+      await libraryApi.removeItem(pendingId.value)
 
       watchlist.value = watchlist.value.filter(i => i.id !== pendingId.value)
       showModal.value = false

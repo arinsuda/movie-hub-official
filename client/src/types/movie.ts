@@ -141,3 +141,12 @@ export interface MediaStatusResponse {
   media_type: MediaType
   in_lists: MediaItemStatus[]
 }
+
+export interface BMOLItemResponse {
+  id: number
+  media: MediaSummary
+  media_type: MediaType
+  rank: number
+  created_at: string
+}
+

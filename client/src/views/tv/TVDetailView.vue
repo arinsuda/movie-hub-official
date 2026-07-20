@@ -1,6 +1,12 @@
 <template>
   <div class="movie-detail-page" ref="pageRef">
-    <div class="detail-backdrop" v-if="tv">
+    <div
+      class="transition-progress"
+      ref="progressBarRef"
+      v-if="isTransitioning"
+    ></div>
+
+    <div class="detail-backdrop" v-if="tv" ref="backdropRef">
       <img
         :src="`https://image.tmdb.org/t/p/w1280${tv.backdrop_path}`"
         :alt="tv.title"
@@ -91,7 +97,7 @@
           <div class="metadata-row">
             <span class="meta-badge" v-if="tv.release_date">
               <i class="pi pi-calendar"></i>
-              {{ formatYear(tv) }}
+              {{ formatYear(tv.release_date) }}
             </span>
             <span class="meta-badge" v-if="tv.runtime">
               <i class="pi pi-clock"></i>
@@ -99,11 +105,11 @@
             </span>
             <span class="meta-badge rating-tmdb" v-if="tv.vote_average">
               <i class="pi pi-star-fill"></i>
-              TMDB: {{ tv.vote_average.toFixed(2) }}
+              TMDB: {{ tv.vote_average.toFixed(1) }}
             </span>
-            <span class="meta-badge rating-remov">
-              <i class="pi pi-heart-fill"></i>
-              REMOV: {{ removStats.average_rating.toFixed(2) }}
+            <span class="meta-badge rating-remov" v-if="removStats.average_rating > 0">
+              <RemovRatingIcon :size="12" style="margin-right: 4px;" />
+              REMOV: {{ removStats.average_rating.toFixed(1) }}/5
             </span>
           </div>
 
@@ -208,13 +214,24 @@
             <h2 class="section-title">
               <i class="pi pi-comments"></i>รีวิวจากผู้ใช้งาน REMOV
             </h2>
-            <MovieReviews :movie-id="tvId" media-type="tv" />
+            <MovieReviews
+              :movie-id="displayTvId"
+              media-type="tv"
+              @review-submitted="onReviewSubmitted"
+            />
+          </section>
+
+          <section class="info-section movie-similar">
+            <h2 class="section-title">
+              <i class="pi pi-film"></i>ภาพยนตร์ที่คล้ายกัน
+            </h2>
+            <MovieSimilar :movie-type="'tv'" :movie-id="displayTvId" />
           </section>
         </div>
       </div>
     </main>
 
-    <div class="loading-state" v-if="isLoading">
+    <div class="loading-state" v-if="isInitialLoading">
       <i class="pi pi-spin pi-spinner spinner-icon"></i>
       <p>กำลังโหลดข้อมูลภาพยนตร์...</p>
     </div>
@@ -222,16 +239,18 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted, computed } from "vue"
+  import { ref, onMounted, computed, watch, nextTick } from "vue"
   import { useRoute, useRouter } from "vue-router"
   import { movieApi } from "@/api/api"
   import { libraryApi } from "@/api/endpoints/library"
   import { gsap } from "gsap"
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
+  import MovieSimilar from "@/components/movie/MovieSimilar.vue"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
   import { mediaApi } from "@/api/endpoints/media"
+  import RemovRatingIcon from "@/components/movie/RemovRatingIcon.vue"
 
   const route = useRoute()
   const router = useRouter()
@@ -251,24 +270,35 @@
   const backBtnRef = ref<HTMLElement | null>(null)
   const sidebarRef = ref<HTMLElement | null>(null)
   const contentRef = ref<HTMLElement | null>(null)
+  const backdropRef = ref<HTMLElement | null>(null)
+  const progressBarRef = ref<HTMLElement | null>(null)
 
   // States
   const tv = ref<any>(null)
   const castList = ref<any[]>([])
   const videoList = ref<any[]>([])
-  const isLoading = ref(true)
 
-  const removStats = ref({
-    media_id: 0,
-    media_type: "tv",
-    like_count: 0,
-    view_count: 0,
-    review_count: 0,
-    watchlist_count: 0,
-    liked_at: null as string | null,
-    average_rating: 0.0,
-    has_rating: false,
-  })
+  // isInitialLoading: true เฉพาะตอนเข้าเพจนี้ครั้งแรก (ยังไม่เคยมีข้อมูลซีรีส์เลย) -> โชว์ full-screen spinner
+  // isTransitioning: true ตอนสลับจากซีรีส์เรื่องหนึ่งไปอีกเรื่อง (เช่น กดเข้ามาจาก MovieSimilar) -> คงเนื้อหาเดิมไว้บนจอ
+  // แล้วโชว์ progress bar บาง ๆ ด้านบนแทน full-screen loading เดิม
+  const isInitialLoading = ref(true)
+  const isTransitioning = ref(false)
+
+  function createDefaultStats() {
+    return {
+      media_id: 0,
+      media_type: "tv",
+      like_count: 0,
+      view_count: 0,
+      review_count: 0,
+      watchlist_count: 0,
+      liked_at: null as string | null,
+      average_rating: 0.0,
+      has_rating: false,
+    }
+  }
+
+  const removStats = ref(createDefaultStats())
 
   const isLiked = computed(() => removStats.value.liked_at !== null)
 
@@ -277,6 +307,10 @@
 
   const watchlist_ItemId = ref<number | null>(null)
   const watched_ItemId = ref<number | null>(null)
+
+  // tvId ที่ "แสดงผลจริง" ในโซนรีวิว/ซีรีส์คล้ายกัน จะอัปเดตพร้อมกับตอน swap ข้อมูลหลักเท่านั้น
+  // กันไม่ให้ MovieReviews/MovieSimilar สลับไปโชว์ข้อมูลเรื่องใหม่ก่อนส่วนอื่นของหน้าที่ยังจางอยู่ (จะได้ sync กันทั้งหน้า)
+  const displayTvId = ref<number>(tvId.value)
 
   function goBack() {
     router.back()
@@ -323,7 +357,7 @@
         await mediaApi.likeMedia("tv", tvId.value)
         removStats.value.liked_at = new Date().toISOString()
         removStats.value.like_count += 1
-        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว ❤️")
+        window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว")
       }
     } catch (err) {
       console.error("ล้มเหลวในการบันทึกสถานะถูกใจ:", err)
@@ -340,11 +374,10 @@
     try {
       if (isWatchlisted.value) {
         if (!watchlist_ItemId.value) {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            tvId.value,
-            "tv",
-          )
+          const libRes = await libraryApi.getOwnMediaStatus(
+             tvId.value,
+             "tv",
+           )
           const inLists = libRes.data?.in_lists || []
           const watchlistInfo = inLists.find(
             (l: any) => l.list_type === "watchlist",
@@ -359,9 +392,8 @@
         }
 
         await libraryApi.removeItem(
-          currentUserId.value,
-          watchlist_ItemId.value!,
-        )
+           watchlist_ItemId.value!,
+         )
 
         removStats.value.watchlist_count = Math.max(
           0,
@@ -371,7 +403,7 @@
         watchlist_ItemId.value = null
         window.$toast?.info("ลบออกจากเพลย์ลิสต์แล้ว")
       } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
+        const res = await libraryApi.addItem({
           media_id: tvId.value,
           media_type: "tv",
           list_type: "watchlist",
@@ -399,13 +431,13 @@
 
     try {
       if (isWatched.value && watched_ItemId.value) {
-        await libraryApi.removeItem(currentUserId.value, watched_ItemId.value)
+        await libraryApi.removeItem(watched_ItemId.value)
 
         isWatched.value = false
         watched_ItemId.value = null
         window.$toast?.info("เปลี่ยนสถานะเป็นยังไม่ได้จัดส่งรับชม")
       } else {
-        const res = await libraryApi.addItem(currentUserId.value, {
+        const res = await libraryApi.addItem({
           media_id: tvId.value,
           media_type: "tv",
           list_type: "watched",
@@ -425,17 +457,107 @@
     }
   }
 
-  // Entrance GSAP Animation
-  function animateEntrance() {
-    if (!backBtnRef.value || !sidebarRef.value || !contentRef.value) return
+  // โหลดรูปล่วงหน้าก่อน swap ข้อมูลจริง กัน backdrop/โปสเตอร์เรื่องใหม่กระพริบหรือค้างจอขาว ๆ ระหว่างโหลด
+  function preloadImage(url: string): Promise<void> {
+    return new Promise(resolve => {
+      if (!url) {
+        resolve()
+        return
+      }
+      const img = new Image()
+      img.onload = () => resolve()
+      img.onerror = () => resolve()
+      img.src = url
+    })
+  }
+
+  // Exit animation: เล่นตอนกำลังจะสลับไปซีรีส์เรื่องใหม่ (เนื้อหาเดิมยังอยู่บนจอ แค่จางหายไปแทนที่จะหายวับ)
+  function animateExit(): Promise<void> {
+    return new Promise(resolve => {
+      if (!sidebarRef.value || !contentRef.value) {
+        resolve()
+        return
+      }
+
+      const targets = [
+        sidebarRef.value,
+        contentRef.value,
+        backdropRef.value,
+      ].filter((el): el is HTMLElement => el !== null)
+      gsap.killTweensOf(targets)
+
+      const tl = gsap.timeline({
+        defaults: { ease: "power2.in" },
+        onComplete: resolve,
+      })
+
+      tl.to(contentRef.value, { opacity: 0, y: -14, duration: 0.26 }, 0)
+      tl.to(sidebarRef.value, { opacity: 0, scale: 0.97, duration: 0.26 }, 0)
+      if (backdropRef.value) {
+        tl.to(backdropRef.value, { opacity: 0, duration: 0.26 }, 0)
+      }
+    })
+  }
+
+  // Entrance animation
+  // isTransitionEntrance = true -> เข้ามาจากการสลับซีรีส์ (ไม่ต้องเล่น animation ปุ่มย้อนกลับซ้ำ เพราะมันไม่ได้จางหายไปด้วย)
+  function animateEntrance(isTransitionEntrance = false) {
+    if (!sidebarRef.value || !contentRef.value) return
+
+    const targets = [
+      sidebarRef.value,
+      contentRef.value,
+      backdropRef.value,
+    ].filter((el): el is HTMLElement => el !== null)
+    gsap.killTweensOf(targets)
 
     const tl = gsap.timeline({ defaults: { ease: "power3.out" } })
 
-    tl.fromTo(
-      backBtnRef.value,
-      { opacity: 0, x: -20 },
-      { opacity: 1, x: 0, duration: 0.4 },
-    )
+    if (isTransitionEntrance) {
+      // animateExit ทำให้ contentRef/sidebarRef/backdropRef "ทั้งบล็อก" opacity เป็น 0 ไปแล้ว
+      // ตรงนี้ต้อง fade กลับมาทั้งบล็อกให้ครบทุกตัว ไม่งั้นเนื้อหาจะค้างที่ opacity 0 (มองไม่เห็น
+      // ทั้งที่ข้อมูลอัปเดตเป็นเรื่องใหม่แล้ว) — สลับซีรีส์จึงเล่นแบบ fade รวดเดียวไว ๆ ไม่ cascade ทีละชิ้น
+      if (backdropRef.value) {
+        tl.fromTo(
+          backdropRef.value,
+          { opacity: 0 },
+          { opacity: 1, duration: 0.4 },
+          0,
+        )
+      }
+      tl.fromTo(
+        sidebarRef.value,
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.4 },
+        0,
+      )
+      tl.fromTo(
+        contentRef.value,
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.4 },
+        0,
+      )
+      return
+    }
+
+    // เข้าเพจครั้งแรก: cascade เข้าทีละส่วนแบบเดิม (ปุ่มย้อนกลับ -> backdrop -> sidebar -> เนื้อหาทีละชิ้น)
+    if (backBtnRef.value) {
+      tl.fromTo(
+        backBtnRef.value,
+        { opacity: 0, x: -20 },
+        { opacity: 1, x: 0, duration: 0.4 },
+      )
+    }
+
+    if (backdropRef.value) {
+      tl.fromTo(
+        backdropRef.value,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.45 },
+        "-=0.2",
+      )
+    }
+
     tl.fromTo(
       sidebarRef.value,
       { opacity: 0, y: 30, scale: 0.95 },
@@ -454,20 +576,37 @@
     }
   }
 
-  onMounted(async () => {
-    if (!tvId.value) {
-      router.push({ name: "tv" })
-      return
-    }
+  // Progress bar บาง ๆ ด้านบนจอ (แนว Netflix/YouTube) ใช้แทน full-screen spinner ตอนสลับซีรีส์
+  function startProgressBar() {
+    if (!progressBarRef.value) return
+    gsap.killTweensOf(progressBarRef.value)
+    gsap.set(progressBarRef.value, { width: "0%", opacity: 1 })
+    gsap.to(progressBarRef.value, {
+      width: "75%",
+      duration: 0.9,
+      ease: "power1.out",
+    })
+  }
 
+  function finishProgressBar() {
+    if (!progressBarRef.value) return
+    gsap.killTweensOf(progressBarRef.value)
+    gsap.to(progressBarRef.value, {
+      width: "100%",
+      duration: 0.2,
+      ease: "power1.out",
+      onComplete: () => {
+        gsap.to(progressBarRef.value, {
+          opacity: 0,
+          duration: 0.25,
+          delay: 0.05,
+        })
+      },
+    })
+  }
+
+  async function fetchStats() {
     try {
-      isLoading.value = true
-
-      const res = await movieApi.getSeriesById(tvId.value)
-      tv.value = res.data.series
-      castList.value = res.data.credits?.cast?.slice(0, 8) || []
-      videoList.value = res.data.videos || []
-
       const statsRes = await mediaApi.getMediaStats("tv", tvId.value)
 
       if (statsRes.data && statsRes.data.stats) {
@@ -487,18 +626,100 @@
           average_rating: incomingStats.average_rating ?? 0.0,
           has_rating: incomingStats.has_rating ?? false,
         }
+
         if (incomingStats.watchlisted_at) {
           isWatchlisted.value = true
         }
       }
+    } catch (err) {
+      console.error("ไม่สามารถดึงข้อมูลสถิติของซีรีส์ได้:", err)
+    }
+  }
+
+  function onReviewSubmitted() {
+    fetchStats()
+  }
+
+  // ดึงข้อมูลซีรีส์ทั้งหมดของหน้านี้ แยกออกมาจาก onMounted
+  // เพื่อให้เรียกซ้ำได้ตอน tvId เปลี่ยน (กรณี Vue Router reuse component เดิม
+  // เช่น กดดูซีรีส์จาก MovieSimilar แล้ว path เปลี่ยนจาก /tv/123 -> /tv/456)
+  //
+  // ถ้าเป็นการ "สลับซีรีส์" (tv.value มีข้อมูลอยู่แล้ว) จะไม่ null ข้อมูลเดิมทันทีเหมือนเมื่อก่อน
+  // แต่จะเล่น exit animation ให้เนื้อหาเดิมจางหายไป พร้อมกับ fetch ข้อมูลเรื่องใหม่และ preload รูปไปด้วยกัน
+  // แล้วค่อย swap ข้อมูลตอนที่จอว่างเปล่า (มองไม่เห็น) จริง ๆ ก่อนเล่น entrance กลับเข้ามา
+  // ผลคือไม่มีจังหวะที่จอกระพริบเป็น full-screen loading เหมือนตอนเข้าเพจครั้งแรก
+  async function fetchTVDetail() {
+    if (!tvId.value) {
+      router.push({ name: "tv" })
+      return
+    }
+
+    const currentTvId = tvId.value
+    const isTransition = tv.value !== null
+
+    if (isTransition) {
+      showTrailerPopup.value = false // ปิด popup trailer ของเรื่องเดิมทันที ไม่ต้องรอ fade
+      isTransitioning.value = true
+      await nextTick()
+      startProgressBar()
+    } else {
+      isInitialLoading.value = true
+    }
+
+    const fetchPromise = movieApi.getSeriesById(currentTvId)
+    const exitPromise = isTransition ? animateExit() : Promise.resolve()
+
+    try {
+      const [res] = await Promise.all([fetchPromise, exitPromise])
+
+      // กันเคสผู้ใช้กดสลับซีรีส์ซ้อนกันเร็ว ๆ ระหว่างที่ยังโหลดเรื่องก่อนหน้าไม่เสร็จ -> ทิ้งผลลัพธ์เก่านี้ไป
+      if (currentTvId !== tvId.value) return
+
+      const nextTv = res.data.series
+
+      await Promise.all([
+        preloadImage(
+          nextTv?.backdrop_path
+            ? `https://image.tmdb.org/t/p/w1280${nextTv.backdrop_path}`
+            : "",
+        ),
+        preloadImage(
+          nextTv?.poster_path
+            ? `https://image.tmdb.org/t/p/w500${nextTv.poster_path}`
+            : "",
+        ),
+      ])
+
+      if (currentTvId !== tvId.value) return
+
+      // เนื้อหาเดิม (ถ้ามี) จางหายไปหมดแล้ว และรูปเรื่องใหม่พร้อมแสดงผลแล้ว
+      // จังหวะนี้ปลอดภัยที่สุดที่จะ swap ข้อมูล + reset ค่าที่ผูกกับซีรีส์เรื่องเดิม โดยไม่มีอะไรกระพริบให้เห็น
+      if (isTransition) {
+        window.scrollTo(0, 0)
+      }
+
+      tv.value = nextTv
+      castList.value = res.data.credits?.cast?.slice(0, 8) || []
+      videoList.value = res.data.videos || []
+      isWatchlisted.value = false
+      isWatched.value = false
+      watchlist_ItemId.value = null
+      watched_ItemId.value = null
+      removStats.value = createDefaultStats()
+      displayTvId.value = currentTvId
+
+      mediaApi.recordMediaView("tv", currentTvId).catch(err => {
+        console.warn("record view failed:", err)
+      })
+
+      await fetchStats()
 
       if (currentUserId.value) {
         try {
-          const libRes = await libraryApi.getMediaStatus(
-            currentUserId.value,
-            tvId.value,
-            "tv",
-          )
+          const libRes = await libraryApi.getOwnMediaStatus(
+             currentTvId,
+             "tv",
+           )
           const inLists = libRes.data?.in_lists || []
 
           const watchlistInfo = inLists.find(l => l.list_type === "watchlist")
@@ -520,14 +741,34 @@
         }
       }
 
-      isLoading.value = false
-      setTimeout(() => {
-        animateEntrance()
-      }, 50)
+      if (isTransition) {
+        finishProgressBar()
+        window.setTimeout(() => {
+          isTransitioning.value = false
+        }, 400)
+        animateEntrance(true)
+      } else {
+        isInitialLoading.value = false
+        setTimeout(() => {
+          animateEntrance(false)
+        }, 50)
+      }
     } catch (err) {
-      console.error("Error fetching movie details:", err)
-      isLoading.value = false
+      console.error("Error fetching tv series details:", err)
+      isInitialLoading.value = false
+      isTransitioning.value = false
     }
+  }
+
+  // ตัวนี้แหละคือส่วนที่แก้บั๊กเดิม: เมื่อ tvId เปลี่ยน (path เปลี่ยนแต่ component เดิมถูก reuse)
+  // ให้ดึงข้อมูลใหม่ทันที โดยไม่ scroll กลับขึ้นบนสุดตรงนี้เลย (จะ scroll ตอนเนื้อหาเดิมจางหายไปหมดแล้วแทน กันจอกระตุก)
+  watch(tvId, (newId, oldId) => {
+    if (newId === oldId) return
+    fetchTVDetail()
+  })
+
+  onMounted(() => {
+    fetchTVDetail()
   })
 </script>
 
@@ -551,6 +792,19 @@
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
+  }
+
+  .transition-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--red), var(--neon-pink));
+    z-index: 60;
+    box-shadow: 0 0 10px rgba(229, 9, 20, 0.55);
+    border-radius: 0 3px 3px 0;
+    pointer-events: none;
   }
 
   .btn-secondary-action.active-like {
@@ -636,12 +890,17 @@
     max-width: 1120px;
     margin: 0 auto;
     padding: 7.5rem 1.75rem 6rem;
+    box-sizing: border-box;
   }
   .detail-grid {
     display: grid;
     grid-template-columns: 280px 1fr;
     gap: 3.5rem;
     align-items: flex-start;
+  }
+  .detail-sidebar {
+    position: sticky;
+    top: 6rem;
   }
   .poster-wrapper {
     position: relative;
@@ -713,24 +972,32 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
+  }
+  .content-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
   }
   .movie-title {
-    font-size: clamp(2.2rem, 4vw, 3.4rem);
+    font-size: clamp(1.8rem, 4vw, 3.4rem);
     font-weight: 700;
     color: #fff;
     margin: 0;
     line-height: 1.15;
+    overflow-wrap: break-word;
   }
   .movie-tagline {
-    font-size: 1.05rem;
+    font-size: clamp(0.9rem, 1.6vw, 1.05rem);
     color: var(--gold);
     font-style: italic;
     font-weight: 300;
-    margin: -0.5rem 0 0;
+    margin: -0.3rem 0 0;
+    overflow-wrap: break-word;
   }
   .metadata-row {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.6rem;
     flex-wrap: wrap;
     margin-top: 0.25rem;
   }
@@ -744,6 +1011,7 @@
     padding: 0.35rem 0.8rem;
     border-radius: 6px;
     color: #fff;
+    white-space: nowrap;
   }
   .meta-badge i {
     font-size: 0.75rem;
@@ -779,6 +1047,7 @@
     border-radius: 9999px;
     font-size: 0.75rem;
     color: #ddd;
+    white-space: nowrap;
   }
   .section-divider {
     border: none;
@@ -799,6 +1068,7 @@
     display: flex;
     align-items: center;
     gap: 0.85rem;
+    min-width: 0;
     transition:
       transform 0.2s,
       background 0.2s;
@@ -811,19 +1081,23 @@
     font-size: 1.25rem;
     padding: 0.5rem;
     border-radius: 8px;
+    flex-shrink: 0;
   }
   .stat-details {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
   .stat-count {
     font-size: 1.05rem;
     font-weight: 700;
     color: #fff;
+    overflow-wrap: anywhere;
   }
   .stat-name {
     font-size: 0.68rem;
     color: var(--muted);
+    white-space: nowrap;
   }
   .remov-stat-card.view i {
     background: rgba(115, 164, 255, 0.15);
@@ -845,6 +1119,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
+    min-width: 0;
   }
   .section-title {
     font-size: 1.1rem;
@@ -865,6 +1140,7 @@
     color: #ccc;
     margin: 0;
     font-weight: 300;
+    overflow-wrap: break-word;
   }
   .grid-stats {
     display: grid;
@@ -880,6 +1156,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    min-width: 0;
   }
   .stat-label {
     font-size: 0.7rem;
@@ -891,6 +1168,7 @@
     font-size: 0.95rem;
     font-weight: 600;
     color: #fff;
+    overflow-wrap: anywhere;
   }
   .cast-scroll {
     display: flex;
@@ -899,6 +1177,8 @@
     padding-bottom: 1rem;
     scrollbar-width: thin;
     scrollbar-color: var(--surface2) transparent;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
   }
   .cast-card {
     background: var(--surface);
@@ -910,6 +1190,8 @@
     display: flex;
     flex-direction: column;
     transition: transform 0.2s;
+    scroll-snap-align: start;
+    flex-shrink: 0;
   }
   .cast-card:hover {
     transform: translateY(-3px);
@@ -959,6 +1241,11 @@
     padding-top: 1.5rem;
     border-top: 1px solid var(--border);
   }
+  .movie-similar {
+    margin-top: 1rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
   .loading-state {
     position: fixed;
     inset: 0;
@@ -970,18 +1257,52 @@
     justify-content: center;
     gap: 1rem;
     color: var(--muted);
+    padding: 1rem;
+    text-align: center;
   }
   .spinner-icon {
     font-size: 2rem;
     color: var(--red);
   }
 
-  @media (max-width: 820px) {
+  /* ============================================================
+     RESPONSIVE BREAKPOINTS
+     Desktop (>1024px) = ค่าเริ่มต้นด้านบน
+     ============================================================ */
+
+  /* ── Tablet landscape / small desktop: 821px - 1024px ── */
+  @media (max-width: 1024px) {
+    .detail-container {
+      padding: 6.5rem 1.5rem 5rem;
+    }
     .detail-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: 240px 1fr;
       gap: 2.5rem;
     }
+    .detail-backdrop {
+      height: 460px;
+    }
+    .remov-info-section {
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+    }
+    .cast-card {
+      min-width: 115px;
+      width: 115px;
+    }
+  }
+
+  /* ── Tablet portrait / large phone landscape: 641px - 820px ── */
+  @media (max-width: 820px) {
+    .detail-backdrop {
+      height: 380px;
+    }
+    .detail-grid {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
     .detail-sidebar {
+      position: static;
       display: grid;
       grid-template-columns: 180px 1fr;
       gap: 1.5rem;
@@ -990,8 +1311,14 @@
     .action-buttons {
       margin-top: 0;
     }
+    .btn-primary-action,
+    .btn-secondary-action {
+      font-size: 0.82rem;
+      padding: 0.65rem;
+    }
     .remov-info-section {
       grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
     }
     .grid-stats {
       grid-template-columns: 1fr;
@@ -1001,24 +1328,239 @@
       top: 1.25rem;
       left: 1.25rem;
       padding: 0.45rem 0.9rem;
+      font-size: 0.8rem;
     }
     .detail-container {
-      padding-top: 5.5rem;
+      padding: 5.5rem 1.5rem 4rem;
+    }
+    .movie-title {
+      font-size: clamp(1.7rem, 5vw, 2.6rem);
+    }
+    .section-title {
+      font-size: 1.02rem;
+    }
+    .overview-text {
+      font-size: 0.88rem;
+    }
+    .cast-card {
+      min-width: 108px;
+      width: 108px;
     }
   }
 
+  /* ── Phone (portrait): 481px - 640px ── */
+  @media (max-width: 640px) {
+    .detail-backdrop {
+      height: 320px;
+    }
+    .detail-container {
+      padding: 5rem 1.1rem 3.5rem;
+    }
+    .detail-grid {
+      gap: 1.5rem;
+    }
+    .detail-sidebar {
+      grid-template-columns: 150px 1fr;
+      gap: 1rem;
+    }
+    .btn-back {
+      top: 1rem;
+      left: 1rem;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.78rem;
+    }
+    .btn-back span {
+      display: none; /* เหลือแค่ไอคอนบนจอแคบมาก */
+    }
+    .content-header {
+      gap: 0.3rem;
+    }
+    .metadata-row {
+      gap: 0.45rem;
+    }
+    .meta-badge {
+      font-size: 0.72rem;
+      padding: 0.3rem 0.6rem;
+    }
+    .genre-tag {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.6rem;
+    }
+    .remov-info-section {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.6rem;
+    }
+    .remov-stat-card {
+      padding: 0.6rem 0.75rem;
+      gap: 0.6rem;
+      border-radius: 10px;
+    }
+    .remov-stat-card i {
+      font-size: 1rem;
+      padding: 0.4rem;
+    }
+    .stat-count {
+      font-size: 0.92rem;
+    }
+    .stat-name {
+      font-size: 0.62rem;
+    }
+    .section-title {
+      font-size: 0.98rem;
+    }
+    .overview-text {
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+    .cast-card {
+      min-width: 98px;
+      width: 98px;
+    }
+    .actor-name {
+      font-size: 0.7rem;
+    }
+    .actor-character {
+      font-size: 0.6rem;
+    }
+  }
+
+  /* ── Small phone: 361px - 480px ── */
   @media (max-width: 480px) {
+    .detail-backdrop {
+      height: 260px;
+    }
+    .detail-container {
+      padding: 4.5rem 0.9rem 3rem;
+    }
     .detail-sidebar {
       grid-template-columns: 1fr;
+      gap: 1rem;
     }
     .poster-wrapper {
-      max-width: 200px;
+      max-width: 190px;
       margin: 0 auto;
       width: 100%;
     }
+    .action-buttons {
+      gap: 0.6rem;
+    }
+    .btn-primary-action,
+    .btn-secondary-action {
+      font-size: 0.8rem;
+      padding: 0.65rem;
+    }
+    .movie-title {
+      font-size: clamp(1.5rem, 6vw, 2rem);
+      text-align: center;
+    }
+    .movie-tagline {
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .metadata-row,
+    .genres-list {
+      justify-content: center;
+    }
     .remov-info-section {
       grid-template-columns: 1fr;
+      gap: 0.6rem;
+    }
+    .grid-stats {
+      grid-template-columns: 1fr;
+    }
+    .stat-box {
+      padding: 0.7rem 0.85rem;
+    }
+    .section-title {
+      font-size: 0.92rem;
+    }
+    .section-title i {
+      font-size: 0.85rem;
+    }
+    .overview-text {
+      font-size: 0.82rem;
+    }
+    .cast-card {
+      min-width: 90px;
+      width: 90px;
+    }
+    .cast-scroll {
       gap: 0.75rem;
+    }
+    .review-zone {
+      margin-top: 0.75rem;
+      padding-top: 1.1rem;
+    }
+    .movie-similar {
+      margin-top: 0.75rem;
+      padding-top: 1.1rem;
+    }
+    .loading-state p {
+      font-size: 0.85rem;
+    }
+  }
+
+  /* ── Extra small phone: ≤360px ── */
+  @media (max-width: 360px) {
+    .detail-backdrop {
+      height: 220px;
+    }
+    .detail-container {
+      padding: 4rem 0.7rem 2.5rem;
+    }
+    .btn-back {
+      top: 0.85rem;
+      left: 0.85rem;
+      padding: 0.4rem;
+      border-radius: 50%;
+    }
+    .poster-wrapper {
+      max-width: 160px;
+    }
+    .btn-primary-action,
+    .btn-secondary-action {
+      font-size: 0.75rem;
+      padding: 0.58rem;
+      gap: 0.4rem;
+    }
+    .movie-title {
+      font-size: clamp(1.35rem, 7vw, 1.7rem);
+    }
+    .meta-badge {
+      font-size: 0.68rem;
+      padding: 0.28rem 0.55rem;
+    }
+    .remov-stat-card {
+      padding: 0.55rem 0.65rem;
+    }
+    .stat-count {
+      font-size: 0.85rem;
+    }
+    .overview-text {
+      font-size: 0.8rem;
+    }
+    .cast-card {
+      min-width: 82px;
+      width: 82px;
+    }
+    .actor-name {
+      font-size: 0.66rem;
+    }
+    .actor-character {
+      font-size: 0.56rem;
+    }
+  }
+
+  /* ── Mobile landscape orientation (short viewport height) ── */
+  @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+    .detail-backdrop {
+      height: 220px;
+    }
+    .detail-container {
+      padding-top: 3.5rem;
+    }
+    .btn-back {
+      top: 0.75rem;
     }
   }
 </style>

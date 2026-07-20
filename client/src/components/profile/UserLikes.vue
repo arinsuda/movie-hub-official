@@ -62,8 +62,8 @@
               item.genres.slice(0, 2).join(" · ")
             }}</span>
             <div class="overlay-bottom">
-              <span class="overlay-rating"
-                >⭐ {{ item.rating.toFixed(1) }}</span
+              <span class="overlay-rating flex items-center gap-0.5"
+                ><Star :size="9" class="fill-amber-500 text-amber-500" /> {{ item.rating.toFixed(1) }}</span
               >
               <span class="overlay-date"
                 ><Clock :size="9" /> {{ item.addedAt }}</span
@@ -84,7 +84,7 @@
 
 <script setup lang="ts">
   import { onMounted, ref } from "vue"
-  import { Heart, Film, X, Clock } from "lucide-vue-next"
+  import { Heart, Film, X, Clock, Star } from "lucide-vue-next"
   import { mediaApi } from "@/api/endpoints/media"
   import { useRouter } from "vue-router"
   import type { LikeItem, ListType } from "@/types"

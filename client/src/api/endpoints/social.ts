@@ -1,4 +1,4 @@
-import api from "../index";
+import api from "../index"
 import type {
   ReviewResponse,
   CreateReviewRequest,
@@ -10,59 +10,62 @@ import type {
   MediaStatusResponse,
   PaginatedResponse,
   FollowStatsResponse,
-  FollowUserResponse,
+  FollowRelationshipStatus,
+  FollowActionResponse,
+  FollowUserSummary,
   FeedItemResponse,
   MediaType,
   ListType,
-} from "@/types";
+} from "@/types"
 
-// ── Review ─────────────────────────────────────────────────────────
-
-export type ReviewVisibilityFilter = "all" | "public" | "private";
+export type ReviewVisibilityFilter = "all" | "public" | "private"
 
 export interface GetUserReviewsParams {
-  page?: number;
-  limit?: number;
-  /** "all" (default) | "public" | "private" — private ใช้ได้เฉพาะเจ้าของโปรไฟล์ */
-  visibility?: ReviewVisibilityFilter;
-  /** กรองตามวันที่เขียนรีวิว (created_at), format "YYYY-MM-DD" */
-  date_from?: string;
-  date_to?: string;
-  /** กรองแบบรายเดือน/รายปี — ถ้าส่งมา จะมีผลเหนือ date_from/date_to */
-  year?: number;
-  month?: number;
+  page?: number
+  limit?: number
+  visibility?: ReviewVisibilityFilter
+  date_from?: string
+  date_to?: string
+  year?: number
+  month?: number
 }
 
 export const reviewApi = {
-  createReview: (userId: number, data: CreateReviewRequest) =>
-    api.post<{ review: ReviewResponse }>(`/users/${userId}/reviews`, data),
+  createReview: (data: CreateReviewRequest) =>
+    api.post<{ review: ReviewResponse }>("/reviews", data),
 
   getUserReviews: (userId: number, params: GetUserReviewsParams = {}) =>
-    api.get<{ reviews: ReviewResponse[] }>(`/users/${userId}/reviews`, {
-      params: { page: 1, limit: 20, ...params },
+    api.get<{ reviews: ReviewResponse[] }>(`/reviews/user/${userId}`, {
+      params,
     }),
 
   getMediaReviews: (
-    mediaType: "movies" | "tv",
+    mediaType: "movie" | "tv" | "movies",
     mediaId: number,
     params?: { page?: number; limit?: number; sort?: string },
-  ) =>
-    api.get<{ reviews: ReviewResponse[] }>(`/${mediaType}/${mediaId}/reviews`, {
-      params: { page: 1, limit: 20, ...params },
-    }),
+  ) => {
+    // Convert movies -> movie, tv remains tv/series
+    const mt = mediaType === "movies" ? "movie" : mediaType === "tv" ? "tv" : mediaType;
+    return api.get<{ reviews: ReviewResponse[] }>(
+      `/reviews/media/${mt}/${mediaId}`,
+      { params },
+    );
+  },
 
-  updateReview: (userId: number, reviewId: number, data: UpdateReviewRequest) =>
+  updateReview: (reviewId: number, data: UpdateReviewRequest) =>
     api.patch<{ review: ReviewResponse }>(
-      `/users/${userId}/reviews/${reviewId}`,
+      `/reviews/${reviewId}`,
       data,
     ),
 
-  deleteReview: (userId: number, reviewId: number) =>
-    api.delete(`/users/${userId}/reviews/${reviewId}`),
+  deleteReview: (reviewId: number) =>
+    api.delete(`/reviews/${reviewId}`),
 
-  likeReview: (reviewId: number) => api.post(`/reviews/${reviewId}/likes`),
+  likeReview: (reviewId: number) =>
+    api.post(`/reviews/${reviewId}/like`),
 
-  unlikeReview: (reviewId: number) => api.delete(`/reviews/${reviewId}/likes`),
+  unlikeReview: (reviewId: number) =>
+    api.delete(`/reviews/${reviewId}/like`),
 
   markHelpful: (reviewId: number) =>
     api.post<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
@@ -70,12 +73,9 @@ export const reviewApi = {
   unmarkHelpful: (reviewId: number) =>
     api.delete<{ helpful_count: number }>(`/reviews/${reviewId}/helpful`),
 
-  getComments: (reviewId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<CommentResponse>>(
+  getComments: (reviewId: number) =>
+    api.get<{ comments: CommentResponse[] }>(
       `/reviews/${reviewId}/comments`,
-      {
-        params: { page, limit },
-      },
     ),
 
   createComment: (reviewId: number, data: CreateCommentRequest) =>
@@ -84,75 +84,49 @@ export const reviewApi = {
       data,
     ),
 
-  updateComment: (reviewId: number, commentId: number, body: string) =>
+  updateComment: (commentId: number, body: string) =>
     api.patch<{ comment: CommentResponse }>(
-      `/reviews/${reviewId}/comments/${commentId}`,
+      `/reviews/comments/${commentId}`,
       { body },
     ),
 
   deleteComment: (reviewId: number, commentId: number) =>
     api.delete(`/reviews/${reviewId}/comments/${commentId}`),
-};
+}
 
-// ── Library ────────────────────────────────────────────────────────
-export const libraryApi = {
-  addItem: (userId: number, data: AddItemRequest) =>
-    api.post<{ item: LibraryItemResponse }>(`/users/${userId}/library`, data),
 
-  getLibrary: (
-    userId: number,
-    params?: { list_type?: ListType; media_type?: MediaType },
-  ) =>
-    api.get<{ items: LibraryItemResponse[] }>(`/users/${userId}/library`, {
-      params,
-    }),
 
-  getMediaStatus: (userId: number, mediaId: number, mediaType: MediaType) =>
-    api.get<MediaStatusResponse>(`/users/${userId}/library/status`, {
-      params: { media_id: mediaId, media_type: mediaType },
-    }),
-
-  updateItem: (
-    userId: number,
-    itemId: number,
-    data: { watched_at?: string; tags?: string[]; note?: string },
-  ) =>
-    api.patch<{ item: LibraryItemResponse }>(
-      `/users/${userId}/library/${itemId}`,
-      data,
-    ),
-
-  removeItem: (userId: number, itemId: number) =>
-    api.delete(`/users/${userId}/library/${itemId}`),
-};
-
-// ── Follow / Feed ──────────────────────────────────────────────────
 export const followApi = {
-  follow: (userId: number) => api.post(`/users/${userId}/follow`),
+  follow: (userId: number) =>
+    api.post<FollowActionResponse>(`/users/${userId}/follow`),
 
   unfollow: (userId: number) => api.delete(`/users/${userId}/follow`),
 
   getFollowStats: (userId: number) =>
     api.get<FollowStatsResponse>(`/users/${userId}/follow-stats`),
 
-  getFollowers: (userId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<FollowUserResponse>>(
-      `/users/${userId}/followers`,
-      {
-        params: { page, limit },
-      },
+  getFollowStatus: (userId: number) =>
+    api.get<FollowRelationshipStatus>(`/users/${userId}/follow-status`),
+
+  getFollowers: (userId: number) =>
+    api.get<{ followers: FollowUserSummary[] }>(`/users/${userId}/followers`),
+
+  getFollowing: (userId: number) =>
+    api.get<{ following: FollowUserSummary[] }>(`/users/${userId}/following`),
+
+  getPendingRequests: (userId: number) =>
+    api.get<{ requests: FollowUserSummary[] }>(
+      `/users/${userId}/follow-requests`,
     ),
 
-  getFollowing: (userId: number, page = 1, limit = 20) =>
-    api.get<PaginatedResponse<FollowUserResponse>>(
-      `/users/${userId}/following`,
-      {
-        params: { page, limit },
-      },
-    ),
+  acceptRequest: (userId: number, followerId: number) =>
+    api.post(`/users/${userId}/follow-requests/${followerId}/accept`),
+
+  rejectRequest: (userId: number, followerId: number) =>
+    api.delete(`/users/${userId}/follow-requests/${followerId}`),
 
   getFeed: (page = 1, limit = 20) =>
     api.get<PaginatedResponse<FeedItemResponse>>("/feed", {
       params: { page, limit },
     }),
-};
+}

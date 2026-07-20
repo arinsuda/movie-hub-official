@@ -28,7 +28,7 @@ func (h *Handler) GetLikes(c fiber.Ctx) error {
 		requesterID = claims.UserID
 	}
 
-	likes, err := h.svc.GetLikes(ownerID, requesterID)
+	likes, err := h.svc.GetLikes(c.Context(), ownerID, requesterID)
 	if err != nil {
 		return handleError(c, err)
 	}
@@ -43,7 +43,7 @@ func (h *Handler) Like(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	if err := h.svc.Like(claims.UserID, mediaID, mediaType); err != nil {
+	if err := h.svc.Like(c.Context(), claims.UserID, mediaID, mediaType); err != nil {
 		return handleError(c, err)
 	}
 
@@ -57,14 +57,12 @@ func (h *Handler) Unlike(c fiber.Ctx) error {
 	}
 
 	claims := mw.GetClaims(c)
-	if err := h.svc.Unlike(claims.UserID, mediaID, mediaType); err != nil {
+	if err := h.svc.Unlike(c.Context(), claims.UserID, mediaID, mediaType); err != nil {
 		return handleError(c, err)
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
-
-// — helpers —
 
 func parseUserID(c fiber.Ctx) (uint, error) {
 	id, err := strconv.Atoi(c.Params("userId"))

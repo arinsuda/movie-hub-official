@@ -1,0 +1,31 @@
+{
+  "title": "Movie Reviews",
+  "writeTitle": "Write your review",
+  "editTitle": "Edit your review",
+  "ratingLabel": "Your Rating",
+  "contentLabel": "Review Comments",
+  "contentPlaceholder": "Write your thoughts about the movie...",
+  "submit": "Submit Review",
+  "submitting": "Saving...",
+  "update": "Update Review",
+  "delete": {
+    "title": "Delete your review?",
+    "message": "This action cannot be undone. Are you sure you want to permanently delete your review?",
+    "confirm": "Delete Review",
+    "canceling": "Cancel"
+  },
+  "list": {
+    "title": "User Reviews",
+    "empty": "No reviews yet. Be the first to share your thoughts!",
+    "spoiler": "This review contains major spoilers.",
+    "showSpoiler": "Show Spoiler",
+    "edited": "edited",
+    "by": "by",
+    "replies": "replies"
+  },
+  "errors": {
+    "alreadyExists": "You have already reviewed this media",
+    "invalidRating": "Rating must be between 0.5 and 5.0",
+    "notRated": "NR"
+  }
+}

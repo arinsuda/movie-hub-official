@@ -1,24 +1,28 @@
 package achievementsmodule
 
 import (
+	"context"
+	"errors"
 	"time"
 
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"gorm.io/gorm"
 )
 
 type Service interface {
 	ListAllAchievements(filter PaginationQuery) (ListAchievementsResponse, error)
-	ListUserAchievements(userID uint, filter UserAchievementFilter) (ListUserAchievementsResponse, error)
+	ListUserAchievements(ctx context.Context, userID, requesterID uint, filter UserAchievementFilter) (ListUserAchievementsResponse, error)
 
 	Track(userID uint, actionType string, newCount int) ([]NewlyUnlocked, error)
 }
 
 type service struct {
-	repo Repository
+	repo   Repository
+	policy privacy_policy.UserAccessPolicy
 }
 
-func newService(repo Repository) Service {
-	return &service{repo: repo}
+func newService(repo Repository, policy privacy_policy.UserAccessPolicy) Service {
+	return &service{repo: repo, policy: policy}
 }
 
 func (s *service) ListAllAchievements(filter PaginationQuery) (ListAchievementsResponse, error) {
@@ -39,7 +43,17 @@ func (s *service) ListAllAchievements(filter PaginationQuery) (ListAchievementsR
 	}, nil
 }
 
-func (s *service) ListUserAchievements(userID uint, filter UserAchievementFilter) (ListUserAchievementsResponse, error) {
+func (s *service) ListUserAchievements(ctx context.Context, userID, requesterID uint, filter UserAchievementFilter) (ListUserAchievementsResponse, error) {
+	if s.policy != nil {
+		canView, err := s.policy.CanViewProfileSection(ctx, requesterID, userID, privacy_policy.SectionAchievements)
+		if err != nil {
+			return ListUserAchievementsResponse{}, err
+		}
+		if !canView {
+			return ListUserAchievementsResponse{}, privacy_policy.ErrForbidden
+		}
+	}
+
 	filter.Normalize()
 	list, total, err := s.repo.ListUserAchievements(userID, filter)
 	if err != nil {
@@ -68,8 +82,7 @@ func (s *service) Track(userID uint, actionType string, newCount int) ([]NewlyUn
 	for _, a := range achievements {
 		ua, err := s.repo.FindUserAchievement(userID, a.ID)
 		if err != nil {
-
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) || err.Error() == "record not found" {
 				ua = &UserAchievement{
 					UserID:        userID,
 					AchievementID: a.ID,
@@ -105,6 +118,8 @@ func (s *service) Track(userID uint, actionType string, newCount int) ([]NewlyUn
 
 	return newlyUnlocked, nil
 }
+
+// ── Response Mapping ──────────────────────────────────────────────
 
 func toAchievementResponse(a Achievement) AchievementResponse {
 	return AchievementResponse{

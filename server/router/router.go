@@ -5,8 +5,11 @@ import (
 
 	"github.com/arinsuda/movie-hub/config"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/admin_module"
 	"github.com/arinsuda/movie-hub/internal/analytics_module"
 	"github.com/arinsuda/movie-hub/internal/auth_module"
+	"github.com/arinsuda/movie-hub/internal/bmol_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
 	"github.com/arinsuda/movie-hub/internal/library_module"
 	"github.com/arinsuda/movie-hub/internal/like_module"
@@ -14,16 +17,18 @@ import (
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+	"github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
 
-func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer) {
-	// ── Infrastructure ────────────────────────────────────────────
+func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer) *notification_module.Hub {
+
 	mc, err := storage.NewMinIOClient(config.MinIOConfig{
 		Endpoint:   cfg.MinIO.Endpoint,
 		AccessKey:  cfg.MinIO.AccessKey,
@@ -39,53 +44,62 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	statsSvc := user_stats_module.NewService(db)
 	passwordResetMailer := user_module.NewSMTPPasswordResetMailer()
 
-	// ── Shared Services (สร้างก่อน — modules อื่นต้องการ) ────────
-	//
-	// ลำดับสำคัญ:
-	//   1. achieveModule  — ไม่ขึ้นกับใคร
-	//   2. notifSvc       — ไม่ขึ้นกับ achievement
-	//   3. ทุก module อื่น — รับ achieveModule.Service + notifSvc
-
-	// 1. Achievement module
-	achieveModule := achievementsmodule.New(db)
-
-	// 2. Notification module
 	userNotifAdapter := user_module.NewNotificationUserAdapter(db)
-	notifSvc := notification_module.NewService(db, userNotifAdapter)
 
-	// ── Routes ────────────────────────────────────────────────────
+	verifier := &jwtVerifier{secret: cfg.JWT.AccessSecret}
+
+	notifHub := notification_module.NewHub(verifier, cfg.CORS.AllowedOrigin)
+	notifSvc := notification_module.NewService(db, userNotifAdapter, notifHub)
+
+	policy := privacy_policy.NewUserAccessPolicy(db)
+
+	achieveModule := achievementsmodule.New(db, policy)
+	feedModule := feed_module.New(db, notifHub, mc)
+
 	app.Get("/", welcomeHandler)
 	app.Get("/health", healthHandler)
 
 	api := app.Group("/api")
 
-	// Auth (ไม่ต้องการ achieve/notif)
-	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc)
+	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc, notifSvc)
 
-	mw := auth_module.NewMiddleware(cfg)
+	mw := middleware.NewAuthMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
 
-	// User
-	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer)
+	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer, policy)
 	authSvc.SetUserService(userSvc)
 
-	// Achievement (public catalog + auth user achievements)
 	achieveModule.RegisterRoutes(api, mw.RequireAuth)
+	feedModule.RegisterRoutes(protected)
 
-	// Notification
-	notification_module.RegisterRoutes(protected, db, userNotifAdapter)
+	notification_module.RegisterRoutes(protected, notifSvc, notifHub)
 
-	// Core modules — inject achieve + notif
-	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc)
-	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc)
-	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc)
-	like_module.RegisterRoutes(protected, db, achieveModule.Service)
+	follow_module.RegisterRoutes(api, db, achieveModule.Service, notifSvc, feedModule.Service)
+	review_module.RegisterRoutes(protected, db, mc, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	library_module.RegisterRoutes(protected, db, statsSvc, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	like_module.RegisterRoutes(protected, db, achieveModule.Service, notifSvc, feedModule.Service, policy)
+	bmol_module.RegisterRoutes(protected, db)
 
-	// Modules ที่ไม่ต้องการ achieve/notif (ยังคงเหมือนเดิม)
 	analytics_module.RegisterRoutes(protected, db)
-	movie_module.RegisterRoutes(protected)
+	ratingRepo := review_module.NewRatingStatsReader(db)
+	movie_module.RegisterRoutes(protected, ratingRepo)
 	media_stats_module.RegisterRoutes(protected, db)
 	user_stats_module.RegisterRoutes(protected, db)
+	admin_module.RegisterRoutes(protected, db, notifHub, mc, mw.RequireCurrentAdmin(db))
+
+	return notifHub
+}
+
+type jwtVerifier struct {
+	secret string
+}
+
+func (v *jwtVerifier) VerifyToken(token string) (uint, error) {
+	claims, err := middleware.ParseAccess(token, v.secret)
+	if err != nil {
+		return 0, err
+	}
+	return claims.UserID, nil
 }
 
 func welcomeHandler(c fiber.Ctx) error {

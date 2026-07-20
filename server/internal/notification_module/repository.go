@@ -1,7 +1,9 @@
 package notification_module
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,30 +18,30 @@ func newRepository(db *gorm.DB) *repository {
 	return &repository{db: db}
 }
 
-// Create บันทึก notification ใหม่
-func (r *repository) Create(n *Notification) error {
-	return r.db.Create(n).Error
+func (r *repository) Create(ctx context.Context, n *Notification) error {
+	return r.db.WithContext(ctx).Create(n).Error
 }
 
-// CreateBatch บันทึกหลาย notification พร้อมกัน (ใช้สำหรับ fan-out ไปหา followers)
-func (r *repository) CreateBatch(ns []Notification) error {
+func (r *repository) CreateBatch(ctx context.Context, ns []Notification) error {
 	if len(ns) == 0 {
 		return nil
 	}
-	return r.db.Create(&ns).Error
+	return r.db.WithContext(ctx).Create(&ns).Error
 }
 
-// FindByUser ดึง notification ของ user พร้อม filter และ pagination
-func (r *repository) FindByUser(userID uint, q ListNotificationsQuery) ([]Notification, int64, error) {
+func (r *repository) FindByUser(ctx context.Context, userID uint, q ListNotificationsQuery) ([]Notification, int64, error) {
 	page, pageSize := normalizePagination(q.Page, q.PageSize)
 
-	db := r.db.Model(&Notification{}).Where("user_id = ?", userID)
+	db := r.db.WithContext(ctx).Model(&Notification{}).Where("user_id = ?", userID)
 
 	if q.Unread != nil && *q.Unread {
 		db = db.Where("is_read = false")
 	}
 	if q.Type != "" {
 		db = db.Where("type = ?", q.Type)
+	}
+	if q.Category != "" {
+		db = db.Where("category = ?", q.Category) // NEW
 	}
 
 	var total int64
@@ -48,28 +50,34 @@ func (r *repository) FindByUser(userID uint, q ListNotificationsQuery) ([]Notifi
 	}
 
 	var rows []Notification
-	err := db.
-		Order("created_at DESC").
-		Limit(pageSize).
-		Offset((page - 1) * pageSize).
+	err := db.Order("created_at DESC").
+		Limit(pageSize).Offset((page - 1) * pageSize).
 		Find(&rows).Error
 
 	return rows, total, err
 }
 
-// CountUnread นับ notification ที่ยังไม่อ่านของ user
-func (r *repository) CountUnread(userID uint) (int64, error) {
+// NEW: unread count แยกรายหมวด สำหรับ badge บนแท็บ
+func (r *repository) CountUnreadByCategory(ctx context.Context, userID uint) ([]UnreadByCategoryResponse, error) {
+	var rows []UnreadByCategoryResponse
+	err := r.db.WithContext(ctx).Model(&Notification{}).
+		Select("category, COUNT(*) as count").
+		Where("user_id = ? AND is_read = false", userID).
+		Group("category").
+		Scan(&rows).Error
+	return rows, err
+}
+
+func (r *repository) CountUnread(ctx context.Context, userID uint) (int64, error) {
 	var count int64
-	err := r.db.Model(&Notification{}).
+	err := r.db.WithContext(ctx).Model(&Notification{}).
 		Where("user_id = ? AND is_read = false", userID).
 		Count(&count).Error
 	return count, err
 }
 
-// MarkRead mark notification ที่ระบุ (ids) ว่าอ่านแล้ว
-// ถ้า ids ว่าง = mark ทั้งหมดของ user
-func (r *repository) MarkRead(userID uint, ids []uint) error {
-	db := r.db.Model(&Notification{}).
+func (r *repository) MarkRead(ctx context.Context, userID uint, ids []uint) error {
+	db := r.db.WithContext(ctx).Model(&Notification{}).
 		Where("user_id = ? AND is_read = false", userID)
 
 	if len(ids) > 0 {
@@ -78,13 +86,12 @@ func (r *repository) MarkRead(userID uint, ids []uint) error {
 
 	return db.Updates(map[string]any{
 		"is_read": true,
-		"read_at": gorm.Expr("NOW()"),
+		"read_at": time.Now(),
 	}).Error
 }
 
-// DeleteByUser ลบ notification ที่ระบุของ user (soft delete ผ่าน gorm.Model)
-func (r *repository) DeleteByUser(userID uint, ids []uint) error {
-	result := r.db.
+func (r *repository) DeleteByUser(ctx context.Context, userID uint, ids []uint) error {
+	result := r.db.WithContext(ctx).
 		Where("user_id = ? AND id IN ?", userID, ids).
 		Delete(&Notification{})
 	if result.Error != nil {
@@ -94,6 +101,10 @@ func (r *repository) DeleteByUser(userID uint, ids []uint) error {
 		return ErrNotificationNotFound
 	}
 	return nil
+}
+
+func (r *repository) DeleteAllByUser(ctx context.Context, userID uint) error {
+	return r.db.WithContext(ctx).Where("user_id = ?", userID).Delete(&Notification{}).Error
 }
 
 func normalizePagination(page, pageSize int) (int, int) {

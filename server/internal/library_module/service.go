@@ -6,8 +6,10 @@ import (
 	"time"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/movie_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	shared "github.com/arinsuda/movie-hub/internal/shared"
 	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
@@ -21,6 +23,8 @@ type Service struct {
 	expPort    stats.ExpAdder
 	achieveSvc achievementsmodule.Service
 	notifSvc   *notification_module.Service
+	feedSvc    feed_module.Service
+	policy     privacy_policy.UserAccessPolicy
 }
 
 func NewService(
@@ -28,6 +32,8 @@ func NewService(
 	exp stats.ExpAdder,
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
+	feed feed_module.Service,
+	policy privacy_policy.UserAccessPolicy,
 ) *Service {
 	return &Service{
 		repo:       newRepository(db),
@@ -35,10 +41,12 @@ func NewService(
 		expPort:    exp,
 		achieveSvc: achieve,
 		notifSvc:   notif,
+		feedSvc:    feed,
+		policy:     policy,
 	}
 }
 
-func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse, error) {
+func (s *Service) AddItem(ctx context.Context, userID uint, req AddItemRequest) (*OwnLibraryItemResponse, error) {
 	if err := validateAddItemRequest(req); err != nil {
 		return nil, err
 	}
@@ -72,42 +80,23 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 	}
 
 	switch req.ListType {
-
 	case movie_module.ListWatched:
-		// ── EXP ──────────────────────────────────────────────────
 		_ = s.expPort.AddExperience(userID, stats.ExpPerWatched)
 
-		// ── Achievement: watched_count ────────────────────────────
 		var watchedCount int64
-		s.db.Model(&LibraryItem{}).
+		s.db.WithContext(ctx).Model(&LibraryItem{}).
 			Where("user_id = ? AND list_type = 'watched' AND deleted_at IS NULL", userID).
 			Count(&watchedCount)
-		_, _ = s.achieveSvc.Track(userID, "watched_count", int(watchedCount))
+		unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "watched_count", int(watchedCount))
+		s.createAchievementFeedActivities(ctx, userID, unlocked)
 
-		// ── Achievement: library_total_count ─────────────────────
-		s.trackLibraryTotal(userID)
+		s.trackLibraryTotal(ctx, userID)
 
-		// ── Notification: fan-out watchlist ke followers ──────────
-		// ใช้ NotifFollowingAddedWatched (ต้องเพิ่ม type ใน notification_module)
-		// ตอนนี้ skip — ส่วนใหญ่ไม่ fan-out watched เพราะ spam
-
-	case movie_module.ListWatchlist:
-		// ── Achievement: watchlist_count ──────────────────────────
-		var watchlistCount int64
-		s.db.Model(&LibraryItem{}).
-			Where("user_id = ? AND list_type = 'watchlist' AND deleted_at IS NULL", userID).
-			Count(&watchlistCount)
-		_, _ = s.achieveSvc.Track(userID, "watchlist_count", int(watchlistCount))
-
-		// ── Achievement: library_total_count ─────────────────────
-		s.trackLibraryTotal(userID)
-
-		// ── Notification: fan-out ให้ followers ───────────────────
 		if s.notifSvc != nil {
 			if actor, err := s.getUserSummary(userID); err == nil {
 				title, _ := s.fetchTitle(req.MediaID, req.MediaType)
-				_ = s.notifSvc.PushFollowingAddedWatchlist(
-					context.Background(),
+				_ = s.notifSvc.PushFollowingAddedWatched(
+					ctx,
 					userID,
 					actor.Username,
 					uint(req.MediaID),
@@ -115,25 +104,81 @@ func (s *Service) AddItem(userID uint, req AddItemRequest) (*LibraryItemResponse
 				)
 			}
 		}
+
+		if s.feedSvc != nil {
+			mediaType := string(req.MediaType)
+			_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityWatchedAdded, feed_module.ActivityPayload{
+				MediaID:       &req.MediaID,
+				MediaType:     &mediaType,
+				LibraryItemID: &item.ID,
+			})
+		}
+
+	case movie_module.ListWatchlist:
+		var watchlistCount int64
+		s.db.WithContext(ctx).Model(&LibraryItem{}).
+			Where("user_id = ? AND list_type = 'watchlist' AND deleted_at IS NULL", userID).
+			Count(&watchlistCount)
+		unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "watchlist_count", int(watchlistCount))
+		s.createAchievementFeedActivities(ctx, userID, unlocked)
+		s.trackLibraryTotal(ctx, userID)
+
+		if s.notifSvc != nil {
+			if actor, err := s.getUserSummary(userID); err == nil {
+				title, _ := s.fetchTitle(req.MediaID, req.MediaType)
+				_ = s.notifSvc.PushFollowingAddedWatchlist(
+					ctx,
+					userID,
+					actor.Username,
+					uint(req.MediaID),
+					title,
+				)
+			}
+		}
+
+		if s.feedSvc != nil {
+			mediaType := string(req.MediaType)
+			_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityWatchlistAdded, feed_module.ActivityPayload{
+				MediaID:       &req.MediaID,
+				MediaType:     &mediaType,
+				LibraryItemID: &item.ID,
+			})
+		}
 	}
 
-	return toResponse(item), nil
+	return toOwnResponse(item), nil
 }
 
-func (s *Service) GetLibrary(userID uint, listType *movie_module.ListType, mediaType *movie_module.MediaType) ([]LibraryItemResponse, error) {
+func (s *Service) GetLibrary(ctx context.Context, userID, requesterID uint, listType *movie_module.ListType, mediaType *movie_module.MediaType) (any, error) {
+	canView, err := s.policy.CanViewProfileSection(ctx, requesterID, userID, privacy_policy.SectionLibrary)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, privacy_policy.ErrForbidden
+	}
+
 	items, err := s.repo.FindByUser(userID, listType, mediaType)
 	if err != nil {
 		return nil, err
 	}
 
-	responses := make([]LibraryItemResponse, len(items))
-	for i, item := range items {
-		responses[i] = *toResponse(&item)
+	if userID == requesterID {
+		responses := make([]OwnLibraryItemResponse, len(items))
+		for i, item := range items {
+			responses[i] = *toOwnResponse(&item)
+		}
+		return responses, nil
+	} else {
+		responses := make([]PublicLibraryItemResponse, len(items))
+		for i, item := range items {
+			responses[i] = *toPublicResponse(&item)
+		}
+		return responses, nil
 	}
-	return responses, nil
 }
 
-func (s *Service) RemoveItem(itemID, requesterID uint) error {
+func (s *Service) RemoveItem(ctx context.Context, itemID, requesterID uint) error {
 	item, err := s.repo.FindOne(itemID, requesterID)
 	if err != nil {
 		return err
@@ -149,10 +194,20 @@ func (s *Service) RemoveItem(itemID, requesterID uint) error {
 	if item.ListType == movie_module.ListWatched {
 		_ = s.expPort.AddExperience(requesterID, -stats.ExpPerWatched)
 	}
+
+	if s.feedSvc != nil {
+		activityType := feed_module.ActivityWatchlistAdded
+		if item.ListType == movie_module.ListWatched {
+			activityType = feed_module.ActivityWatchedAdded
+		}
+		mediaType := string(item.MediaType)
+		_ = s.feedSvc.DeleteMediaActivity(ctx, requesterID, activityType, item.MediaID, mediaType)
+	}
+
 	return nil
 }
 
-func (s *Service) UpdateItem(itemID, requesterID uint, req UpdateItemRequest) (*LibraryItemResponse, error) {
+func (s *Service) UpdateItem(ctx context.Context, itemID, requesterID uint, req UpdateItemRequest) (*OwnLibraryItemResponse, error) {
 	item, err := s.repo.FindOne(itemID, requesterID)
 	if err != nil {
 		return nil, err
@@ -177,7 +232,7 @@ func (s *Service) UpdateItem(itemID, requesterID uint, req UpdateItemRequest) (*
 		updates["note"] = req.Note
 	}
 	if len(updates) == 0 {
-		return toResponse(item), nil
+		return toOwnResponse(item), nil
 	}
 
 	if err := s.repo.Update(itemID, updates); err != nil {
@@ -188,7 +243,7 @@ func (s *Service) UpdateItem(itemID, requesterID uint, req UpdateItemRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	return toResponse(updated), nil
+	return toOwnResponse(updated), nil
 }
 
 func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_module.MediaType) (*MediaStatusResponse, error) {
@@ -205,15 +260,25 @@ func (s *Service) GetMediaStatus(userID uint, mediaID int, mediaType movie_modul
 	return &MediaStatusResponse{MediaID: mediaID, MediaType: mediaType, InLists: inLists}, nil
 }
 
-// ── Internal Helpers ──────────────────────────────────────────────
-
-// trackLibraryTotal นับ library รวมทุก list_type แล้ว track achievement
-func (s *Service) trackLibraryTotal(userID uint) {
+func (s *Service) trackLibraryTotal(ctx context.Context, userID uint) {
 	var total int64
-	s.db.Model(&LibraryItem{}).
+	s.db.WithContext(ctx).Model(&LibraryItem{}).
 		Where("user_id = ? AND deleted_at IS NULL", userID).
 		Count(&total)
-	_, _ = s.achieveSvc.Track(userID, "library_total_count", int(total))
+	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "library_total", int(total))
+	s.createAchievementFeedActivities(ctx, userID, unlocked)
+}
+
+func (s *Service) createAchievementFeedActivities(ctx context.Context, userID uint, unlocked []shared.NeutralUnlocked) {
+	if s.feedSvc == nil {
+		return
+	}
+	for _, u := range unlocked {
+		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityAchievementUnlocked, feed_module.ActivityPayload{
+			AchievementID: &u.ID,
+			Message:       u.Name,
+		})
+	}
 }
 
 func (s *Service) getUserSummary(userID uint) (*users.User, error) {
@@ -236,8 +301,6 @@ func (s *Service) fetchTitle(mediaID int, mediaType movie_module.MediaType) (str
 	return "", nil
 }
 
-// ── Existing Helpers (unchanged) ─────────────────────────────────
-
 func validateAddItemRequest(req AddItemRequest) error {
 	if req.MediaType != movie_module.MediaMovie && req.MediaType != movie_module.MediaSeries {
 		return ErrInvalidMediaType
@@ -252,41 +315,55 @@ func validateAddItemRequest(req AddItemRequest) error {
 	return nil
 }
 
-func toResponse(item *LibraryItem) *LibraryItemResponse {
-	tags := []string{}
-	if item.Tags != "" {
-		_ = json.Unmarshal([]byte(item.Tags), &tags)
-	}
-
+func fetchMediaSummaryHelper(mediaID int, mediaType movie_module.MediaType) shared.MediaSummary {
 	media := shared.MediaSummary{
-		ID:        item.MediaID,
-		MediaType: item.MediaType,
+		ID:        mediaID,
+		MediaType: shared.MediaType(mediaType),
 	}
-
-	switch item.MediaType {
+	switch mediaType {
 	case movie_module.MediaMovie:
-		if details, err := tmdbmodule.GetMovieByID(item.MediaID); err == nil && details != nil {
+		if details, err := tmdbmodule.GetMovieByID(mediaID); err == nil && details != nil {
 			media.Title = details.Title
 			media.PosterURL = details.PosterPath
 			media.Genres = details.Genres
 			media.VoteAverage = float32(details.VoteAverage)
 		}
 	case movie_module.MediaSeries:
-		if details, err := tmdbmodule.GetSeriesByID(item.MediaID); err == nil && details != nil {
+		if details, err := tmdbmodule.GetSeriesByID(mediaID); err == nil && details != nil {
 			media.Title = details.Name
 			media.PosterURL = details.PosterPath
 			media.Genres = details.Genres
 			media.VoteAverage = float32(details.VoteAverage)
 		}
 	}
+	return media
+}
 
-	return &LibraryItemResponse{
+func toOwnResponse(item *LibraryItem) *OwnLibraryItemResponse {
+	tags := []string{}
+	if item.Tags != "" {
+		_ = json.Unmarshal([]byte(item.Tags), &tags)
+	}
+	media := fetchMediaSummaryHelper(item.MediaID, item.MediaType)
+
+	return &OwnLibraryItemResponse{
 		ID:        item.ID,
 		Media:     media,
 		ListType:  item.ListType,
 		Tags:      tags,
 		WatchedAt: item.WatchedAt,
 		Note:      item.Note,
+		CreatedAt: item.CreatedAt,
+	}
+}
+
+func toPublicResponse(item *LibraryItem) *PublicLibraryItemResponse {
+	media := fetchMediaSummaryHelper(item.MediaID, item.MediaType)
+
+	return &PublicLibraryItemResponse{
+		ID:        item.ID,
+		Media:     media,
+		ListType:  item.ListType,
 		CreatedAt: item.CreatedAt,
 	}
 }

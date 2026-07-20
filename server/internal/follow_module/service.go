@@ -4,7 +4,9 @@ import (
 	"context"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/feed_module"
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/shared"
 	users "github.com/arinsuda/movie-hub/internal/user_module"
 	"gorm.io/gorm"
 )
@@ -14,31 +16,36 @@ type Service struct {
 	db         *gorm.DB
 	achieveSvc achievementsmodule.Service
 	notifSvc   *notification_module.Service
+	feedSvc    feed_module.Service
 }
 
 func NewService(
 	db *gorm.DB,
 	achieve achievementsmodule.Service,
 	notif *notification_module.Service,
+	feed feed_module.Service,
 ) *Service {
 	return &Service{
 		repo:       newRepository(db),
 		db:         db,
 		achieveSvc: achieve,
 		notifSvc:   notif,
+		feedSvc:    feed,
 	}
 }
 
-func (s *Service) Follow(requesterID, targetID uint) (*FollowResponse, error) {
+func (s *Service) Follow(ctx context.Context, requesterID, targetID uint) (*FollowResponse, error) {
 	follow, err := s.repo.Follow(requesterID, targetID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Track achievement + notification เฉพาะที่ accepted ทันที (public account)
-	// กรณี pending จะ track ตอน AcceptFollow แทน
-	if follow.Status == StatusAccepted {
-		s.onFollowAccepted(requesterID, targetID)
+	switch follow.Status {
+	case StatusAccepted:
+		s.onFollowEstablished(ctx, requesterID, targetID)
+		s.notifyNewFollower(ctx, requesterID, targetID)
+	case StatusPending:
+		s.notifyFollowRequested(ctx, requesterID, targetID)
 	}
 
 	return &FollowResponse{
@@ -48,28 +55,48 @@ func (s *Service) Follow(requesterID, targetID uint) (*FollowResponse, error) {
 	}, nil
 }
 
-func (s *Service) Unfollow(requesterID, targetID uint) error {
-	return s.repo.Unfollow(requesterID, targetID)
+func (s *Service) Unfollow(ctx context.Context, requesterID, targetID uint) error {
+	err := s.repo.Unfollow(requesterID, targetID)
+	if err != nil {
+		return err
+	}
+	if s.feedSvc != nil {
+		_ = s.feedSvc.DeleteFollowActivity(ctx, requesterID, targetID)
+	}
+	return nil
 }
 
-// AcceptFollow — requesterID คือ followee (เจ้าของ account ที่กด accept)
-func (s *Service) AcceptFollow(requesterID, followerID uint) error {
+func (s *Service) AcceptFollow(ctx context.Context, requesterID, followerID uint) error {
 	if err := s.repo.AcceptFollow(followerID, requesterID); err != nil {
 		return err
 	}
 
-	// pending → accepted: track achievement และส่ง notification ตอนนี้
-	s.onFollowAccepted(followerID, requesterID)
+	s.onFollowEstablished(ctx, followerID, requesterID)
+	s.notifyFollowAccepted(ctx, requesterID, followerID)
 
 	return nil
 }
 
-// RejectFollow — requesterID คือ followee (เจ้าของ account ที่กด reject)
-func (s *Service) RejectFollow(requesterID, followerID uint) error {
-	return s.repo.RejectFollow(followerID, requesterID)
+func (s *Service) RejectFollow(ctx context.Context, requesterID, followerID uint) error {
+	err := s.repo.RejectFollow(followerID, requesterID)
+	if err != nil {
+		return err
+	}
+	if s.feedSvc != nil {
+		_ = s.feedSvc.DeleteFollowActivity(ctx, followerID, requesterID)
+	}
+	return nil
 }
 
-func (s *Service) GetFollowers(userID uint) ([]UserSummary, error) {
+func (s *Service) GetFollowers(ctx context.Context, requesterID, userID uint) ([]UserSummary, error) {
+	canView, err := s.repo.canViewFollowList(requesterID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+
 	rows, err := s.repo.GetFollowers(userID)
 	if err != nil {
 		return nil, err
@@ -77,7 +104,15 @@ func (s *Service) GetFollowers(userID uint) ([]UserSummary, error) {
 	return toSummaryList(rows), nil
 }
 
-func (s *Service) GetFollowing(userID uint) ([]UserSummary, error) {
+func (s *Service) GetFollowing(ctx context.Context, requesterID, userID uint) ([]UserSummary, error) {
+	canView, err := s.repo.canViewFollowList(requesterID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !canView {
+		return nil, ErrForbidden
+	}
+
 	rows, err := s.repo.GetFollowing(userID)
 	if err != nil {
 		return nil, err
@@ -85,8 +120,7 @@ func (s *Service) GetFollowing(userID uint) ([]UserSummary, error) {
 	return toSummaryList(rows), nil
 }
 
-// GetPendingRequests — เฉพาะเจ้าของ account เท่านั้นที่ดูได้
-func (s *Service) GetPendingRequests(requesterID, userID uint) ([]UserSummary, error) {
+func (s *Service) GetPendingRequests(ctx context.Context, requesterID, userID uint) ([]UserSummary, error) {
 	if requesterID != userID {
 		return nil, ErrForbidden
 	}
@@ -97,33 +131,78 @@ func (s *Service) GetPendingRequests(requesterID, userID uint) ([]UserSummary, e
 	return toSummaryList(rows), nil
 }
 
-// ── Internal ──────────────────────────────────────────────────────
+func (s *Service) GetRelationshipStatus(ctx context.Context, requesterID, targetID uint) (*RelationshipStatus, error) {
+	outbound, err := s.repo.GetStatus(requesterID, targetID)
+	if err != nil {
+		return nil, err
+	}
+	inbound, err := s.repo.GetStatus(targetID, requesterID)
+	if err != nil {
+		return nil, err
+	}
 
-// onFollowAccepted รวม logic ที่ต้องทำเมื่อ follow ถูก accept
-// เรียกได้จากทั้ง Follow (public) และ AcceptFollow (private)
-func (s *Service) onFollowAccepted(followerID, followeeID uint) {
-	ctx := context.Background()
+	status := &RelationshipStatus{}
+	if outbound != nil {
+		status.IsFollowing = outbound.Status == StatusAccepted
+		status.FollowStatus = string(outbound.Status)
+	}
+	if inbound != nil {
+		status.IsFollowedBy = inbound.Status == StatusAccepted
+	}
+	return status, nil
+}
 
-	// ── Achievement: following_count (ฝั่งคนกด follow) ──────────
+func (s *Service) onFollowEstablished(ctx context.Context, followerID, followeeID uint) {
 	var followingCount int64
 	s.db.Model(&UserFollow{}).
 		Where("follower_id = ? AND status = ?", followerID, StatusAccepted).
 		Count(&followingCount)
-	_, _ = s.achieveSvc.Track(followerID, "following_count", int(followingCount))
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followerID, "following_count", int(followingCount))
 
-	// ── Achievement: follower_count (ฝั่งคนถูก follow) ──────────
 	var followerCount int64
 	s.db.Model(&UserFollow{}).
 		Where("followee_id = ? AND status = ?", followeeID, StatusAccepted).
 		Count(&followerCount)
-	_, _ = s.achieveSvc.Track(followeeID, "follower_count", int(followerCount))
+	shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, followeeID, "follower_count", int(followerCount))
 
-	// ── Notification: แจ้ง followee ว่ามีคน follow ──────────────
-	if s.notifSvc != nil {
-		if actor, err := s.getUserSummary(followerID); err == nil {
-			_ = s.notifSvc.PushFollowedYou(ctx, followeeID, followerID, actor.Username)
-		}
+	if s.feedSvc != nil {
+		_ = s.feedSvc.CreateActivity(ctx, followerID, feed_module.ActivityUserFollowed, feed_module.ActivityPayload{
+			TargetUserID: &followeeID,
+		})
 	}
+}
+
+func (s *Service) notifyNewFollower(ctx context.Context, followerID, followeeID uint) {
+	if s.notifSvc == nil {
+		return
+	}
+	actor, err := s.getUserSummary(followerID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowedYou(ctx, followeeID, followerID, actor.Username)
+}
+
+func (s *Service) notifyFollowRequested(ctx context.Context, followerID, followeeID uint) {
+	if s.notifSvc == nil {
+		return
+	}
+	actor, err := s.getUserSummary(followerID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowRequested(ctx, followeeID, followerID, actor.Username)
+}
+
+func (s *Service) notifyFollowAccepted(ctx context.Context, accepterID, followerID uint) {
+	if s.notifSvc == nil {
+		return
+	}
+	actor, err := s.getUserSummary(accepterID)
+	if err != nil {
+		return
+	}
+	_ = s.notifSvc.PushFollowAccepted(ctx, followerID, accepterID, actor.Username)
 }
 
 func (s *Service) getUserSummary(userID uint) (*users.User, error) {
@@ -132,7 +211,32 @@ func (s *Service) getUserSummary(userID uint) (*users.User, error) {
 	return &u, err
 }
 
-// ── Mappers ───────────────────────────────────────────────────────
+func (s *Service) GetFollowStats(ctx context.Context, requesterID, targetID uint) (*FollowStatsResponse, error) {
+	followers, err := s.repo.CountFollowers(targetID)
+	if err != nil {
+		return nil, err
+	}
+	following, err := s.repo.CountFollowing(targetID)
+	if err != nil {
+		return nil, err
+	}
+
+	isFollowing := false
+	if requesterID != targetID {
+		status, err := s.repo.GetStatus(requesterID, targetID)
+		if err != nil {
+			return nil, err
+		}
+		isFollowing = status != nil && status.Status == StatusAccepted
+	}
+
+	return &FollowStatsResponse{
+		UserID:      targetID,
+		Followers:   followers,
+		Following:   following,
+		IsFollowing: isFollowing,
+	}, nil
+}
 
 func toSummaryList(rows []listRow) []UserSummary {
 	result := make([]UserSummary, len(rows))

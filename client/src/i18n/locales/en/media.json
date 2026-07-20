@@ -1,0 +1,61 @@
+{
+  "types": {
+    "movie": "Movies",
+    "tv": "TV Series",
+    "all": "All"
+  },
+  "filters": {
+    "genre": "Genre",
+    "sortBy": "Sort By",
+    "sortOptions": {
+      "popularity": "Popularity",
+      "rating": "Average Rating",
+      "releaseDate": "Release Date",
+      "title": "Title"
+    },
+    "allGenres": "All Genres"
+  },
+  "detail": {
+    "tabs": {
+      "info": "Overview",
+      "reviews": "Reviews ({count})",
+      "cast": "Cast",
+      "trailers": "Videos & Trailers",
+      "similar": "Similar Media"
+    },
+    "meta": {
+      "releaseDate": "Release Date",
+      "runtime": "Runtime",
+      "runtimeMinutes": "{minutes} min",
+      "genres": "Genres",
+      "status": "Status",
+      "rating": "Rating",
+      "voteCount": "({count} reviews)",
+      "tmdbRating": "TMDB Rating",
+      "removRating": "REMOV Rating",
+      "firstAirDate": "First Air Date"
+    },
+    "actions": {
+      "like": "Like",
+      "liked": "Liked",
+      "watchlist": "Watchlist",
+      "inWatchlist": "In Watchlist",
+      "watched": "Watched",
+      "inWatched": "Watched",
+      "writeReview": "Write a Review",
+      "playTrailer": "Watch Trailer"
+    },
+    "noOverview": "No overview is available.",
+    "noCast": "No cast members found for this title.",
+    "noTrailers": "No trailers available.",
+    "noSimilar": "No similar titles found."
+  },
+  "search": {
+    "title": "Search results for \"{query}\"",
+    "searching": "Searching...",
+    "empty": "No movies or TV series found. Try checking your spelling or search another keyword.",
+    "moviesTab": "Movies ({count})",
+    "tvTab": "TV Series ({count})",
+    "peopleTab": "People ({count})"
+  }
+}

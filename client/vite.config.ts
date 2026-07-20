@@ -19,4 +19,8 @@ export default defineConfig({
       },
     },
   },
+  // @ts-ignore
+  test: {
+    environment: 'happy-dom',
+  },
 })

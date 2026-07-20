@@ -1,6 +1,7 @@
 package achievementsmodule
 
 import (
+	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 )
@@ -9,9 +10,9 @@ type Module struct {
 	Service Service
 }
 
-func New(db *gorm.DB) *Module {
+func New(db *gorm.DB, policy privacy_policy.UserAccessPolicy) *Module {
 	repo := newRepository(db)
-	svc := newService(repo)
+	svc := newService(repo, policy)
 	return &Module{Service: svc}
 }
 

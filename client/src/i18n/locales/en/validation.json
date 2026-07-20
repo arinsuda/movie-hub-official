@@ -1,0 +1,16 @@
+{
+  "required": "This field is required",
+  "email": {
+    "invalid": "Invalid email address format",
+    "required": "Email is required"
+  },
+  "password": {
+    "tooShort": "Password must be at least {count} characters",
+    "required": "Password is required",
+    "mismatch": "Passwords do not match"
+  },
+  "username": {
+    "required": "Username is required",
+    "tooShort": "Username must be at least {count} characters"
+  }
+}

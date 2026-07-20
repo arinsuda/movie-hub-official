@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// PasswordResetMailer ส่ง reset-password link ทาง email
 type PasswordResetMailer interface {
 	SendResetLink(toEmail, resetURL string) error
 }

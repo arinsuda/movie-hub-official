@@ -264,7 +264,10 @@
 
   async function handleSkip() {
     try {
-      await userApi.updateProfile(authStore.user!.id, {
+      await userApi.updateFavoriteGenres(authStore.user!.id, [])
+
+      authStore.setUser({
+        ...authStore.user!,
         favorite_genres: "skip",
       })
     } catch {

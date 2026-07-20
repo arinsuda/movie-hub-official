@@ -417,6 +417,64 @@
         </div>
       </transition>
       <!-- ─────────────────────────────────────────────────────── -->
+
+      <!-- ─── Connected Accounts (Google) ──────────────────────── -->
+      <div class="field-divider" />
+      <div class="section-header" @click="googleOpen = !googleOpen">
+        <div class="section-header__left">
+          <svg class="google-logo" viewBox="0 0 24 24" width="16" height="16">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span class="section-header__title">Connected Accounts</span>
+        </div>
+        <ChevronDown
+          :size="14"
+          class="section-header__chevron"
+          :class="{ 'section-header__chevron--open': googleOpen }"
+        />
+      </div>
+
+      <transition name="pw-slide">
+        <div v-if="googleOpen" class="pw-section">
+          <div class="google-status-row">
+            <div class="google-status-info">
+              <span class="google-title">Google Account</span>
+              <span v-if="googleStatus.google_connected" class="google-desc text-green">
+                Connected: {{ googleStatus.google_email }}
+              </span>
+              <span v-else class="google-desc text-muted">Not connected</span>
+            </div>
+            <button
+              v-if="googleStatus.google_connected"
+              type="button"
+              class="email-action-btn email-action-btn--cancel"
+              :disabled="!googleStatus.can_disconnect || googleLoading"
+              @click="handleDisconnectGoogle"
+              :title="!googleStatus.can_disconnect ? 'Cannot disconnect your only authentication method' : ''"
+            >
+              <span v-if="googleLoading" class="btn-spinner" />
+              <span v-else>Disconnect</span>
+            </button>
+            <button
+              v-else
+              type="button"
+              class="email-action-btn email-action-btn--confirm"
+              :disabled="googleLoading"
+              @click="handleConnectGoogle"
+            >
+              <span v-if="googleLoading" class="btn-spinner" />
+              <span v-else>Connect Google</span>
+            </button>
+          </div>
+          <p v-if="googleError" class="inline-error mt-2">
+            <AlertCircle :size="11" /> {{ googleError }}
+          </p>
+        </div>
+      </transition>
+      <!-- ─────────────────────────────────────────────────────── -->
     </form>
 
     <div class="edit-footer">
@@ -450,7 +508,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onUnmounted, watch } from "vue";
+import { reactive, ref, computed, onMounted, onUnmounted, watch } from "vue";
 import {
   X,
   Upload,
@@ -545,6 +603,59 @@ const pwSuccess = ref(false);
 const showOld = ref(false);
 const showNew = ref(false);
 const showConfirm = ref(false);
+
+// ── Google OAuth state ────────────────────────────────────────────────
+const googleOpen = ref(false);
+const googleLoading = ref(false);
+const googleError = ref("");
+const googleStatus = reactive({
+  enabled: false,
+  google_connected: false,
+  can_disconnect: false,
+  google_email: "",
+});
+
+async function fetchGoogleStatus() {
+  try {
+    const { data } = await authApi.getGoogleStatus();
+    googleStatus.enabled = data.enabled;
+    googleStatus.google_connected = data.google_connected;
+    googleStatus.can_disconnect = data.can_disconnect;
+    googleStatus.google_email = data.google_email ?? "";
+  } catch {
+    /* ignore */
+  }
+}
+
+async function handleConnectGoogle() {
+  googleLoading.value = true;
+  googleError.value = "";
+  try {
+    const { data } = await authApi.startGoogleLink("/profile");
+    if (data.authorization_url) {
+      window.location.assign(data.authorization_url);
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } };
+    googleError.value = err?.response?.data?.error ?? "Failed to initiate Google link.";
+  } finally {
+    googleLoading.value = false;
+  }
+}
+
+async function handleDisconnectGoogle() {
+  googleLoading.value = true;
+  googleError.value = "";
+  try {
+    await authApi.disconnectGoogle();
+    await fetchGoogleStatus();
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } };
+    googleError.value = err?.response?.data?.error ?? "Failed to disconnect Google account.";
+  } finally {
+    googleLoading.value = false;
+  }
+}
 
 const pwForm = reactive({
   old_password: "",
@@ -774,6 +885,10 @@ async function handleSave() {
     saving.value = false;
   }
 }
+
+onMounted(() => {
+  fetchGoogleStatus();
+});
 
 onUnmounted(() => stopPolling());
 

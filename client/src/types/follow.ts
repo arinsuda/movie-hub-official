@@ -8,10 +8,24 @@ export interface FollowStatsResponse {
   is_following: boolean
 }
 
-export interface FollowUserResponse {
-  user: UserSummary
+export interface FollowRelationshipStatus {
   is_following: boolean
-  followed_at: string
+  follow_status?: "pending" | "accepted"
+  is_followed_by: boolean
+}
+
+export interface FollowActionResponse {
+  follower_id: number
+  followee_id: number
+  status: "pending" | "accepted"
+}
+
+export interface FollowUserSummary {
+  id: number
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+  status: "pending" | "accepted"
 }
 
 export interface FeedReviewResponse {
