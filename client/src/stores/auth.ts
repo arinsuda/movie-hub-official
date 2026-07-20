@@ -22,6 +22,8 @@ export const useAuthStore = defineStore("auth", () => {
 
   function clearUser() {
     user.value = null
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("refresh_token")
   }
 
   async function login(data: LoginRequest) {
@@ -29,6 +31,12 @@ export const useAuthStore = defineStore("auth", () => {
 
     try {
       const res = await authApi.login(data)
+      if (res.data.access_token) {
+        localStorage.setItem("access_token", res.data.access_token)
+      }
+      if (res.data.refresh_token) {
+        localStorage.setItem("refresh_token", res.data.refresh_token)
+      }
 
       setUser(res.data.user)
 
@@ -47,6 +55,12 @@ export const useAuthStore = defineStore("auth", () => {
 
     try {
       const res = await authApi.register(data)
+      if (res.data.access_token) {
+        localStorage.setItem("access_token", res.data.access_token)
+      }
+      if (res.data.refresh_token) {
+        localStorage.setItem("refresh_token", res.data.refresh_token)
+      }
 
       setUser(res.data.user)
 
@@ -66,8 +80,25 @@ export const useAuthStore = defineStore("auth", () => {
 
   async function fetchMe() {
     try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const urlAccess = urlParams.get("access_token")
+      const urlRefresh = urlParams.get("refresh_token")
+
+      if (urlAccess && urlRefresh) {
+        localStorage.setItem("access_token", urlAccess)
+        localStorage.setItem("refresh_token", urlRefresh)
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }
+
       const refreshRes = await authApi.refreshToken()
       const userId = refreshRes.data.user.id
+
+      if (refreshRes.data.access_token) {
+        localStorage.setItem("access_token", refreshRes.data.access_token)
+      }
+      if (refreshRes.data.refresh_token) {
+        localStorage.setItem("refresh_token", refreshRes.data.refresh_token)
+      }
 
       const meRes = await userApi.me(userId)
       const profile = meRes.data.user

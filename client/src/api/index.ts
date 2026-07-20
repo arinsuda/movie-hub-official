@@ -16,6 +16,14 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 let isRefreshing = false;
 
 let failedQueue: {
@@ -51,14 +59,12 @@ api.interceptors.response.use(
     }
 
     // retry เฉพาะ 401 เท่านั้น
-    // 404 / 403 / 5xx ไม่ใช่ expired token → reject ออกไปเลย
     if (status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
     originalRequest._retry = true;
 
-    // ถ้ามี refresh request อยู่แล้ว ให้รอใน queue
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
         failedQueue.push({ resolve, reject });
@@ -68,13 +74,35 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      await axios.post("/api/auth/refresh", {}, { withCredentials: true });
+      const storedRefresh = localStorage.getItem("refresh_token");
+      const refreshUrl = `${getBaseURL()}/auth/refresh`;
+      const refreshRes = await axios.post(
+        refreshUrl,
+        { refresh_token: storedRefresh },
+        { withCredentials: true },
+      );
+
+      if (refreshRes.data?.access_token) {
+        localStorage.setItem("access_token", refreshRes.data.access_token);
+      }
+      if (refreshRes.data?.refresh_token) {
+        localStorage.setItem("refresh_token", refreshRes.data.refresh_token);
+      }
 
       processQueue();
+
+      if (originalRequest.headers) {
+        const newAccessToken = localStorage.getItem("access_token");
+        if (newAccessToken) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        }
+      }
 
       return api(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError);
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
 
       const authStore = useAuthStore();
       authStore.clearUser();
