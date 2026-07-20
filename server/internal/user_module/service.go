@@ -272,7 +272,7 @@ func (s *Service) VerifyEmailChange(
 	}
 
 	return s.GetProfile(targetUserID, requesterID)
-} 
+}
 
 func (s *Service) ChangePassword(targetUserID, requesterID uint, req ChangePasswordRequest) error {
 	if targetUserID != requesterID {
@@ -288,12 +288,13 @@ func (s *Service) ChangePassword(targetUserID, requesterID uint, req ChangePassw
 		return err
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
-		return ErrInvalidCredentials
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.NewPassword)); err == nil {
-		return errors.New("new password must be different from current password")
+	if user.Password != nil && *user.Password != "" {
+		if err := bcrypt.CompareHashAndPassword([]byte(*user.Password), []byte(req.OldPassword)); err != nil {
+			return ErrInvalidCredentials
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(*user.Password), []byte(req.NewPassword)); err == nil {
+			return errors.New("new password must be different from current password")
+		}
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
@@ -311,7 +312,7 @@ func (s *Service) ForgotPassword(email string) error {
 	user, err := s.repo.FindByEmail(email)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			return nil 
+			return nil
 		}
 		return err
 	}

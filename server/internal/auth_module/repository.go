@@ -95,7 +95,7 @@ func (r *repository) MarkFirstLoginIfNeeded(userID uint) (bool, error) {
 	if result.Error != nil {
 		return false, result.Error
 	}
-	return result.RowsAffected > 0, nil 
+	return result.RowsAffected > 0, nil
 }
 
 var (

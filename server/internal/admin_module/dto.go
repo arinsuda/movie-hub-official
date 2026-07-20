@@ -118,15 +118,15 @@ func (f *UserFilter) Offset() int {
 }
 
 type ReviewFilter struct {
-	Page      int      `query:"page"`
-	Limit     int      `query:"limit"`
-	Search    string   `query:"search"`
-	MediaType string   `query:"media_type"`
-	Visibility string  `query:"visibility"`
-	MinRating *float32 `query:"min_rating"`
-	MaxRating *float32 `query:"max_rating"`
-	SortBy    string   `query:"sort_by"`
-	SortOrder string   `query:"sort_order"`
+	Page       int      `query:"page"`
+	Limit      int      `query:"limit"`
+	Search     string   `query:"search"`
+	MediaType  string   `query:"media_type"`
+	Visibility string   `query:"visibility"`
+	MinRating  *float32 `query:"min_rating"`
+	MaxRating  *float32 `query:"max_rating"`
+	SortBy     string   `query:"sort_by"`
+	SortOrder  string   `query:"sort_order"`
 }
 
 func (f *ReviewFilter) Normalize() {

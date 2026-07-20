@@ -6,8 +6,14 @@ import type {
   LoginRequest,
   RegisterRequest,
   ResetPasswordRequest,
-  UserProfile,
 } from "@/types"
+
+export interface GoogleStatusResponse {
+  enabled: boolean
+  google_connected: boolean
+  can_disconnect: boolean
+  google_email?: string
+}
 
 export const authApi = {
   login: (data: LoginRequest) => api.post<AuthResponse>("/auth/login", data),
@@ -33,4 +39,17 @@ export const authApi = {
   // ใช้ token จาก email ตั้งรหัสผ่านใหม่
   resetPassword: (data: ResetPasswordRequest) =>
     api.post("auth/reset-password", data),
+
+  // Google OAuth 2.0
+  getGoogleLoginUrl: (returnUrl: string = "/") =>
+    `/api/auth/google/login?return_url=${encodeURIComponent(returnUrl)}`,
+
+  startGoogleLink: (returnUrl: string = "/") =>
+    api.post<{ authorization_url: string }>("/auth/google/link", { return_url: returnUrl }),
+
+  disconnectGoogle: () => api.delete("/auth/google/link"),
+
+  getGoogleStatus: () => api.get<GoogleStatusResponse>("/auth/google/status"),
+
+  getGoogleConfig: () => api.get<{ enabled: boolean }>("/auth/google/config"),
 }

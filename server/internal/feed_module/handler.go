@@ -55,7 +55,6 @@ func (h *handler) GetNewCount(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"count": count})
 }
 
-
 func (h *handler) GetUserActivities(c fiber.Ctx) error {
 	claims := mw.GetClaims(c)
 

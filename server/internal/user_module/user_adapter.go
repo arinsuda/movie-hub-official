@@ -25,4 +25,3 @@ func (a *NotificationUserAdapter) FindFollowerIDs(userID uint) ([]uint, error) {
 		Pluck("follower_id", &ids).Error
 	return ids, err
 }
-

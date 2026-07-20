@@ -24,7 +24,7 @@ func TrackAndNotify(
 		return nil
 	}
 	unlocked, _ := achieveSvc.Track(userID, actionType, count)
-	
+
 	var result []NeutralUnlocked
 	for _, u := range unlocked {
 		result = append(result, NeutralUnlocked{

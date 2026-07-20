@@ -254,7 +254,6 @@ func (s *Service) PushFollowingActivity(
 	return s.createAndEmit(ctx, ns)
 }
 
-
 func (s *Service) PushFollowingReviewed(ctx context.Context, actorID uint, actorUsername string, reviewID uint, movieTitle string) error {
 	ref := "review"
 	msg := fmt.Sprintf("%s reviewed %q", actorUsername, movieTitle)

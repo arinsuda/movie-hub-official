@@ -170,10 +170,11 @@ func TestMigrationAndConstraints(t *testing.T) {
 
 	// 5. ON DELETE SET NULL on target_user_id
 	// Create test target user
+	pwdStr := "password"
 	target := users.User{
 		Username: "target_test_user",
 		Email:    "target@test.com",
-		Password: "password",
+		Password: &pwdStr,
 	}
 	if err := tx.Create(&target).Error; err != nil {
 		t.Fatalf("failed to create target user: %v", err)
@@ -213,9 +214,10 @@ func TestUserAccessPolicy(t *testing.T) {
 	defer tx.Rollback()
 
 	// Set up users
-	owner := users.User{Username: "owner_user", Email: "owner@test.com", Password: "pwd", IsPrivate: true, IsActive: true}
-	viewer := users.User{Username: "viewer_user", Email: "viewer@test.com", Password: "pwd", IsActive: true}
-	nonFollower := users.User{Username: "non_follower_user", Email: "non@test.com", Password: "pwd", IsActive: true}
+	pwdStr := "pwd"
+	owner := users.User{Username: "owner_user", Email: "owner@test.com", Password: &pwdStr, IsPrivate: true, IsActive: true}
+	viewer := users.User{Username: "viewer_user", Email: "viewer@test.com", Password: &pwdStr, IsActive: true}
+	nonFollower := users.User{Username: "non_follower_user", Email: "non@test.com", Password: &pwdStr, IsActive: true}
 
 	if err := tx.Create(&owner).Error; err != nil {
 		t.Fatalf("failed to create owner: %v", err)

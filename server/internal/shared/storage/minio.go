@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
@@ -89,6 +90,16 @@ func (m *MinIOClient) UploadAvatar(ctx context.Context, userID uint, file multip
 		return "", fmt.Errorf("minio: upload avatar: %w", err)
 	}
 
+	return objectKey, nil
+}
+
+func (m *MinIOClient) UploadBuffer(ctx context.Context, objectKey string, reader io.Reader, size int64, contentType string) (string, error) {
+	_, err := m.client.PutObject(ctx, m.bucketName, objectKey, reader, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("minio: upload buffer: %w", err)
+	}
 	return objectKey, nil
 }
 

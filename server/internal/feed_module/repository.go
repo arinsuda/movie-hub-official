@@ -336,4 +336,3 @@ func (r *repository) CountNewFeedItems(ctx context.Context, userID uint, afterAc
 	err := db.Count(&count).Error
 	return count, err
 }
-

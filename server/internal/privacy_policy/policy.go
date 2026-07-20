@@ -71,7 +71,7 @@ func (p *userAccessPolicy) CanViewActivity(ctx context.Context, viewerID, actorI
 		Select("enabled").
 		Where("user_id = ? AND activity_type = ?", actorID, string(activityType)).
 		Row().Scan(&dbEnabled)
-	
+
 	enabled := true
 	if err != nil {
 		// Fallback to default settings

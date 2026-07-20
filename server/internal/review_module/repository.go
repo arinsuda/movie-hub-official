@@ -105,8 +105,6 @@ func (r *repository) DeleteReview(reviewID uint) error {
 	return result.Error
 }
 
-
-
 // GetMediaRating คืน average rating และจำนวน review ของ media นั้น
 // นับเฉพาะ public reviews และ deleted_at IS NULL (soft-delete safe)
 func (r *repository) GetMediaRating(ctx context.Context, id shared.MediaIdentity) (shared.RatingStats, error) {

@@ -109,4 +109,3 @@ func welcomeHandler(c fiber.Ctx) error {
 func healthHandler(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "ok"})
 }
- 

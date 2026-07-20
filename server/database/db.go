@@ -77,6 +77,7 @@ func autoMigrate(db *gorm.DB) error {
 
 		&user_module.Role{},
 		&user_module.User{},
+		&user_module.UserIdentity{},
 		&user_module.EmailVerification{},
 		&user_module.RefreshToken{},
 		&user_module.EmailChangeRequest{},
@@ -216,6 +217,28 @@ func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
+	googleIdentityMigrationSQL := `
+		ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+
+		CREATE TABLE IF NOT EXISTS user_identities (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			provider VARCHAR(50) NOT NULL,
+			provider_subject VARCHAR(255) NOT NULL,
+			provider_email VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT uq_provider_subject UNIQUE (provider, provider_subject),
+			CONSTRAINT uq_user_provider UNIQUE (user_id, provider)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities(user_id);
+	`
+
+	if err := runMigrationWithHistory(db, "google_oauth_user_identity_v1", googleIdentityMigrationSQL); err != nil {
+		return err
+	}
+
 	err := runMigrationWithHistoryTx(db, "review_unique_constraint_v1", cfg.DB.MigrationLockTimeoutMs, cfg.DB.MigrationStatementTimeoutMs, func(tx *gorm.DB) error {
 		// 1. Strict validation of existing index
 		var indexDef string
@@ -225,9 +248,9 @@ func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 			hasUnique := strings.Contains(indexDefUpper, "UNIQUE")
 			collapsedDef := strings.ReplaceAll(indexDefUpper, " ", "")
 			hasCols := strings.Contains(collapsedDef, "(USER_ID,MEDIA_ID,MEDIA_TYPE)")
-			hasPredicate := strings.Contains(indexDefUpper, "WHERE (DELETED_AT IS NULL)") || 
-							strings.Contains(collapsedDef, "WHERE(DELETED_ATISNULL)")
-			
+			hasPredicate := strings.Contains(indexDefUpper, "WHERE (DELETED_AT IS NULL)") ||
+				strings.Contains(collapsedDef, "WHERE(DELETED_ATISNULL)")
+
 			if hasUnique && hasCols && hasPredicate {
 				log.Println("Index 'uq_active_user_media_review' already exists with matching definition.")
 				return nil
@@ -352,10 +375,11 @@ func seedInitialData(db *gorm.DB) error {
 			var roleAdmin user_module.Role
 			db.Where("role_name = ?", user_module.RoleAdmin).First(&roleAdmin)
 
+			hashedStr := string(hashedPassword)
 			adminUser := &user_module.User{
 				Username:        adminUsername,
 				Email:           adminEmail,
-				Password:        string(hashedPassword),
+				Password:        &hashedStr,
 				RoleID:          roleAdmin.ID,
 				VerifiedEmailAt: &adminVerifiedEmailAt,
 			}

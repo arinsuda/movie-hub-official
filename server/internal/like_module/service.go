@@ -61,7 +61,6 @@ func (s *Service) Like(ctx context.Context, userID uint, mediaID int, mediaType 
 	unlocked := shared.TrackAndNotify(ctx, s.achieveSvc, s.notifSvc, userID, "like_count", int(count))
 	s.createAchievementFeedActivities(ctx, userID, unlocked)
 
-
 	if s.notifSvc != nil {
 		if actor, err := s.getUserSummary(userID); err == nil {
 			var title string
@@ -183,5 +182,3 @@ func (s *Service) getUserSummary(userID uint) (*UserSummary, error) {
 	err := s.db.Table("users").Where("id = ?", userID).Select("username").First(&u).Error
 	return &UserSummary{Username: u.Username}, err
 }
-
-

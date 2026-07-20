@@ -12,13 +12,13 @@ import (
 )
 
 var (
-	ErrUserNotFound          = errors.New("user not found")
-	ErrReviewNotFound        = errors.New("review not found")
-	ErrRoleNotFound          = errors.New("invalid role")
-	ErrSelfDeactivation      = errors.New("cannot deactivate your own account")
-	ErrFinalAdminProtection  = errors.New("cannot demote or deactivate final active admin")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrReviewNotFound         = errors.New("review not found")
+	ErrRoleNotFound           = errors.New("invalid role")
+	ErrSelfDeactivation       = errors.New("cannot deactivate your own account")
+	ErrFinalAdminProtection   = errors.New("cannot demote or deactivate final active admin")
 	ErrInactiveUserRoleChange = errors.New("cannot change role of inactive user")
-	ErrUserAlreadyInStatus   = errors.New("user is already in requested status")
+	ErrUserAlreadyInStatus    = errors.New("user is already in requested status")
 )
 
 type Repository interface {
@@ -559,10 +559,10 @@ func (r *gormRepository) UpdateUserStatus(adminID, targetUserID uint, isActive b
 func (r *gormRepository) DeleteReview(adminID, reviewID uint, reason *string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		type reviewRow struct {
-			ID       uint
-			UserID   uint
-			Body     string
-			Rating   float32
+			ID     uint
+			UserID uint
+			Body   string
+			Rating float32
 		}
 		var rev reviewRow
 		err := tx.Table("reviews").
