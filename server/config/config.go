@@ -117,9 +117,9 @@ func Load() (*Config, error) {
 			From:     getEnv("SMTP_FROM", "noreply@remov.app"),
 		},
 		Cookie: CookieConfig{
-			Domain:   getEnv("COOKIE_DOMAIN", "localhost"),
+			Domain:   getEnv("COOKIE_DOMAIN", ""),
 			Secure:   getEnv("COOKIE_SECURE", "false") == "true",
-			SameSite: getEnv("COOKIE_SAMESITE", "Strict"),
+			SameSite: getEnv("COOKIE_SAMESITE", "Lax"),
 		},
 		MinIO: MinIOConfig{
 			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
