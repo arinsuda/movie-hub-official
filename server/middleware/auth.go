@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/arinsuda/movie-hub/config"
 	"github.com/gofiber/fiber/v3"
@@ -20,6 +21,12 @@ func NewAuthMiddleware(cfg *config.Config) *AuthMiddleware {
 
 func (m *AuthMiddleware) RequireAuth(c fiber.Ctx) error {
 	token := c.Cookies("access_token")
+	if token == "" {
+		authHeader := c.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
 	if token == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

@@ -31,7 +31,9 @@ type UserResponse struct {
 }
 
 type AuthResponse struct {
-	User UserResponse `json:"user"`
+	User         UserResponse `json:"user"`
+	AccessToken  string       `json:"access_token,omitempty"`
+	RefreshToken string       `json:"refresh_token,omitempty"`
 }
 
 type MessageResponse struct {

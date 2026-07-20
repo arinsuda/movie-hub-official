@@ -2,6 +2,7 @@ package auth_module
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -49,11 +50,24 @@ func (h *Handler) Login(c fiber.Ctx) error {
 
 	h.setTokenCookies(c, pair)
 
-	return c.JSON(AuthResponse{User: toUserResponse(user)})
+	return c.JSON(AuthResponse{
+		User:         toUserResponse(user),
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+	})
 }
 
 func (h *Handler) Refresh(c fiber.Ctx) error {
 	rawRefresh := c.Cookies("refresh_token")
+	if rawRefresh == "" {
+		var body struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		_ = c.Bind().JSON(&body)
+		if body.RefreshToken != "" {
+			rawRefresh = body.RefreshToken
+		}
+	}
 	if rawRefresh == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing refresh token"})
 	}
@@ -66,7 +80,11 @@ func (h *Handler) Refresh(c fiber.Ctx) error {
 
 	h.setTokenCookies(c, pair)
 
-	return c.JSON(AuthResponse{User: toUserResponse(user)})
+	return c.JSON(AuthResponse{
+		User:         toUserResponse(user),
+		AccessToken:  pair.AccessToken,
+		RefreshToken: pair.RefreshToken,
+	})
 }
 
 func (h *Handler) Logout(c fiber.Ctx) error {
@@ -247,6 +265,14 @@ func (h *Handler) GoogleCallback(c fiber.Ctx) error {
 			u.Path = returnURL
 			successURL = u.String()
 		}
+	}
+
+	if pair != nil {
+		sep := "?"
+		if strings.Contains(successURL, "?") {
+			sep = "&"
+		}
+		successURL = fmt.Sprintf("%s%saccess_token=%s&refresh_token=%s", successURL, sep, url.QueryEscape(pair.AccessToken), url.QueryEscape(pair.RefreshToken))
 	}
 
 	return c.Redirect().To(successURL)
