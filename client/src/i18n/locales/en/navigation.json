@@ -15,5 +15,7 @@
   "searching": "Searching...",
   "viewAllResults": "View all results for \"{query}\"",
   "movie": "Movie",
-  "series": "Series"
+  "series": "Series",
+  "adminMode": "Admin Mode",
+  "exitAdmin": "Exit Admin Mode"
 }

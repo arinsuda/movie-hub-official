@@ -189,6 +189,15 @@
               >
                 <Rss :size="14" />{{ $t("navigation.feed") }}
               </RouterLink>
+              <template v-if="authStore.isAdmin">
+                <div class="dropdown-divider" />
+                <button
+                  class="dropdown-item dropdown-item--admin"
+                  @click="handleEnterAdmin"
+                >
+                  <Shield :size="14" />{{ $t("navigation.adminMode") }}
+                </button>
+              </template>
               <div class="dropdown-divider" />
               <button
                 class="dropdown-item dropdown-item--danger"
@@ -298,6 +307,13 @@
               <Rss :size="16" />{{ $t("navigation.feed") }}
             </RouterLink>
             <button
+              v-if="authStore.isAdmin"
+              class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--admin"
+              @click="handleEnterAdmin"
+            >
+              <Shield :size="16" />{{ $t("navigation.adminMode") }}
+            </button>
+            <button
               class="mobile-nav-link mobile-nav-link--sub mobile-nav-link--danger"
               @click="handleLogout"
             >
@@ -322,6 +338,7 @@
 import { ref, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useAdminStore } from "@/stores/admin";
 import { useNotificationStore } from "@/stores/notification";
 import { useLocale } from "@/i18n";
 import ToastContainer from "@/components/common/ToastContainer.vue";
@@ -340,6 +357,7 @@ import {
   LogOut,
   Star,
   X,
+  Shield,
 } from "lucide-vue-next";
 
 interface SearchSuggestion {
@@ -353,6 +371,7 @@ interface SearchSuggestion {
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 const notificationStore = useNotificationStore();
 const localeStore = useLocale();
 
@@ -493,9 +512,17 @@ function onClickOutside(e: MouseEvent) {
 async function handleLogout() {
   userMenuOpen.value = false;
   mobileMenuOpen.value = false;
+  adminStore.reset();
   notificationStore.reset(); // ปิด socket + เคลียร์ notification ของ user เดิม
   await authStore.logout();
   router.push({ name: "login" });
+}
+
+function handleEnterAdmin() {
+  userMenuOpen.value = false;
+  mobileMenuOpen.value = false;
+  adminStore.enterAdminMode();
+  router.push("/admin");
 }
 
 // ปิดเมนูมือถืออัตโนมัติเมื่อขยายจอกลับมาเป็นเดสก์ท็อป

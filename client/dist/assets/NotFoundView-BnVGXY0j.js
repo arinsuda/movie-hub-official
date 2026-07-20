@@ -1,1 +1,0 @@
-import{M as e,d as t}from"./runtime-core.esm-bundler-D0LusEXo.js";import{t as n}from"./_plugin-vue_export-helper-BDNMzG2s.js";var r={},i={class:`p-4 text-white`};function a(n,r){return e(),t(`div`,i)}var o=n(r,[[`render`,a]]);export{o as default};

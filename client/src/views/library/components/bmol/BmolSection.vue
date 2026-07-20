@@ -66,13 +66,8 @@
             ✕
           </button>
         </div>
-        <div class="detail-toolbar-actions">
-          <span class="detail-result-count">
-            {{ bmolFilteredItems.length }}
-            {{ bmolFilteredItems.length === 1 ? 'item' : 'items' }}
-          </span>
+        <div v-if="isOwner" class="detail-toolbar-actions">
           <button
-            v-if="isOwner"
             class="btn-quick-add"
             @click="openSpotlight(selectedRankDetail!)"
           >
@@ -138,8 +133,15 @@
           </div>
         </div>
       </div>
-      <div v-else class="empty-state-card">
-        <p>{{ $t("library.bmol.errorEmptySearch") }}</p>
+      <div v-else class="empty-state-card fade-in-up">
+        <div class="empty-state-visual">
+          <div class="empty-glow-backdrop" />
+          <div class="empty-icon-badge">
+            <Search :size="32" class="empty-trophy-icon" />
+          </div>
+        </div>
+        <h3 class="empty-state-title">{{ $t("library.bmol.errorEmptySearch") }}</h3>
+        <p class="empty-state-description">ไม่พบรายการตรงกับคำค้นหาในอันดับนี้ ลองพิมพ์คำค้นหาใหม่อีกครั้ง</p>
       </div>
     </div>
 
@@ -342,9 +344,21 @@
         </div>
       </div>
 
-      <div v-else class="empty-state-card">
-        <Trophy :size="32" class="empty-icon" />
-        <p>{{ $t("library.bmol.empty") }}</p>
+      <div v-else class="empty-state-card fade-in-up">
+        <div class="empty-state-visual">
+          <div class="empty-glow-backdrop" />
+          <div class="empty-icon-badge">
+            <Trophy :size="36" class="empty-trophy-icon" />
+          </div>
+        </div>
+        <h3 class="empty-state-title">
+          {{ bmolSubTab === 'movie' ? $t("library.bmol.emptyMovieTitle") : $t("library.bmol.emptyTVTitle") }}
+        </h3>
+        <p class="empty-state-description">{{ $t("library.bmol.empty") }}</p>
+        <div v-if="isOwner" class="empty-state-hint">
+          <Sparkles :size="15" class="hint-sparkle-icon" />
+          <span>{{ $t("library.bmol.emptyHint") }}</span>
+        </div>
       </div>
     </div>
 
@@ -369,7 +383,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue"
-import { Search, Trophy, ChevronLeft, Film } from "lucide-vue-next"
+import { Search, Trophy, ChevronLeft, Film, Sparkles } from "lucide-vue-next"
 import { bmolApi, movieApi } from "@/api/api"
 import type { BMOLItemResponse, Movie, TVSeries } from "@/types"
 import BmolSpotlightModal from "./BmolSpotlightModal.vue"
@@ -1475,12 +1489,15 @@ function getMediaDate(media: Movie | TVSeries): string {
 .detail-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: rgba(20, 20, 22, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 14px;
-  backdrop-filter: blur(12px);
+  gap: 14px;
+  padding: 12px 16px;
+  background: rgba(20, 20, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  margin-bottom: 1.5rem;
 }
 
 .detail-search-box {
@@ -1488,22 +1505,23 @@ function getMediaDate(media: Movie | TVSeries): string {
   align-items: center;
   flex: 1;
   min-width: 0;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  padding: 0 12px;
-  height: 38px;
-  transition: border-color 0.2s, background-color 0.2s;
+  padding: 0 14px;
+  height: 42px;
+  transition: all 0.2s ease;
 }
 
 .detail-search-box:focus-within {
-  border-color: rgba(225, 37, 27, 0.35);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(225, 37, 27, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 16px rgba(225, 37, 27, 0.15);
 }
 
 .detail-search-icon {
-  color: #52525b;
+  color: #71717a;
   flex-shrink: 0;
   transition: color 0.2s;
 }
@@ -1516,25 +1534,25 @@ function getMediaDate(media: Movie | TVSeries): string {
   background: transparent;
   border: none;
   outline: none;
-  color: #e4e4e7;
-  font-size: 0.82rem;
+  color: #ffffff;
+  font-size: 0.85rem;
   font-weight: 500;
   width: 100%;
   min-width: 0;
 }
 
 .detail-search-input::placeholder {
-  color: #52525b;
+  color: #71717a;
   font-weight: 400;
 }
 
 .detail-search-clear {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   border: none;
-  color: #71717a;
-  font-size: 0.65rem;
-  width: 20px;
-  height: 20px;
+  color: #a1a1aa;
+  font-size: 0.7rem;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1545,31 +1563,34 @@ function getMediaDate(media: Movie | TVSeries): string {
 }
 
 .detail-search-clear:hover {
-  background: rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
 }
 
 .detail-toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
 .detail-result-count {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: #52525b;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   white-space: nowrap;
-  letter-spacing: 0.01em;
 }
 
 @media (max-width: 575px) {
   .detail-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 12px;
   }
   .detail-toolbar-actions {
     justify-content: space-between;
@@ -1594,5 +1615,107 @@ function getMediaDate(media: Movie | TVSeries): string {
 .bmol-detail-grid .bmol-item-card {
   width: 100% !important;
   min-width: 0 !important;
+}
+
+/* ==============================
+   Rich Empty State Styling
+   ============================== */
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background: rgba(20, 20, 24, 0.65);
+  border: 1px dashed rgba(225, 37, 27, 0.25);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  margin: 1rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.empty-state-visual {
+  position: relative;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-glow-backdrop {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(225, 37, 27, 0.35) 0%, rgba(225, 37, 27, 0) 70%);
+  border-radius: 50%;
+  filter: blur(12px);
+  animation: pulseGlow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.empty-icon-badge {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(35, 35, 42, 0.9), rgba(20, 20, 24, 0.95));
+  border: 1px solid rgba(225, 37, 27, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 8px 24px rgba(225, 37, 27, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.empty-trophy-icon {
+  color: #e1251b;
+  filter: drop-shadow(0 2px 8px rgba(225, 37, 27, 0.5));
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.01em;
+}
+
+.empty-state-description {
+  font-size: 0.925rem;
+  color: #9ca3af;
+  max-width: 440px;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.6;
+}
+
+.empty-state-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(225, 37, 27, 0.08);
+  border: 1px solid rgba(225, 37, 27, 0.2);
+  border-radius: 99px;
+  padding: 0.5rem 1.25rem;
+  color: #f3f4f6;
+  font-size: 0.825rem;
+  font-weight: 500;
+}
+
+.hint-sparkle-icon {
+  color: #e1251b;
 }
 </style>

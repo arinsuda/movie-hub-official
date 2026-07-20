@@ -11,6 +11,7 @@ import (
 
 	"github.com/arinsuda/movie-hub/config"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/admin_module"
 	"github.com/arinsuda/movie-hub/internal/bmol_module"
 	"github.com/arinsuda/movie-hub/internal/feed_module"
 	"github.com/arinsuda/movie-hub/internal/follow_module"
@@ -103,6 +104,7 @@ func autoMigrate(db *gorm.DB) error {
 		&feed_module.ActivityPrivacySetting{},
 
 		&bmol_module.BMOLItem{},
+		&admin_module.AdminAuditLog{},
 	)
 	if err != nil {
 		return err

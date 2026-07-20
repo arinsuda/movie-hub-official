@@ -16,9 +16,10 @@ type TokenVerifier interface {
 }
 
 type Hub struct {
-	io       *socket.Server
-	verifier TokenVerifier
-	mu       sync.RWMutex
+	io          *socket.Server
+	verifier    TokenVerifier
+	mu          sync.RWMutex
+	userSockets map[uint]map[string]bool
 }
 
 func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
@@ -31,8 +32,9 @@ func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
 	io := socket.NewServer(nil, opts)
 
 	h := &Hub{
-		io:       io,
-		verifier: verifier,
+		io:          io,
+		verifier:    verifier,
+		userSockets: make(map[uint]map[string]bool),
 	}
 
 	io.On("connection", func(clients ...any) {
@@ -53,10 +55,36 @@ func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
 			return
 		}
 
+		socketID := string(client.Id())
+
+		h.mu.Lock()
+		if _, ok := h.userSockets[userID]; !ok {
+			h.userSockets[userID] = make(map[string]bool)
+		}
+		h.userSockets[userID][socketID] = true
+		h.mu.Unlock()
+
+		client.On("disconnect", func(...any) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if sockets, ok := h.userSockets[userID]; ok {
+				delete(sockets, socketID)
+				if len(sockets) == 0 {
+					delete(h.userSockets, userID)
+				}
+			}
+		})
+
 		client.Join(roomFor(userID))
 	})
 
 	return h
+}
+
+func (h *Hub) UniqueOnlineCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.userSockets)
 }
 
 func extractAccessTokenFromRequest(headers types.IncomingHttpHeaders) string {

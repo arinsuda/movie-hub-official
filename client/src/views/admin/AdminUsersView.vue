@@ -1,0 +1,449 @@
+<template>
+  <div class="admin-users-view">
+    <div class="view-header">
+      <h1 class="page-title">{{ $t("admin.users.title") }}</h1>
+    </div>
+
+    <!-- Filters & Search Bar -->
+    <div class="filter-bar">
+      <div class="search-input-wrapper">
+        <Search :size="16" class="search-icon" />
+        <input
+          v-model="search"
+          type="text"
+          class="search-input"
+          :placeholder="$t('admin.users.searchPlaceholder')"
+          @input="onSearchInput"
+        />
+      </div>
+
+      <div class="filter-controls">
+        <select v-model="roleFilter" class="filter-select" @change="fetchData(1)">
+          <option value="all">{{ $t("admin.users.roleAll") }}</option>
+          <option value="admin">{{ $t("admin.users.roleAdmin") }}</option>
+          <option value="user">{{ $t("admin.users.roleUser") }}</option>
+        </select>
+
+        <select v-model="statusFilter" class="filter-select" @change="fetchData(1)">
+          <option value="all">{{ $t("admin.users.statusAll") }}</option>
+          <option value="active">{{ $t("admin.users.statusActive") }}</option>
+          <option value="inactive">{{ $t("admin.users.statusInactive") }}</option>
+        </select>
+
+        <select v-model="sortBy" class="filter-select" @change="fetchData(1)">
+          <option value="created_at">Sort by Joined</option>
+          <option value="username">Sort by Username</option>
+          <option value="email">Sort by Email</option>
+          <option value="review_count">Sort by Reviews</option>
+        </select>
+
+        <button class="sort-order-btn" @click="toggleSortOrder">
+          <ArrowUpDown :size="16" />
+          <span>{{ sortOrder.toUpperCase() }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>{{ $t("admin.users.colId") }}</th>
+            <th>{{ $t("admin.users.colUser") }}</th>
+            <th>{{ $t("admin.users.colEmail") }}</th>
+            <th>{{ $t("admin.users.colRole") }}</th>
+            <th>{{ $t("admin.users.colStatus") }}</th>
+            <th>{{ $t("admin.users.colReviews") }}</th>
+            <th>{{ $t("admin.users.colJoined") }}</th>
+            <th class="text-right">{{ $t("admin.users.colActions") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="adminStore.isLoadingUsers">
+            <td colspan="8" class="text-center py-8">
+              <div class="spinner inline" />
+            </td>
+          </tr>
+          <tr v-else-if="users.length === 0">
+            <td colspan="8" class="text-center py-8 text-muted">
+              No users found.
+            </td>
+          </tr>
+          <tr v-for="u in users" :key="u.id">
+            <td>#{{ u.id }}</td>
+            <td>
+              <div class="user-cell">
+                <img
+                  v-if="u.avatar_url"
+                  :src="u.avatar_url"
+                  class="user-avatar"
+                  :alt="u.username"
+                />
+                <div v-else class="user-avatar placeholder">
+                  {{ u.username.charAt(0).toUpperCase() }}
+                </div>
+                <div class="user-meta">
+                  <span class="user-name">{{ u.display_name || u.username }}</span>
+                  <span class="user-handle">@{{ u.username }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="text-secondary">{{ u.email }}</td>
+            <td>
+              <span class="role-badge" :class="u.role">
+                {{ u.role === "admin" ? $t("admin.users.roleAdmin") : $t("admin.users.roleUser") }}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge" :class="u.is_active ? 'active' : 'inactive'">
+                {{ u.is_active ? $t("admin.users.statusActive") : $t("admin.users.statusInactive") }}
+              </span>
+            </td>
+            <td>{{ u.review_count }}</td>
+            <td class="text-secondary">{{ formatDate(u.created_at) }}</td>
+            <td class="text-right">
+              <div class="action-buttons">
+                <!-- Change Role Button -->
+                <button
+                  class="action-btn"
+                  :disabled="!u.is_active"
+                  :title="!u.is_active ? 'Cannot change role of inactive user' : 'Change Role'"
+                  @click="handleRoleChange(u)"
+                >
+                  <Shield :size="14" />
+                </button>
+
+                <!-- Toggle Status Button -->
+                <button
+                  class="action-btn"
+                  :class="u.is_active ? 'danger' : 'success'"
+                  :title="u.is_active ? 'Deactivate' : 'Reactivate'"
+                  @click="handleStatusChange(u)"
+                >
+                  <UserX v-if="u.is_active" :size="14" />
+                  <UserCheck v-else :size="14" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div v-if="adminStore.usersTotalPages > 1" class="pagination-bar">
+      <span class="pagination-info">
+        {{ $t("admin.pagination.showing", {
+          from: (adminStore.usersPage - 1) * adminStore.usersLimit + 1,
+          to: Math.min(adminStore.usersPage * adminStore.usersLimit, adminStore.usersTotal),
+          total: adminStore.usersTotal
+        }) }}
+      </span>
+
+      <div class="pagination-buttons">
+        <button
+          class="page-btn"
+          :disabled="adminStore.usersPage <= 1"
+          @click="fetchData(adminStore.usersPage - 1)"
+        >
+          {{ $t("admin.pagination.previous") }}
+        </button>
+        <span class="page-num">{{ adminStore.usersPage }} / {{ adminStore.usersTotalPages }}</span>
+        <button
+          class="page-btn"
+          :disabled="adminStore.usersPage >= adminStore.usersTotalPages"
+          @click="fetchData(adminStore.usersPage + 1)"
+        >
+          {{ $t("admin.pagination.next") }}
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from "vue"
+import { useAdminStore } from "@/stores/admin"
+import type { AdminUserRow } from "@/types"
+import { Search, ArrowUpDown, Shield, UserX, UserCheck } from "lucide-vue-next"
+
+const adminStore = useAdminStore()
+const users = computed(() => adminStore.users)
+
+const search = ref("")
+const roleFilter = ref("all")
+const statusFilter = ref("all")
+const sortBy = ref("created_at")
+const sortOrder = ref<"asc" | "desc">("desc")
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+function onSearchInput() {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => fetchData(1), 300)
+}
+
+function toggleSortOrder() {
+  sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc"
+  fetchData(1)
+}
+
+function fetchData(page = 1) {
+  adminStore.fetchUsers({
+    page,
+    limit: 20,
+    search: search.value.trim(),
+    role: roleFilter.value,
+    status: statusFilter.value,
+    sort_by: sortBy.value,
+    sort_order: sortOrder.value,
+  })
+}
+
+async function handleRoleChange(user: AdminUserRow) {
+  const targetRole = user.role === "admin" ? "user" : "admin"
+  if (!confirm(`Change role of @${user.username} from '${user.role}' to '${targetRole}'?`)) return
+  const reason = prompt("Enter optional reason for this role change:") || undefined
+
+  try {
+    await adminStore.updateUserRole(user.id, targetRole, reason)
+    fetchData(adminStore.usersPage)
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    alert(e.response?.data?.error || "Failed to update role")
+  }
+}
+
+async function handleStatusChange(user: AdminUserRow) {
+  const newStatus = !user.is_active
+  const actionText = newStatus ? "reactivate" : "deactivate"
+  if (!confirm(`Are you sure you want to ${actionText} @${user.username}?`)) return
+  const reason = prompt(`Enter optional reason to ${actionText} @${user.username}:`) || undefined
+
+  try {
+    await adminStore.updateUserStatus(user.id, newStatus, reason)
+    fetchData(adminStore.usersPage)
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    alert(e.response?.data?.error || "Failed to update status")
+  }
+}
+
+function formatDate(isoStr: string) {
+  if (!isoStr) return "-"
+  return new Date(isoStr).toLocaleDateString()
+}
+
+onMounted(() => {
+  fetchData(1)
+})
+</script>
+
+<style scoped>
+.admin-users-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-secondary);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.6rem 0.85rem 0.6rem 2.4rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  color: var(--color-text-primary);
+  outline: none;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.filter-select {
+  padding: 0.6rem 0.85rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  color: var(--color-text-primary);
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.sort-order-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  color: var(--color-text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.table-container {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.admin-table th {
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.admin-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-avatar.placeholder {
+  background: var(--color-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--color-brand);
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name { font-weight: 600; }
+.user-handle { font-size: 0.775rem; color: var(--color-text-muted); }
+
+.role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.role-badge.admin { background: rgba(229, 9, 20, 0.2); color: var(--color-brand); }
+.role-badge.user { background: rgba(255, 255, 255, 0.08); color: var(--color-text-secondary); }
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.status-badge.active { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.status-badge.inactive { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.action-btn {
+  padding: 0.4rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.action-btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-brand); }
+.action-btn.danger:hover:not(:disabled) { color: #ef4444; border-color: #ef4444; }
+.action-btn.success:hover:not(:disabled) { color: #10b981; border-color: #10b981; }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.text-secondary { color: var(--color-text-secondary); }
+.text-muted { color: var(--color-text-muted); }
+.py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.page-btn {
+  padding: 0.4rem 0.85rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  border-radius: 0.35rem;
+  cursor: pointer;
+}
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>

@@ -94,9 +94,15 @@
           </div>
         </div>
       </div>
-      <div v-if="filteredReviews.length === 0" class="empty-state-card">
-        <Star :size="32" class="empty-icon" />
-        <p>{{ $t("library.empty_reviews") }}</p>
+      <div v-if="filteredReviews.length === 0" class="empty-state-card fade-in-up">
+        <div class="empty-state-visual">
+          <div class="empty-glow-backdrop" />
+          <div class="empty-icon-badge">
+            <Star :size="36" class="empty-trophy-icon" />
+          </div>
+        </div>
+        <h3 class="empty-state-title">ยังไม่มีการเขียนรีวิว</h3>
+        <p class="empty-state-description">{{ $t("library.empty_reviews") }}</p>
       </div>
     </div>
 
@@ -139,9 +145,21 @@
           </div>
         </div>
       </div>
-      <div v-if="filteredLibraryItems.length === 0" class="empty-state-card">
-        <Bookmark :size="32" class="empty-icon" />
-        <p>{{ $t("library.empty") }}</p>
+      <div v-if="filteredLibraryItems.length === 0" class="empty-state-card fade-in-up">
+        <div class="empty-state-visual">
+          <div class="empty-glow-backdrop" />
+          <div class="empty-icon-badge">
+            <component
+              :is="activeTab === 'watchlist' ? Bookmark : activeTab === 'likes' ? Heart : Film"
+              :size="36"
+              class="empty-trophy-icon"
+            />
+          </div>
+        </div>
+        <h3 class="empty-state-title">
+          {{ activeTab === 'watchlist' ? 'ยังไม่มีรายการที่ต้องการดู' : activeTab === 'likes' ? 'ยังไม่มีรายการที่ถูกใจ' : 'ยังไม่มีรายการที่รับชมแล้ว' }}
+        </h3>
+        <p class="empty-state-description">{{ $t("library.empty") }}</p>
       </div>
     </div>
   </section>
@@ -610,20 +628,88 @@ const filteredReviews = computed(() => {
   color: #ef4444;
 }
 
-/* Empty state styling */
+/* Rich Empty state styling */
 .empty-state-card {
   grid-column: 1 / -1;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 4rem 2rem;
-  background: rgba(20, 20, 22, 0.3);
-  border: 1px dashed rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  color: #71717a;
+  background: rgba(20, 20, 24, 0.65);
+  border: 1px dashed rgba(225, 37, 27, 0.25);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  margin: 1rem 0;
+  position: relative;
+  overflow: hidden;
 }
 
-.empty-icon {
-  margin-bottom: 1rem;
-  color: #3f3f46;
+.empty-state-visual {
+  position: relative;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-glow-backdrop {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(225, 37, 27, 0.35) 0%, rgba(225, 37, 27, 0) 70%);
+  border-radius: 50%;
+  filter: blur(12px);
+  animation: pulseGlow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.empty-icon-badge {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(35, 35, 42, 0.9), rgba(20, 20, 24, 0.95));
+  border: 1px solid rgba(225, 37, 27, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 8px 24px rgba(225, 37, 27, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.empty-trophy-icon {
+  color: #e1251b;
+  filter: drop-shadow(0 2px 8px rgba(225, 37, 27, 0.5));
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.01em;
+}
+
+.empty-state-description {
+  font-size: 0.925rem;
+  color: #9ca3af;
+  max-width: 440px;
+  margin: 0 0 0.5rem 0;
+  line-height: 1.6;
 }
 
 /* Poster fallback */

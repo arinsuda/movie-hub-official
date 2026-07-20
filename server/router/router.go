@@ -5,6 +5,7 @@ import (
 
 	"github.com/arinsuda/movie-hub/config"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
+	"github.com/arinsuda/movie-hub/internal/admin_module"
 	"github.com/arinsuda/movie-hub/internal/analytics_module"
 	"github.com/arinsuda/movie-hub/internal/auth_module"
 	"github.com/arinsuda/movie-hub/internal/bmol_module"
@@ -84,6 +85,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	movie_module.RegisterRoutes(protected, ratingRepo)
 	media_stats_module.RegisterRoutes(protected, db)
 	user_stats_module.RegisterRoutes(protected, db)
+	admin_module.RegisterRoutes(protected, db, notifHub, mw.RequireCurrentAdmin(db))
 
 	return notifHub
 }

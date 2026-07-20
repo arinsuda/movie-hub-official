@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router"
 import { useAuthStore } from "@/stores/auth"
+import { useAdminStore } from "@/stores/admin"
 import { updateDocumentTitle } from "@/i18n"
 
 function hasGenres(genres: string | null | undefined): boolean {
@@ -156,6 +157,39 @@ const router = createRouter({
       ],
     },
 
+    // ── Admin Workspace ────────────────────────────────────────
+    {
+      path: "/admin",
+      component: () => import("@/layouts/AdminLayout.vue"),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        {
+          path: "",
+          name: "admin-dashboard",
+          component: () => import("@/views/admin/AdminDashboardView.vue"),
+          meta: { titleKey: "admin.dashboard.title" }
+        },
+        {
+          path: "users",
+          name: "admin-users",
+          component: () => import("@/views/admin/AdminUsersView.vue"),
+          meta: { titleKey: "admin.users.title" }
+        },
+        {
+          path: "reviews",
+          name: "admin-reviews",
+          component: () => import("@/views/admin/AdminReviewsView.vue"),
+          meta: { titleKey: "admin.reviews.title" }
+        },
+        {
+          path: "audit-logs",
+          name: "admin-audit-logs",
+          component: () => import("@/views/admin/AdminAuditLogsView.vue"),
+          meta: { titleKey: "admin.auditLogs.title" }
+        },
+      ],
+    },
+
     // ── 404 ───────────────────────────────────────────────────
     {
       path: "/:pathMatch(.*)*",
@@ -168,8 +202,9 @@ const router = createRouter({
 
 router.beforeEach(async to => {
   const authStore = useAuthStore()
+  const adminStore = useAdminStore()
 
-  if (!authStore.user && to.meta.requiresAuth) {
+  if (!authStore.isInitialized && to.meta.requiresAuth) {
     try {
       await authStore.fetchMe()
     } catch (error) {
@@ -183,6 +218,14 @@ router.beforeEach(async to => {
 
   // login แล้วเข้า guest-only page → ไป home
   if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" }
+
+  // Admin route protection guard
+  if (to.meta.requiresAdmin) {
+    if (!authStore.isAdmin) {
+      adminStore.reset()
+      return { name: "home" }
+    }
+  }
 
   // ✅ ต้อง requiresAuth ด้วย ไม่งั้น guest route ก็โดน redirect
   if (

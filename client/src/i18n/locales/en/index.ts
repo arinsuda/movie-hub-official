@@ -14,6 +14,7 @@ import about from "./about.json";
 import donate from "./donate.json";
 import validation from "./validation.json";
 import errors from "./errors.json";
+import admin from "./admin.json";
 
 export default {
   common,
@@ -32,4 +33,5 @@ export default {
   donate,
   validation,
   errors,
+  admin,
 };

@@ -52,18 +52,31 @@
 
     <!-- DETAIL VIEW: When a specific Rank is selected -->
     <div v-if="selectedRankDetail !== null" class="bmol-detail-view fade-in-up">
-      <!-- Search Filter inside Rank Detail -->
-      <div class="bmol-detail-filter-row">
-        <div class="bmol-search-container">
-          <div class="search-input-wrapper">
-            <Search :size="14" class="search-icon" />
-            <input
-              v-model="rankFilterQuery"
-              type="text"
-              :placeholder="$t('library.bmol.filterPlaceholder')"
-              class="search-input"
-            />
-          </div>
+      <!-- Detail Toolbar: Search + Actions -->
+      <div class="detail-toolbar">
+        <div class="detail-search-box">
+          <Search :size="15" class="detail-search-icon" />
+          <input
+            v-model="rankFilterQuery"
+            type="text"
+            :placeholder="$t('library.bmol.filterPlaceholder')"
+            class="detail-search-input"
+          />
+          <button
+            v-if="rankFilterQuery.length > 0"
+            class="detail-search-clear"
+            @click="rankFilterQuery = ''"
+          >
+            ✕
+          </button>
+        </div>
+        <div v-if="isOwner" class="detail-toolbar-actions">
+          <button
+            class="btn-quick-add"
+            @click="openSpotlight(selectedRankDetail!)"
+          >
+            + {{ $t("library.bmol.addMedia") }}
+          </button>
         </div>
       </div>
 
@@ -118,8 +131,15 @@
           </div>
         </div>
       </div>
-      <div v-else class="state-empty">
-        <p>{{ $t("library.bmol.errorEmptySearch") }}</p>
+      <div v-else class="empty-state-card fade-in-up">
+        <div class="empty-state-visual">
+          <div class="empty-glow-backdrop" />
+          <div class="empty-icon-badge">
+            <Search :size="32" class="empty-trophy-icon" />
+          </div>
+        </div>
+        <h3 class="empty-state-title">{{ $t("library.bmol.errorEmptySearch") }}</h3>
+        <p class="empty-state-description">ไม่พบรายการตรงกับคำค้นหาในอันดับนี้ ลองพิมพ์คำค้นหาใหม่อีกครั้ง</p>
       </div>
     </div>
 
@@ -321,9 +341,21 @@
           </div>
         </div>
 
-        <div v-else class="state-empty">
-          <Trophy :size="28" :stroke-width="1.2" />
-          <p>{{ $t("library.bmol.empty") }}</p>
+        <div v-else class="empty-state-card fade-in-up">
+          <div class="empty-state-visual">
+            <div class="empty-glow-backdrop" />
+            <div class="empty-icon-badge">
+              <Trophy :size="36" class="empty-trophy-icon" />
+            </div>
+          </div>
+          <h3 class="empty-state-title">
+            {{ subTab === 'movie' ? $t("library.bmol.emptyMovieTitle") : $t("library.bmol.emptyTVTitle") }}
+          </h3>
+          <p class="empty-state-description">{{ $t("library.bmol.empty") }}</p>
+          <div v-if="isOwner" class="empty-state-hint">
+            <Sparkles :size="15" class="hint-sparkle-icon" />
+            <span>{{ $t("library.bmol.emptyHint") }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -448,7 +480,7 @@ import { useRouter } from "vue-router"
 import { useAuthStore } from "@/stores/auth"
 import { bmolApi, movieApi } from "@/api/api"
 import type { BMOLItemResponse, Movie, TVSeries } from "@/types"
-import { Search, Film, Trophy, ChevronLeft } from "lucide-vue-next"
+import { Search, Film, Trophy, ChevronLeft, Sparkles } from "lucide-vue-next"
 import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
 
 const props = defineProps<{
@@ -1995,5 +2027,219 @@ onMounted(async () => {
 .bmol-page-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* ==============================
+   Rich Empty State Styling
+   ============================== */
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background: rgba(20, 20, 24, 0.65);
+  border: 1px dashed rgba(225, 37, 27, 0.25);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  margin: 1rem 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.empty-state-visual {
+  position: relative;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-glow-backdrop {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(225, 37, 27, 0.35) 0%, rgba(225, 37, 27, 0) 70%);
+  border-radius: 50%;
+  filter: blur(12px);
+  animation: pulseGlow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.empty-icon-badge {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(35, 35, 42, 0.9), rgba(20, 20, 24, 0.95));
+  border: 1px solid rgba(225, 37, 27, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 8px 24px rgba(225, 37, 27, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.empty-trophy-icon {
+  color: #e1251b;
+  filter: drop-shadow(0 2px 8px rgba(225, 37, 27, 0.5));
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.01em;
+}
+
+.empty-state-description {
+  font-size: 0.925rem;
+  color: #9ca3af;
+  max-width: 440px;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.6;
+}
+
+.empty-state-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(225, 37, 27, 0.08);
+  border: 1px solid rgba(225, 37, 27, 0.2);
+  border-radius: 99px;
+  padding: 0.5rem 1.25rem;
+  color: #f3f4f6;
+  font-size: 0.825rem;
+  font-weight: 500;
+}
+
+.hint-sparkle-icon {
+  color: #e1251b;
+}
+
+/* --- Detail Toolbar --- */
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: rgba(20, 20, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  margin-bottom: 1.5rem;
+}
+
+.detail-search-box {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 42px;
+  transition: all 0.2s ease;
+}
+
+.detail-search-box:focus-within {
+  border-color: rgba(225, 37, 27, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 16px rgba(225, 37, 27, 0.15);
+}
+
+.detail-search-icon {
+  color: #71717a;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.detail-search-box:focus-within .detail-search-icon {
+  color: #e1251b;
+}
+
+.detail-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  width: 100%;
+  min-width: 0;
+}
+
+.detail-search-input::placeholder {
+  color: #71717a;
+  font-weight: 400;
+}
+
+.detail-search-clear {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #a1a1aa;
+  font-size: 0.7rem;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.detail-search-clear:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.detail-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.detail-result-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+@media (max-width: 575px) {
+  .detail-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+  .detail-toolbar-actions {
+    justify-content: space-between;
+  }
 }
 </style>
