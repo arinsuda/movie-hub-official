@@ -1,18 +1,24 @@
 package admin_module
 
 import (
+	"context"
+	"strings"
+
 	notification_module "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/internal/shared/storage"
 )
 
 type Service struct {
-	repo Repository
-	hub  *notification_module.Hub
+	repo  Repository
+	hub   *notification_module.Hub
+	minio *storage.MinIOClient
 }
 
-func NewService(repo Repository, hub *notification_module.Hub) *Service {
+func NewService(repo Repository, hub *notification_module.Hub, minio *storage.MinIOClient) *Service {
 	return &Service{
-		repo: repo,
-		hub:  hub,
+		repo:  repo,
+		hub:   hub,
+		minio: minio,
 	}
 }
 
@@ -32,6 +38,9 @@ func (s *Service) ListUsers(filter UserFilter) (PaginatedResponse[AdminUserRow],
 	items, total, err := s.repo.ListUsers(filter)
 	if err != nil {
 		return PaginatedResponse[AdminUserRow]{}, err
+	}
+	for i := range items {
+		items[i].AvatarURL = presignAvatar(items[i].AvatarURL, s.minio)
 	}
 	return NewPaginatedResponse(items, total, filter.Page, filter.Limit), nil
 }
@@ -65,4 +74,17 @@ func (s *Service) UpdateUserStatus(adminID, targetUserID uint, req UpdateStatusR
 
 func (s *Service) DeleteReview(adminID, reviewID uint, req DeleteReviewRequest) error {
 	return s.repo.DeleteReview(adminID, reviewID, req.Reason)
+}
+
+func presignAvatar(avatarURL *string, minio *storage.MinIOClient) *string {
+	if avatarURL == nil || *avatarURL == "" || minio == nil {
+		return avatarURL
+	}
+	if strings.HasPrefix(*avatarURL, "http://") || strings.HasPrefix(*avatarURL, "https://") {
+		return avatarURL
+	}
+	if presigned, err := minio.PresignURL(context.Background(), *avatarURL); err == nil {
+		return &presigned
+	}
+	return avatarURL
 }

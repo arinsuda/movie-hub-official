@@ -85,7 +85,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	movie_module.RegisterRoutes(protected, ratingRepo)
 	media_stats_module.RegisterRoutes(protected, db)
 	user_stats_module.RegisterRoutes(protected, db)
-	admin_module.RegisterRoutes(protected, db, notifHub, mw.RequireCurrentAdmin(db))
+	admin_module.RegisterRoutes(protected, db, notifHub, mc, mw.RequireCurrentAdmin(db))
 
 	return notifHub
 }
