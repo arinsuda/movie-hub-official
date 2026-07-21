@@ -83,14 +83,26 @@ export const useAuthStore = defineStore("auth", () => {
       const urlParams = new URLSearchParams(window.location.search)
       const urlAccess = urlParams.get("access_token")
       const urlRefresh = urlParams.get("refresh_token")
+      console.log(
+        "[fetchMe] urlAccess:",
+        !!urlAccess,
+        "urlRefresh:",
+        !!urlRefresh,
+      )
 
       if (urlAccess && urlRefresh) {
         localStorage.setItem("access_token", urlAccess)
         localStorage.setItem("refresh_token", urlRefresh)
-        window.history.replaceState({}, document.title, window.location.pathname)
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        )
       }
 
-      const refreshRes = await authApi.refreshToken()
+      const storedRefresh = localStorage.getItem("refresh_token")
+      console.log("[fetchMe] storedRefresh exists:", !!storedRefresh)
+      const refreshRes = await authApi.refreshToken(storedRefresh || undefined)
       const userId = refreshRes.data.user.id
 
       if (refreshRes.data.access_token) {
@@ -104,11 +116,12 @@ export const useAuthStore = defineStore("auth", () => {
       const profile = meRes.data.user
 
       setUser({
-        ...profile, 
-        email: refreshRes.data.user.email, 
-        is_verified: refreshRes.data.user.is_verified, 
+        ...profile,
+        email: refreshRes.data.user.email,
+        is_verified: refreshRes.data.user.is_verified,
       })
-    } catch {
+    } catch (e) {
+      console.log("[fetchMe] caught error:", e)
       clearUser()
     } finally {
       isInitialized.value = true
