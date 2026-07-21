@@ -23,8 +23,12 @@ export function useSocket() {
 
     isConnecting.value = true
 
+    const token = localStorage.getItem("access_token")
+
     socket = io(SOCKET_URL, {
       withCredentials: true,
+      auth: { token },
+      query: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: 10,

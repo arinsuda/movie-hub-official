@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/arinsuda/movie-hub/internal/privacy_policy"
@@ -41,7 +42,7 @@ func NewHub(verifier TokenVerifier, allowedOrigin string) *Hub {
 		client := clients[0].(*socket.Socket)
 		log.Printf("DEBUG handshake headers: %+v", client.Handshake().Headers)
 
-		token := extractAccessTokenFromRequest(client.Handshake().Headers)
+		token := extractAccessTokenFromRequest(client.Handshake())
 		if token == "" {
 			_ = client.Emit("error", "unauthorized")
 			client.Disconnect(true)
@@ -87,7 +88,57 @@ func (h *Hub) UniqueOnlineCount() int {
 	return len(h.userSockets)
 }
 
-func extractAccessTokenFromRequest(headers types.IncomingHttpHeaders) string {
+func extractAccessTokenFromRequest(handshake *socket.Handshake) string {
+	if handshake == nil {
+		return ""
+	}
+
+	if handshake.Auth != nil {
+		if tok, ok := handshake.Auth["token"].(string); ok && tok != "" {
+			return tok
+		}
+	}
+
+	if handshake.Query != nil {
+		if tok, ok := handshake.Query["token"].(string); ok && tok != "" {
+			return tok
+		}
+	}
+
+	headers := handshake.Headers
+	if headers == nil {
+		return ""
+	}
+
+	if rawAuth, ok := headers["Authorization"]; ok {
+		var authStr string
+		switch v := rawAuth.(type) {
+		case string:
+			authStr = v
+		case []string:
+			if len(v) > 0 {
+				authStr = v[0]
+			}
+		}
+		if strings.HasPrefix(authStr, "Bearer ") {
+			return strings.TrimPrefix(authStr, "Bearer ")
+		}
+	}
+	if rawAuth, ok := headers["authorization"]; ok {
+		var authStr string
+		switch v := rawAuth.(type) {
+		case string:
+			authStr = v
+		case []string:
+			if len(v) > 0 {
+				authStr = v[0]
+			}
+		}
+		if strings.HasPrefix(authStr, "Bearer ") {
+			return strings.TrimPrefix(authStr, "Bearer ")
+		}
+	}
+
 	raw, ok := headers["Cookie"]
 	if !ok {
 		raw, ok = headers["cookie"]
