@@ -21,7 +21,7 @@ export const authApi = {
   register: (data: RegisterRequest) =>
     api.post<AuthResponse>("/auth/register", data),
 
-  refreshToken: () => api.post<AuthResponse>("/auth/refresh"),
+  refreshToken: (token?: string) => api.post<AuthResponse>("/auth/refresh", { refresh_token: token }),
 
   logout: () => api.post("/auth/logout"),
 
