@@ -173,7 +173,7 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted, watch } from "vue"
-  import { useRoute } from "vue-router"
+  import { useRoute, useRouter } from "vue-router"
   import { useQuery } from "@tanstack/vue-query"
   import { movieApi } from "@/api/api"
   import type { TVSeries, Genre, Movie } from "@/types"
@@ -195,6 +195,7 @@
   import PopupCard from "@/components/movie/PopupCard.vue"
 
   const route = useRoute()
+  const router = useRouter()
 
   type TabKey = "popular" | "now_airing" | "top_rated"
   const tabs = [
@@ -211,7 +212,9 @@
 
   const activeTab = ref<TabKey>("popular")
   const sortBy = ref("default")
-  const selectedGenre = ref<number | null>(null)
+  const selectedGenre = ref<number | null>(
+    route.query.genre ? Number(route.query.genre) : null
+  )
   const searchQuery = ref((route.query.q as string) ?? "")
   const currentPage = ref(1)
   const hoveredId = ref<number | null>(null)
@@ -318,6 +321,13 @@
   function selectGenre(id: number | null) {
     selectedGenre.value = id
     genreOpen.value = false
+    const query = { ...route.query }
+    if (id) {
+      query.genre = String(id)
+    } else {
+      delete query.genre
+    }
+    router.replace({ query })
   }
   function selectSort(key: string) {
     sortBy.value = key
@@ -400,6 +410,13 @@
       searchQuery.value = (q as string) ?? ""
       currentPage.value = 1
     },
+  )
+  watch(
+    () => route.query.genre,
+    g => {
+      selectedGenre.value = g ? Number(g) : null
+    },
+    { immediate: true },
   )
   onMounted(async () => {
     document.addEventListener("click", onClickOutside)

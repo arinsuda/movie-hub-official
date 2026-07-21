@@ -33,6 +33,18 @@ func resolveTMDBLanguage(acceptLanguage string) string {
 
 func (h *Handler) GetPopular(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
+	withGenres := c.Query("with_genres")
+	if withGenres == "" {
+		withGenres = c.Query("genre")
+	}
+
+	if withGenres != "" {
+		result, err := tmdb.DiscoverMovies(withGenres, page)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+		}
+		return c.JSON(result)
+	}
 
 	result, err := h.svc.GetPopular(c.Context(), page)
 	if err != nil {
@@ -43,6 +55,18 @@ func (h *Handler) GetPopular(c fiber.Ctx) error {
 
 func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
+	withGenres := c.Query("with_genres")
+	if withGenres == "" {
+		withGenres = c.Query("genre")
+	}
+
+	if withGenres != "" {
+		result, err := tmdb.DiscoverMovies(withGenres, page)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+		}
+		return c.JSON(result)
+	}
 
 	options := tmdb.RequestOptions{
 		Language: resolveTMDBLanguage(c.Get("Accept-Language")),
@@ -58,6 +82,18 @@ func (h *Handler) GetNowPlaying(c fiber.Ctx) error {
 
 func (h *Handler) GetTopRated(c fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
+	withGenres := c.Query("with_genres")
+	if withGenres == "" {
+		withGenres = c.Query("genre")
+	}
+
+	if withGenres != "" {
+		result, err := tmdb.DiscoverMovies(withGenres, page)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลหนังไม่สำเร็จ"})
+		}
+		return c.JSON(result)
+	}
 
 	result, err := h.svc.GetTopRated(c.Context(), page)
 	if err != nil {
