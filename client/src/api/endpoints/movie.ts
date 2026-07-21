@@ -13,16 +13,20 @@ import type {
 
 export const movieApi = {
   // Movies
-  getPopular: (page = 1) =>
-    api.get<PaginatedResult<Movie>>("/movies/popular", { params: { page } }),
-
-  getNowPlaying: (page = 1) =>
-    api.get<PaginatedResult<Movie>>("/movies/now-playing", {
-      params: { page },
+  getPopular: (page = 1, with_genres?: string | number) =>
+    api.get<PaginatedResult<Movie>>("/movies/popular", {
+      params: { page, with_genres },
     }),
 
-  getTopRated: (page = 1) =>
-    api.get<PaginatedResult<Movie>>("/movies/top-rated", { params: { page } }),
+  getNowPlaying: (page = 1, with_genres?: string | number) =>
+    api.get<PaginatedResult<Movie>>("/movies/now-playing", {
+      params: { page, with_genres },
+    }),
+
+  getTopRated: (page = 1, with_genres?: string | number) =>
+    api.get<PaginatedResult<Movie>>("/movies/top-rated", {
+      params: { page, with_genres },
+    }),
 
   getUpcoming: (page = 1) =>
     api.get<PaginatedResult<Movie>>("/movies/upcoming", { params: { page } }),

@@ -167,7 +167,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "@tanstack/vue-query";
 import { movieApi } from "@/api/api";
 import type { Movie, Genre } from "@/types";
@@ -186,6 +186,7 @@ import PopupCard from "@/components/movie/PopupCard.vue";
 import { useHoverPreviewGrid } from "@/composables/useHoverPreviewGrid";
 
 const route = useRoute();
+const router = useRouter();
 
 type TabKey = "popular" | "now_playing" | "top_rated";
 
@@ -215,7 +216,9 @@ const {
 
 const activeTab = ref<TabKey>("popular");
 const sortBy = ref("default");
-const selectedGenre = ref<number | null>(null);
+const selectedGenre = ref<number | null>(
+  route.query.genre ? Number(route.query.genre) : null
+);
 const searchQuery = ref((route.query.q as string) ?? "");
 const currentPage = ref(1);
 const genres = ref<Genre[]>([]);
@@ -230,6 +233,7 @@ const queryKey = computed(() => [
   activeTab.value,
   currentPage.value,
   searchQuery.value,
+  selectedGenre.value,
 ]);
 
 const { data, isLoading } = useQuery({
@@ -240,9 +244,21 @@ const { data, isLoading } = useQuery({
         .search(searchQuery.value.trim(), currentPage.value)
         .then((r) => r.data);
     const fn = {
-      popular: () => movieApi.getPopular(currentPage.value),
-      now_playing: () => movieApi.getNowPlaying(currentPage.value),
-      top_rated: () => movieApi.getTopRated(currentPage.value),
+      popular: () =>
+        movieApi.getPopular(
+          currentPage.value,
+          selectedGenre.value ?? undefined
+        ),
+      now_playing: () =>
+        movieApi.getNowPlaying(
+          currentPage.value,
+          selectedGenre.value ?? undefined
+        ),
+      top_rated: () =>
+        movieApi.getTopRated(
+          currentPage.value,
+          selectedGenre.value ?? undefined
+        ),
     }[activeTab.value];
     return fn().then((r) => r.data);
   },
@@ -253,8 +269,6 @@ const totalPages = computed(() => data.value?.total_pages ?? 1);
 
 const movies = computed(() => {
   let list = [...rawMovies.value];
-  if (selectedGenre.value)
-    list = list.filter((s) => s.genre_ids?.includes(selectedGenre.value!));
   if (sortBy.value === "rating")
     list.sort((a, b) => b.vote_average - a.vote_average);
   if (sortBy.value === "date")
@@ -294,6 +308,13 @@ function clearSearch() {
 function selectGenre(id: number | null) {
   selectedGenre.value = id;
   genreOpen.value = false;
+  const query = { ...route.query };
+  if (id) {
+    query.genre = String(id);
+  } else {
+    delete query.genre;
+  }
+  router.replace({ query });
 }
 function selectSort(key: string) {
   sortBy.value = key;
@@ -316,6 +337,14 @@ watch(
     searchQuery.value = (q as string) ?? "";
     currentPage.value = 1;
   },
+);
+
+watch(
+  () => route.query.genre,
+  (g) => {
+    selectedGenre.value = g ? Number(g) : null;
+  },
+  { immediate: true },
 );
 onMounted(async () => {
   document.addEventListener("click", onClickOutside);
