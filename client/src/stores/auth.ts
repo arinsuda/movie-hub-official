@@ -5,6 +5,8 @@ import { authApi, userApi } from "@/api/api"
 
 import type { AuthUser, LoginRequest, RegisterRequest } from "@/types"
 
+export type InitErrorKind = "unauthenticated" | "network" | "server" | null
+
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<AuthUser | null>(null)
 
@@ -12,9 +14,17 @@ export const useAuthStore = defineStore("auth", () => {
 
   const isInitialized = ref(false)
 
+  const initError = ref<InitErrorKind>(null)
+
   const isLoggedIn = computed(() => !!user.value)
 
   const isAdmin = computed(() => user.value?.role === "admin")
+
+  // --- Stale-request protection ---
+  let _generation = 0
+
+  // --- Request deduplication (non-reactive private variable) ---
+  let _initPromise: Promise<void> | null = null
 
   function setUser(u: AuthUser) {
     user.value = u
@@ -38,7 +48,10 @@ export const useAuthStore = defineStore("auth", () => {
         localStorage.setItem("refresh_token", res.data.refresh_token)
       }
 
+      _generation++
       setUser(res.data.user)
+      isInitialized.value = true
+      initError.value = null
 
       return res.data.user
     } finally {
@@ -62,7 +75,10 @@ export const useAuthStore = defineStore("auth", () => {
         localStorage.setItem("refresh_token", res.data.refresh_token)
       }
 
+      _generation++
       setUser(res.data.user)
+      isInitialized.value = true
+      initError.value = null
 
       return res.data.user
     } finally {
@@ -74,11 +90,16 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       await authApi.logout()
     } finally {
+      _generation++
       clearUser()
+      isInitialized.value = true
+      initError.value = null
     }
   }
 
   async function fetchMe() {
+    const myGen = ++_generation
+    initError.value = null
     try {
       const urlParams = new URLSearchParams(window.location.search)
       const urlAccess = urlParams.get("access_token")
@@ -103,6 +124,10 @@ export const useAuthStore = defineStore("auth", () => {
       const storedRefresh = localStorage.getItem("refresh_token")
       console.log("[fetchMe] storedRefresh exists:", !!storedRefresh)
       const refreshRes = await authApi.refreshToken(storedRefresh || undefined)
+
+      // Stale-request protection: bail out if login/logout happened while waiting
+      if (myGen !== _generation) return
+
       const userId = refreshRes.data.user.id
 
       if (refreshRes.data.access_token) {
@@ -113,6 +138,10 @@ export const useAuthStore = defineStore("auth", () => {
       }
 
       const meRes = await userApi.me(userId)
+
+      // Stale-request protection after second network call
+      if (myGen !== _generation) return
+
       const profile = meRes.data.user
 
       setUser({
@@ -120,18 +149,64 @@ export const useAuthStore = defineStore("auth", () => {
         email: refreshRes.data.user.email,
         is_verified: refreshRes.data.user.is_verified,
       })
-    } catch (e) {
+      isInitialized.value = true
+    } catch (e: unknown) {
+      // Stale-request protection
+      if (myGen !== _generation) return
+
       console.log("[fetchMe] caught error:", e)
-      clearUser()
-    } finally {
+
+      const axiosErr = e as { response?: { status?: number }; code?: string }
+      const status = axiosErr.response?.status
+      if (status === 401 || status === 403) {
+        clearUser()
+        initError.value = "unauthenticated"
+      } else if (
+        !axiosErr.response ||
+        axiosErr.code === "ERR_NETWORK" ||
+        axiosErr.code === "ECONNABORTED"
+      ) {
+        initError.value = "network"
+      } else if (status !== undefined && status >= 500) {
+        initError.value = "server"
+      } else {
+        clearUser()
+        initError.value = "unauthenticated"
+      }
       isInitialized.value = true
     }
+  }
+
+  /**
+   * Shared entry point for authentication initialization.
+   * - Deduplicates concurrent calls (returns the same promise).
+   * - Treats 401 as final (no retry).
+   * - Allows retry after network or server errors.
+   * - Clears _initPromise in finally so future retries can proceed.
+   */
+  async function initialize(): Promise<void> {
+    if (
+      isInitialized.value &&
+      initError.value !== "network" &&
+      initError.value !== "server"
+    ) {
+      return
+    }
+
+    if (_initPromise) return _initPromise
+
+    _initPromise = fetchMe().finally(() => {
+      _initPromise = null
+    })
+
+    return _initPromise
   }
 
   return {
     user,
     isLoading,
     isInitialized,
+    initError,
     isLoggedIn,
     isAdmin,
     needsOnboarding,
@@ -141,5 +216,6 @@ export const useAuthStore = defineStore("auth", () => {
     register,
     logout,
     fetchMe,
+    initialize,
   }
 })

@@ -1,0 +1,6 @@
+{
+  "checking": "Checking your session…",
+  "error": "Unable to reach server",
+  "errorDetail": "The server is not responding. Please try again.",
+  "retry": "Retry"
+}
