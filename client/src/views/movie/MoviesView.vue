@@ -268,7 +268,7 @@ const rawMovies = computed<Movie[]>(() => data.value?.results ?? []);
 const totalPages = computed(() => data.value?.total_pages ?? 1);
 
 const movies = computed(() => {
-  let list = [...rawMovies.value];
+  const list = [...rawMovies.value];
   if (sortBy.value === "rating")
     list.sort((a, b) => b.vote_average - a.vote_average);
   if (sortBy.value === "date")

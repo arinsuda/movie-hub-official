@@ -5,7 +5,6 @@ import { VueQueryPlugin } from "@tanstack/vue-query"
 import App from "./App.vue"
 import router from "./router"
 
-import { useAuthStore } from "@/stores/auth"
 import { VueDatePicker } from "@vuepic/vue-datepicker"
 import "@vuepic/vue-datepicker/dist/main.css"
 import "./assets/styles/main.css"
@@ -26,9 +25,8 @@ async function bootstrap() {
   app.use(i18n)
   app.component("VueDatePicker", VueDatePicker)
 
-  // restore session
-  const authStore = useAuthStore()
-  await authStore.fetchMe()
+  // No blocking fetchMe() — auth initialization is deferred to
+  // the router guard and only awaited for protected routes.
 
   app.use(router)
 

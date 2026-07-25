@@ -204,20 +204,24 @@ router.beforeEach(async to => {
   const authStore = useAuthStore()
   const adminStore = useAdminStore()
 
-  if (!authStore.isInitialized) {
-    try {
-      await authStore.fetchMe()
-    } catch (error) {
-      /* guest user, ignore error */
-    }
+  // Always initialize session state before making route decisions
+  await authStore.initialize()
+
+  // If backend error occurred during initialization, don't process redirects
+  // (App.vue renders SessionBootstrapView with retry UI)
+  if (authStore.initError === "network" || authStore.initError === "server") {
+    return
   }
 
+  const needsAuth = to.matched.some(r => r.meta.requiresAuth)
+
   // ยังไม่ login → ไป login
-  if (to.meta.requiresAuth && !authStore.isLoggedIn)
+  if (needsAuth && !authStore.isLoggedIn)
     return { name: "login", query: { redirect: to.fullPath } }
 
   // login แล้วเข้า guest-only page → ไป home
-  if (to.meta.guestOnly && authStore.isLoggedIn) return { name: "home" }
+  if (to.meta.guestOnly && authStore.isLoggedIn)
+    return { name: "home" }
 
   // Admin route protection guard
   if (to.meta.requiresAdmin) {
@@ -229,7 +233,7 @@ router.beforeEach(async to => {
 
   // ✅ ต้อง requiresAuth ด้วย ไม่งั้น guest route ก็โดน redirect
   if (
-    to.meta.requiresAuth &&
+    needsAuth &&
     authStore.isLoggedIn &&
     !hasGenres(authStore.user?.favorite_genres) &&
     to.name !== "onboarding"

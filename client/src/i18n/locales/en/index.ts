@@ -15,6 +15,7 @@ import donate from "./donate.json";
 import validation from "./validation.json";
 import errors from "./errors.json";
 import admin from "./admin.json";
+import session from "./session.json";
 
 export default {
   common,
@@ -34,4 +35,5 @@ export default {
   validation,
   errors,
   admin,
+  session,
 };
