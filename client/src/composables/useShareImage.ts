@@ -22,8 +22,17 @@ export function useShareImage() {
   /** Fetch a remote image as a blob URL to bypass CORS canvas taint */
   async function fetchImageAsBlob(url: string): Promise<string | null> {
     try {
-      const response = await fetch(url, { mode: "cors" })
-      if (!response.ok) return null
+      // 1. Try direct fetch with CORS mode
+      let response = await fetch(url, { mode: "cors" }).catch(() => null)
+
+      // 2. If direct fetch fails (e.g. CORS blocked by CDN), use same-origin backend proxy
+      if (!response || !response.ok) {
+        const proxyUrl = `/api/share/proxy-image?url=${encodeURIComponent(url)}`
+        response = await fetch(proxyUrl).catch(() => null)
+      }
+
+      if (!response || !response.ok) return null
+
       const blob = await response.blob()
       const blobUrl = URL.createObjectURL(blob)
       blobUrlsToRevoke.push(blobUrl)

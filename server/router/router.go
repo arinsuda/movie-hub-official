@@ -1,7 +1,12 @@
 package router
 
 import (
+	"io"
 	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
 	"github.com/arinsuda/movie-hub/config"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
@@ -64,6 +69,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	app.Get("/health", healthHandler)
 
 	api := app.Group("/api")
+	api.Get("/share/proxy-image", shareImageProxyHandler(cfg))
 
 	authSvc := auth_module.RegisterRoutes(api, db, cfg, m, mc, notifSvc)
 
@@ -112,4 +118,58 @@ func welcomeHandler(c fiber.Ctx) error {
 
 func healthHandler(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "ok"})
+}
+
+func shareImageProxyHandler(cfg *config.Config) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		rawURL := c.Query("url")
+		if rawURL == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "url parameter is required"})
+		}
+
+		parsed, err := url.Parse(rawURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid url"})
+		}
+
+		// Security Allowlist check (SSRF prevention)
+		host := strings.ToLower(parsed.Host)
+		minioEndpoint := strings.ToLower(cfg.MinIO.Endpoint)
+
+		isAllowed := host == "image.tmdb.org" ||
+			strings.HasSuffix(host, ".tmdb.org") ||
+			(minioEndpoint != "" && (host == minioEndpoint || strings.Contains(host, minioEndpoint))) ||
+			strings.Contains(host, "minio")
+
+		if !isAllowed {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "untrusted image host"})
+		}
+
+		// Fetch image from target
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(rawURL)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			if resp != nil {
+				resp.Body.Close()
+			}
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to fetch remote image"})
+		}
+		defer resp.Body.Close()
+
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "image/jpeg"
+		}
+
+		c.Set("Content-Type", contentType)
+		c.Set("Access-Control-Allow-Origin", "*")
+		c.Set("Cache-Control", "public, max-age=86400")
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read image stream"})
+		}
+
+		return c.Status(fiber.StatusOK).Send(bodyBytes)
+	}
 }
