@@ -22,5 +22,6 @@
   "errorTitle": "Failed to Load Actor Information",
   "errorDetail": "Unable to connect to the server to fetch actor details.",
   "retry": "Retry",
-  "backToHome": "Back to Home"
+  "backToHome": "Back to Home",
+  "back": "Back"
 }

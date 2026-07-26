@@ -17,6 +17,7 @@ import errors from "./errors.json";
 import admin from "./admin.json";
 import session from "./session.json";
 import actor from "./actor.json";
+import share from "./share.json";
 
 export default {
   common,
@@ -38,4 +39,5 @@ export default {
   admin,
   session,
   actor,
+  share,
 };

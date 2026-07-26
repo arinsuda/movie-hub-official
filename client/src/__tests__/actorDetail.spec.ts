@@ -51,6 +51,7 @@ const i18n = createI18n({
         errorDetail: "Unable to connect to server.",
         retry: "Retry",
         backToHome: "Back to Home",
+        back: "Back",
       },
     },
   },
