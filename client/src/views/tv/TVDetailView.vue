@@ -85,6 +85,11 @@
                 isWatched ? "รับชมแล้ว" : "ทำเครื่องหมายว่าดูแล้ว"
               }}</span>
             </button>
+
+            <button class="btn-secondary-action" @click="showShareModal = true">
+              <i class="pi pi-share-alt"></i>
+              <span>{{ $t("share.share") }}</span>
+            </button>
           </div>
         </div>
 
@@ -223,9 +228,18 @@
             <MovieReviews
               :movie-id="displayTvId"
               media-type="tv"
+              :media-poster-path="tv?.poster_path"
+              :media-title="tv?.name || tv?.title"
               @review-submitted="onReviewSubmitted"
             />
           </section>
+
+          <ShareImageModal
+            v-if="shareMediaContext"
+            v-model="showShareModal"
+            share-type="poster"
+            :media="shareMediaContext"
+          />
 
           <section class="info-section movie-similar">
             <h2 class="section-title">
@@ -253,6 +267,8 @@
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
   import MovieSimilar from "@/components/movie/MovieSimilar.vue"
+  import ShareImageModal from "@/components/share/ShareImageModal.vue"
+  import type { ShareMediaContext } from "@/types/share"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
   import { mediaApi } from "@/api/endpoints/media"
@@ -265,6 +281,26 @@
   const authStore = useAuthStore()
   const currentUserId = computed(() => authStore.user?.id ?? null)
   const showTrailerPopup = ref(false)
+  const showShareModal = ref(false)
+
+  const shareMediaContext = computed<ShareMediaContext | null>(() => {
+    if (!tv.value) return null
+    return {
+      id: tv.value.id,
+      mediaType: "tv",
+      title: tv.value.name || tv.value.title || "",
+      posterPath: tv.value.poster_path || null,
+      posterUrl: null,
+      releaseYear: tv.value.first_air_date
+        ? formatYear(tv.value.first_air_date)
+        : null,
+      genres: tv.value.genres || [],
+      voteAverage: tv.value.vote_average || 0,
+      removRating: removStats.value?.has_rating
+        ? removStats.value.average_rating
+        : null,
+    }
+  })
   const movieTrailerUrl = computed(() => {
     const videos = videoList.value
     const resolved = resolveTrailer(videos)

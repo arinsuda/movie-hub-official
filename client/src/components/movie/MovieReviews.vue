@@ -155,9 +155,26 @@
             <i class="pi pi-comment"></i>
             {{ item.comment_count }} ความคิดเห็น
           </span>
+
+          <button
+            v-if="item.is_public"
+            class="action-btn share-btn"
+            @click="openReviewShare(item)"
+          >
+            <i class="pi pi-share-alt"></i>
+            <span class="action-label">{{ $t("share.share") }}</span>
+          </button>
         </div>
       </div>
     </div>
+
+    <ShareImageModal
+      v-if="selectedShareMediaContext && selectedShareReviewContext"
+      v-model="showReviewShareModal"
+      share-type="review"
+      :media="selectedShareMediaContext"
+      :review="selectedShareReviewContext"
+    />
 
     <div v-else class="empty-reviews">
       <i class="pi pi-inbox"></i>
@@ -177,11 +194,15 @@
   import StarRatingInput from "@/components/movie/Starratinginput.vue"
   import { useReviewForm } from "@/composables/useReviewForm"
   import { useProfileNav } from "@/composables/useProfileNav"
+  import ShareImageModal from "@/components/share/ShareImageModal.vue"
+  import type { ShareMediaContext, ShareReviewContext } from "@/types/share"
 
   const props = withDefaults(
     defineProps<{
       movieId: number
       mediaType?: "movie" | "tv"
+      mediaPosterPath?: string | null
+      mediaTitle?: string
     }>(),
     { mediaType: "movie" },
   )
@@ -198,6 +219,47 @@
 
   const reviews = ref<ReviewResponse[]>([])
   const isLoadingReviews = ref(false)
+
+  // Review Share state
+  const showReviewShareModal = ref(false)
+  const selectedShareReview = ref<ReviewResponse | null>(null)
+
+  function openReviewShare(reviewItem: ReviewResponse) {
+    selectedShareReview.value = reviewItem
+    showReviewShareModal.value = true
+  }
+
+  const selectedShareMediaContext = computed<ShareMediaContext | null>(() => {
+    if (!selectedShareReview.value) return null
+    const r = selectedShareReview.value
+    return {
+      id: props.movieId,
+      mediaType: props.mediaType,
+      title: r.media?.title || props.mediaTitle || "",
+      posterPath: props.mediaPosterPath || null,
+      posterUrl: r.media?.poster_url || null,
+      releaseYear: null,
+      genres: r.media?.genres || [],
+      voteAverage: r.media?.vote_average || 0,
+      removRating: null,
+    }
+  })
+
+  const selectedShareReviewContext = computed<ShareReviewContext | null>(() => {
+    if (!selectedShareReview.value) return null
+    const r = selectedShareReview.value
+    return {
+      id: r.id,
+      authorDisplayName: r.user.display_name || r.user.username,
+      authorUsername: r.user.username,
+      authorAvatarUrl: r.user.avatar_url,
+      rating: r.rating,
+      body: r.body,
+      isPublic: r.is_public,
+      watchedAt: r.watched_at,
+      createdAt: r.created_at,
+    }
+  })
 
   // ป้องกันการกดซ้ำระหว่างรอ response กลับมา
   const pendingLike = ref<Set<number>>(new Set())
