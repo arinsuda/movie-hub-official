@@ -85,6 +85,11 @@
                 isWatched ? "รับชมแล้ว" : "ทำเครื่องหมายว่าดูแล้ว"
               }}</span>
             </button>
+
+            <button class="btn-secondary-action" @click="showShareModal = true">
+              <i class="pi pi-share-alt"></i>
+              <span>{{ $t("share.share") }}</span>
+            </button>
           </div>
         </div>
 
@@ -228,9 +233,18 @@
             </h2>
             <MovieReviews
               :movie-id="displayMovieId"
+              :media-poster-path="movie?.poster_path"
+              :media-title="movie?.title"
               @review-submitted="onReviewSubmitted"
             />
           </section>
+
+          <ShareImageModal
+            v-if="shareMediaContext"
+            v-model="showShareModal"
+            share-type="poster"
+            :media="shareMediaContext"
+          />
 
           <section class="info-section movie-similar">
             <h2 class="section-title">
@@ -258,6 +272,8 @@
   import PopupTrailer from "@/components/movie/PopupTrailer.vue"
   import MovieReviews from "@/components/movie/MovieReviews.vue"
   import MovieSimilar from "@/components/movie/MovieSimilar.vue"
+  import ShareImageModal from "@/components/share/ShareImageModal.vue"
+  import type { ShareMediaContext } from "@/types/share"
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
   import { mediaApi } from "@/api/endpoints/media"
@@ -270,6 +286,26 @@
   const authStore = useAuthStore()
   const currentUserId = computed(() => authStore.user?.id ?? null)
   const showTrailerPopup = ref(false)
+  const showShareModal = ref(false)
+
+  const shareMediaContext = computed<ShareMediaContext | null>(() => {
+    if (!movie.value) return null
+    return {
+      id: movie.value.id,
+      mediaType: "movie",
+      title: movie.value.title,
+      posterPath: movie.value.poster_path || null,
+      posterUrl: null,
+      releaseYear: movie.value.release_date
+        ? formatYear(movie.value.release_date)
+        : null,
+      genres: movie.value.genres || [],
+      voteAverage: movie.value.vote_average || 0,
+      removRating: removStats.value?.has_rating
+        ? removStats.value.average_rating
+        : null,
+    }
+  })
   const movieTrailerUrl = computed(() => {
     const videos = videoList.value
     const resolved = resolveTrailer(videos)

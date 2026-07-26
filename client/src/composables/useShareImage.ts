@@ -5,7 +5,14 @@ import { useI18n } from "vue-i18n"
 import type { MediaType } from "@/types/common"
 
 export function useShareImage() {
-  const { t } = useI18n()
+  let t: (key: string) => string
+  try {
+    const i18n = useI18n()
+    t = i18n.t
+  } catch {
+    t = (key: string) => key
+  }
+
   const toast = useToast()
 
   const isExporting = ref(false)

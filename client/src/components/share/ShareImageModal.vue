@@ -89,7 +89,6 @@
 
 <script setup lang="ts">
   import { ref, watch, computed, onUnmounted, nextTick } from "vue"
-  import { useI18n } from "vue-i18n"
   import type { ShareMediaContext, ShareReviewContext } from "@/types/share"
   import { useShareImage } from "@/composables/useShareImage"
   import { getTmdbImageUrl } from "@/utils/image"
@@ -107,7 +106,6 @@
     "update:modelValue": [value: boolean]
   }>()
 
-  const { t } = useI18n()
   const share = useShareImage()
 
   const overlayRef = ref<HTMLElement | null>(null)
@@ -124,11 +122,6 @@
     transformOrigin: "top left",
     width: "1080px",
     height: "1920px",
-  }))
-
-  const previewContainerStyle = computed(() => ({
-    width: `${PREVIEW_WIDTH}px`,
-    height: `${(PREVIEW_WIDTH / 1080) * 1920}px`,
   }))
 
   function close() {
