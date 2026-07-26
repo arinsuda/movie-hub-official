@@ -120,12 +120,40 @@ type Person struct {
 	Popularity   float32 `json:"popularity"`
 }
 
+type PersonDetail struct {
+	ID                 int     `json:"id"`
+	Name               string  `json:"name"`
+	Biography          string  `json:"biography"`
+	Birthday           *string `json:"birthday"`
+	Deathday           *string `json:"deathday"`
+	PlaceOfBirth       *string `json:"place_of_birth"`
+	ProfilePath        *string `json:"profile_path"`
+	KnownForDepartment string  `json:"known_for_department"`
+	Popularity         float32 `json:"popularity"`
+	Gender             int     `json:"gender"`
+	IMDBID             *string `json:"imdb_id"`
+	Homepage           *string `json:"homepage"`
+}
+
+type PersonMovieCreditItem struct {
+	Movie
+	Character string `json:"character"`
+	CreditID  string `json:"credit_id"`
+}
+
 type PersonMovieCredits struct {
-	Cast []Movie `json:"cast"`
-	Crew []Movie `json:"crew"`
+	Cast []PersonMovieCreditItem `json:"cast"`
+	Crew []Movie                 `json:"crew"`
+}
+
+type PersonTVCreditItem struct {
+	TVSeries
+	Character    string `json:"character"`
+	CreditID     string `json:"credit_id"`
+	EpisodeCount int    `json:"episode_count"`
 }
 
 type PersonTVCredits struct {
-	Cast []TVSeries `json:"cast"`
-	Crew []TVSeries `json:"crew"`
+	Cast []PersonTVCreditItem `json:"cast"`
+	Crew []TVSeries           `json:"crew"`
 }

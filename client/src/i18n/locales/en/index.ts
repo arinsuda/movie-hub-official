@@ -16,6 +16,7 @@ import validation from "./validation.json";
 import errors from "./errors.json";
 import admin from "./admin.json";
 import session from "./session.json";
+import actor from "./actor.json";
 
 export default {
   common,
@@ -36,4 +37,5 @@ export default {
   errors,
   admin,
   session,
+  actor,
 };

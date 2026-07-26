@@ -297,6 +297,17 @@ func DiscoverMovies(withGenres string, page int) (*PaginatedResult[Movie], error
 	return &result, nil
 }
 
+func GetPersonDetails(personID int, options RequestOptions) (*PersonDetail, error) {
+	var result PersonDetail
+	path := fmt.Sprintf("/person/%d", personID)
+	params := options.apply(nil)
+
+	if err := get(path, params, &result); err != nil {
+		return nil, fmt.Errorf("GetPersonDetails(%d): %w", personID, err)
+	}
+	return &result, nil
+}
+
 func SearchPerson(query string, page int) (*PaginatedResult[Person], error) {
 	params := pageParams(page)
 	params.Set("query", query)

@@ -32,6 +32,7 @@ func RegisterRoutes(router fiber.Router, ratingRepo shared.RatingStatsReader) {
 
 	actors := router.Group("/actors")
 	actors.Get("/search", h.SearchActor)
+	actors.Get("/:id", h.GetActorDetails)
 	actors.Get("/:id/movies", h.GetMoviesByActor)
 	actors.Get("/:id/tv", h.GetSeriesByActor)
 }
