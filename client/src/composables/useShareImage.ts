@@ -4,6 +4,26 @@ import { useToast } from "@/composables/useToast"
 import { useI18n } from "vue-i18n"
 import type { MediaType } from "@/types/common"
 
+/** Build API base URL matching the same logic as @/api/index.ts */
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL
+  if (!envUrl) return "/api"
+  const cleanUrl = (envUrl as string).replace(/\/+$/, "")
+  return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`
+}
+
+/** Hosts known to reject browser CORS fetch — skip direct attempt, go straight to proxy */
+const CORS_UNFRIENDLY_HOSTS = ["image.tmdb.org"]
+
+function isCorsUnfriendly(url: string): boolean {
+  try {
+    const host = new URL(url).hostname
+    return CORS_UNFRIENDLY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
+  } catch {
+    return false
+  }
+}
+
 export function useShareImage() {
   let t: (key: string) => string
   try {
@@ -22,12 +42,17 @@ export function useShareImage() {
   /** Fetch a remote image as a blob URL to bypass CORS canvas taint */
   async function fetchImageAsBlob(url: string): Promise<string | null> {
     try {
-      // 1. Try direct fetch with CORS mode
-      let response = await fetch(url, { mode: "cors" }).catch(() => null)
+      let response: Response | null = null
 
-      // 2. If direct fetch fails (e.g. CORS blocked by CDN), use same-origin backend proxy
+      // 1. Skip direct fetch for hosts known to block CORS (e.g. TMDB CDN)
+      if (!isCorsUnfriendly(url)) {
+        response = await fetch(url, { mode: "cors" }).catch(() => null)
+      }
+
+      // 2. If direct fetch failed or was skipped, use backend proxy
       if (!response || !response.ok) {
-        const proxyUrl = `/api/share/proxy-image?url=${encodeURIComponent(url)}`
+        const apiBase = getApiBaseUrl()
+        const proxyUrl = `${apiBase}/share/proxy-image?url=${encodeURIComponent(url)}`
         response = await fetch(proxyUrl).catch(() => null)
       }
 
