@@ -1,5 +1,11 @@
 <template>
   <div class="actor-detail-page">
+    <!-- Navigation Back Button -->
+    <button type="button" class="btn-back" @click="goBack">
+      <i class="pi pi-arrow-left" />
+      <span>{{ $t("actor.back") }}</span>
+    </button>
+
     <!-- Loading State -->
     <div v-if="isLoading" class="state-container loading-state">
       <div class="skeleton-header">
@@ -236,7 +242,7 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted, watch } from "vue"
-  import { useRoute, RouterLink } from "vue-router"
+  import { useRoute, useRouter, RouterLink } from "vue-router"
   import { useI18n } from "vue-i18n"
   import { actorApi } from "@/api/api"
   import type {
@@ -246,7 +252,16 @@
   } from "@/types"
 
   const route = useRoute()
+  const router = useRouter()
   const { t } = useI18n()
+
+  function goBack() {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push("/")
+    }
+  }
 
   const actor = ref<PersonDetail | null>(null)
   const movieCredits = ref<ActorMovieCredit[]>([])
@@ -405,6 +420,35 @@
     max-width: 1280px;
     margin: 0 auto;
     color: #ffffff;
+  }
+
+  /* ── Back Button ── */
+  .btn-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 1.75rem;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(8px);
+  }
+
+  .btn-back:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+    transform: translateX(-4px);
+  }
+
+  .btn-back:focus-visible {
+    outline: 2px solid #e50914;
+    outline-offset: 2px;
   }
 
   /* ── State Containers ── */
