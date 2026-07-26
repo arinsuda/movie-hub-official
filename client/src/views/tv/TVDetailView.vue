@@ -190,7 +190,13 @@
           <section class="info-section" v-if="castList.length">
             <h2 class="section-title"><i class="pi pi-users"></i>นักแสดงนำ</h2>
             <div class="cast-scroll">
-              <div v-for="actor in castList" :key="actor.id" class="cast-card">
+              <RouterLink
+                v-for="actor in castList"
+                :key="actor.id"
+                :to="`/actors/${actor.id}`"
+                class="cast-card"
+                :aria-label="actor.name"
+              >
                 <div class="cast-avatar-wrap">
                   <img
                     v-if="actor.profile_path"
@@ -206,7 +212,7 @@
                   <span class="actor-name">{{ actor.name }}</span>
                   <span class="actor-character">{{ actor.character }}</span>
                 </div>
-              </div>
+              </RouterLink>
             </div>
           </section>
 
@@ -1192,9 +1198,15 @@
     transition: transform 0.2s;
     scroll-snap-align: start;
     flex-shrink: 0;
+    text-decoration: none;
+    color: inherit;
   }
   .cast-card:hover {
     transform: translateY(-3px);
+  }
+  .cast-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .cast-avatar-wrap {
     width: 100%;

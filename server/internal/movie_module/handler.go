@@ -409,6 +409,26 @@ func (h *Handler) SearchActor(c fiber.Ctx) error {
 	return c.JSON(result)
 }
 
+func (h *Handler) GetActorDetails(c fiber.Ctx) error {
+	personID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID ไม่ถูกต้อง"})
+	}
+
+	options := tmdb.RequestOptions{
+		Language: resolveTMDBLanguage(c.Get("Accept-Language")),
+	}
+
+	result, err := tmdb.GetPersonDetails(personID, options)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			return c.Status(404).JSON(fiber.Map{"error": "ไม่พบข้อมูลนักแสดง"})
+		}
+		return c.Status(500).JSON(fiber.Map{"error": "ดึงข้อมูลนักแสดงไม่สำเร็จ"})
+	}
+	return c.JSON(result)
+}
+
 func (h *Handler) GetMoviesByActor(c fiber.Ctx) error {
 	personID, err := strconv.Atoi(c.Params("id"))
 	if err != nil {

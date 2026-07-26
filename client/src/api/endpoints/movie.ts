@@ -8,7 +8,9 @@ import type {
   Genre,
   TVSeries,
   TVSeriesDetail,
-  MediaStatsResponse,
+  PersonDetail,
+  PersonMovieCredits,
+  PersonTVCredits,
 } from "@/types"
 
 export const movieApi = {
@@ -99,4 +101,10 @@ export const movieApi = {
         videos: Video[]
       }>(`/tv/${id}`)
       .then(res => ({ data: { results: res.data.videos } })),
+}
+
+export const actorApi = {
+  getById: (id: number) => api.get<PersonDetail>(`/actors/${id}`),
+  getMovies: (id: number) => api.get<PersonMovieCredits>(`/actors/${id}/movies`),
+  getTVSeries: (id: number) => api.get<PersonTVCredits>(`/actors/${id}/tv`),
 }

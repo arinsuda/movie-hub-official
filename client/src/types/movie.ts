@@ -150,3 +150,39 @@ export interface BMOLItemResponse {
   created_at: string
 }
 
+export interface PersonDetail {
+  id: number
+  name: string
+  biography: string
+  birthday: string | null
+  deathday: string | null
+  place_of_birth: string | null
+  profile_path: string | null
+  known_for_department: string
+  popularity: number
+  gender: number
+  imdb_id: string | null
+  homepage: string | null
+}
+
+export interface ActorMovieCredit extends Movie {
+  character?: string
+  credit_id?: string
+}
+
+export interface PersonMovieCredits {
+  cast: ActorMovieCredit[]
+  crew: Movie[]
+}
+
+export interface ActorTVCredit extends TVSeries {
+  character?: string
+  credit_id?: string
+  episode_count?: number
+}
+
+export interface PersonTVCredits {
+  cast: ActorTVCredit[]
+  crew: TVSeries[]
+}
+

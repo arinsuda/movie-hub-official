@@ -154,6 +154,12 @@ const router = createRouter({
           component: () => import("@/views/FeedView.vue"),
           meta: { titleKey: "navigation.feed" }
         },
+        {
+          path: "actors/:id",
+          name: "actor-detail",
+          component: () => import("@/views/actor/ActorDetailView.vue"),
+          meta: { titleKey: "actor.title" }
+        },
       ],
     },
 
