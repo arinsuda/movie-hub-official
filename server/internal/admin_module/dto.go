@@ -48,16 +48,18 @@ type AdminUserRow struct {
 }
 
 type AdminReviewRow struct {
-	ID        uint    `json:"id"`
-	UserID    uint    `json:"user_id"`
-	Username  string  `json:"username"`
-	MediaID   int     `json:"media_id"`
-	MediaType string  `json:"media_type"`
-	Rating    float32 `json:"rating"`
-	Body      string  `json:"body"`
-	IsPublic  bool    `json:"is_public"`
-	LikeCount int     `json:"like_count"`
-	CreatedAt string  `json:"created_at"`
+	ID         uint    `json:"id"`
+	UserID     uint    `json:"user_id"`
+	Username   string  `json:"username"`
+	MediaID    int     `json:"media_id"`
+	MediaType  string  `json:"media_type"`
+	MediaTitle string  `json:"media_title,omitempty"`
+	PosterURL  string  `json:"poster_url,omitempty"`
+	Rating     float32 `json:"rating"`
+	Body       string  `json:"body"`
+	IsPublic   bool    `json:"is_public"`
+	LikeCount  int     `json:"like_count"`
+	CreatedAt  string  `json:"created_at"`
 }
 
 type AdminAuditLogRow struct {

@@ -1,1 +1,0 @@
-import{M as e,d as t}from"./runtime-core.esm-bundler-Ba9tTF4t.js";import{b as n}from"./index-BFM0AhkU.js";var r={},i={class:`p-4 text-white`};function a(n,r){return e(),t(`div`,i)}var o=n(r,[[`render`,a]]);export{o as default};

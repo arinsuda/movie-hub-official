@@ -44,6 +44,8 @@ export interface AdminReviewRow {
   username: string
   media_id: number
   media_type: string
+  media_title?: string
+  poster_url?: string
   rating: number
   body: string
   is_public: boolean
