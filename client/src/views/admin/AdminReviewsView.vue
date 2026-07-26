@@ -69,13 +69,43 @@
               No reviews found.
             </td>
           </tr>
-          <tr v-for="r in reviews" :key="r.id">
+          <tr v-for="r in reviews" :key="r.id" class="review-row">
             <td>#{{ r.id }}</td>
-            <td class="font-semibold">@{{ r.username }}</td>
             <td>
-              <span class="media-type-tag" :class="r.media_type">
-                {{ r.media_type === "movie" ? "Movie" : "TV" }} #{{ r.media_id }}
-              </span>
+              <div class="author-cell">
+                <span class="font-semibold">@{{ r.username }}</span>
+                <span v-if="!r.is_public" class="visibility-badge private" title="Private Review">
+                  <Lock :size="12" /> Private
+                </span>
+                <span v-else class="visibility-badge public" title="Public Review">
+                  <Globe :size="12" /> Public
+                </span>
+              </div>
+            </td>
+            <td>
+              <RouterLink
+                :to="r.media_type === 'movie' ? '/movies/' + r.media_id : '/tv/' + r.media_id"
+                class="media-info-link"
+                target="_blank"
+                :title="'View ' + (r.media_title || r.media_type) + ' detail page'"
+              >
+                <img
+                  v-if="r.poster_url"
+                  :src="r.poster_url"
+                  class="media-poster-thumb"
+                  :alt="r.media_title || 'poster'"
+                />
+                <div v-else class="media-poster-thumb placeholder">
+                  <i class="pi pi-film" />
+                </div>
+                <div class="media-details">
+                  <span class="media-title-text">{{ r.media_title || (r.media_type === 'movie' ? 'Movie' : 'TV') + ' #' + r.media_id }}</span>
+                  <span class="media-type-tag" :class="r.media_type">
+                    {{ r.media_type === "movie" ? "Movie" : "TV Series" }}
+                  </span>
+                </div>
+                <ExternalLink :size="12" class="ext-icon" />
+              </RouterLink>
             </td>
             <td>
               <div class="rating-cell">
@@ -83,19 +113,28 @@
                 <span>{{ r.rating.toFixed(1) }}</span>
               </div>
             </td>
-            <td class="review-body-cell" :title="r.body">
-              {{ r.body }}
+            <td class="review-body-cell" :title="r.body" @click="openDetail(r)">
+              <span class="body-preview">{{ r.body }}</span>
             </td>
             <td>{{ r.like_count }}</td>
             <td class="text-secondary">{{ formatDate(r.created_at) }}</td>
             <td class="text-right">
-              <button
-                class="action-btn danger"
-                title="Delete Review"
-                @click="handleDelete(r)"
-              >
-                <Trash2 :size="14" />
-              </button>
+              <div class="action-buttons-group">
+                <button
+                  class="action-btn info"
+                  title="View Full Details"
+                  @click="openDetail(r)"
+                >
+                  <Eye :size="14" />
+                </button>
+                <button
+                  class="action-btn danger"
+                  title="Delete Review"
+                  @click="handleDelete(r)"
+                >
+                  <Trash2 :size="14" />
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -130,17 +169,122 @@
         </button>
       </div>
     </div>
+
+    <!-- Review Detail Modal -->
+    <Teleport to="body">
+      <div v-if="selectedReview" class="modal-overlay" @click.self="selectedReview = null">
+        <div class="review-detail-modal" role="dialog" aria-modal="true">
+          <div class="detail-modal-header">
+            <h3><i class="pi pi-comments" /> รายละเอียดรีวิว #{{ selectedReview.id }}</h3>
+            <button class="btn-close-modal" @click="selectedReview = null">
+              <X :size="18" />
+            </button>
+          </div>
+
+          <div class="detail-modal-content">
+            <!-- Media Banner / Info -->
+            <div class="media-banner-card">
+              <img
+                v-if="selectedReview.poster_url"
+                :src="selectedReview.poster_url"
+                class="modal-poster"
+                :alt="selectedReview.media_title || 'Poster'"
+              />
+              <div v-else class="modal-poster placeholder">
+                <i class="pi pi-film" style="font-size: 2.5rem" />
+              </div>
+              <div class="modal-media-info">
+                <span class="modal-media-type" :class="selectedReview.media_type">
+                  {{ selectedReview.media_type === 'movie' ? 'ภาพยนตร์ (Movie)' : 'ซีรีส์ (TV Series)' }}
+                </span>
+                <h2 class="modal-media-title">
+                  {{ selectedReview.media_title || ('ID #' + selectedReview.media_id) }}
+                </h2>
+                <span class="modal-media-id">TMDB ID: #{{ selectedReview.media_id }}</span>
+                <RouterLink
+                  :to="selectedReview.media_type === 'movie' ? '/movies/' + selectedReview.media_id : '/tv/' + selectedReview.media_id"
+                  class="btn-view-media"
+                  target="_blank"
+                >
+                  <span>ไปที่หน้ารายละเอียด</span>
+                  <ExternalLink :size="14" />
+                </RouterLink>
+              </div>
+            </div>
+
+            <!-- Meta Grid -->
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">ผู้เขียน (Author)</span>
+                <span class="meta-value author">@{{ selectedReview.username }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">คะแนนรีวิว (Rating)</span>
+                <div class="meta-value rating">
+                  <Star :size="16" fill="#f5c518" color="#f5c518" />
+                  <span>{{ selectedReview.rating.toFixed(1) }} / 5.0</span>
+                </div>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">สิทธิ์การมองเห็น (Visibility)</span>
+                <span class="meta-value">
+                  <span v-if="!selectedReview.is_public" class="visibility-badge private">
+                    <Lock :size="12" /> รีวิวส่วนตัว (Private)
+                  </span>
+                  <span v-else class="visibility-badge public">
+                    <Globe :size="12" /> รีวิวสาธารณะ (Public)
+                  </span>
+                </span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">จำนวนถูกใจ (Likes)</span>
+                <span class="meta-value">{{ selectedReview.like_count }} คน</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">วันที่เขียน (Date)</span>
+                <span class="meta-value">{{ formatDate(selectedReview.created_at) }}</span>
+              </div>
+            </div>
+
+            <!-- Full Review Body -->
+            <div class="full-review-body">
+              <span class="body-label">ข้อความรีวิวทั้งหมด:</span>
+              <div class="review-text-box">
+                {{ selectedReview.body }}
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-modal-footer">
+            <button class="btn-modal-delete" @click="handleDelete(selectedReview); selectedReview = null">
+              <Trash2 :size="16" />
+              <span>ลบรีวิวนี้</span>
+            </button>
+            <button class="btn-modal-close" @click="selectedReview = null">
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
+import { RouterLink } from "vue-router"
 import { useAdminStore } from "@/stores/admin"
 import type { AdminReviewRow } from "@/types"
-import { Search, ArrowUpDown, Star, Trash2 } from "lucide-vue-next"
+import { Search, ArrowUpDown, Star, Trash2, Eye, ExternalLink, Lock, Globe, X } from "lucide-vue-next"
 
 const adminStore = useAdminStore()
 const reviews = computed(() => adminStore.reviews)
+
+const selectedReview = ref<AdminReviewRow | null>(null)
+
+function openDetail(review: AdminReviewRow) {
+  selectedReview.value = review
+}
 
 const search = ref("")
 const mediaTypeFilter = ref("all")
@@ -303,13 +447,121 @@ onMounted(() => {
 
 .font-semibold { font-weight: 600; }
 
-.media-type-tag {
-  font-size: 0.775rem;
-  font-weight: 700;
-  padding: 0.2rem 0.5rem;
+.review-row {
+  transition: background 0.15s ease;
+}
+
+.review-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.author-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.visibility-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  width: fit-content;
+}
+
+.visibility-badge.public {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.visibility-badge.private {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.media-info-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--color-text-primary);
+  padding: 0.25rem 0.4rem;
   border-radius: 0.35rem;
+  transition: background 0.15s ease;
+}
+
+.media-info-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.media-info-link:hover .media-title-text {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+
+.media-poster-thumb {
+  width: 32px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.media-poster-thumb.placeholder {
+  background: var(--color-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+}
+
+.media-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.media-title-text {
+  font-weight: 600;
+  font-size: 0.875rem;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}
+
+.media-type-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
   background: var(--color-surface-3);
   color: var(--color-text-secondary);
+  width: fit-content;
+}
+
+.media-type-tag.movie {
+  background: rgba(229, 9, 20, 0.15);
+  color: #ff4d4d;
+}
+
+.media-type-tag.tv {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.ext-icon {
+  color: var(--color-text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.media-info-link:hover .ext-icon {
+  opacity: 1;
 }
 
 .rating-cell {
@@ -321,10 +573,26 @@ onMounted(() => {
 }
 
 .review-body-cell {
-  max-width: 360px;
+  max-width: 300px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.review-body-cell:hover {
+  color: #ffffff;
+}
+
+.body-preview {
+  opacity: 0.9;
+}
+
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
 }
 
 .action-btn {
@@ -336,7 +604,18 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.15s;
 }
-.action-btn.danger:hover { color: #ef4444; border-color: #ef4444; }
+
+.action-btn.info:hover {
+  color: #3b82f6;
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.action-btn.danger:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
 
 .text-right { text-align: right; }
 .text-center { text-align: center; }
@@ -367,4 +646,265 @@ onMounted(() => {
   cursor: pointer;
 }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Review Detail Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.review-detail-modal {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  color: #ffffff;
+}
+
+.detail-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.detail-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  i {
+    color: #e50914;
+  }
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+
+.btn-close-modal:hover {
+  color: #ffffff;
+}
+
+.detail-modal-content {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.media-banner-card {
+  display: flex;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.85rem;
+  align-items: center;
+}
+
+.modal-poster {
+  width: 72px;
+  height: 108px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.modal-poster.placeholder {
+  background: #262626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.modal-media-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.modal-media-type {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  width: fit-content;
+}
+
+.modal-media-type.movie {
+  background: rgba(229, 9, 20, 0.2);
+  color: #ff4d4d;
+}
+
+.modal-media-type.tv {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.modal-media-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.modal-media-id {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-view-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #3b82f6;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.btn-view-media:hover {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.meta-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.meta-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.meta-value.author {
+  color: #ffffff;
+}
+
+.meta-value.rating {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #f5c518;
+}
+
+.full-review-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.body-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.review-text-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.detail-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.btn-modal-delete {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-modal-delete:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+}
+
+.btn-modal-close {
+  padding: 0.55rem 1.2rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
 </style>

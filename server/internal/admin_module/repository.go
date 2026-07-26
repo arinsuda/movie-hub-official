@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	tmdbmodule "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -337,21 +338,39 @@ func (r *gormRepository) ListReviews(filter ReviewFilter) ([]AdminReviewRow, int
 
 	result := make([]AdminReviewRow, len(rows))
 	for i, r := range rows {
+		title, poster := fetchMediaTitleAndPoster(r.MediaID, r.MediaType)
 		result[i] = AdminReviewRow{
-			ID:        r.ID,
-			UserID:    r.UserID,
-			Username:  r.Username,
-			MediaID:   r.MediaID,
-			MediaType: r.MediaType,
-			Rating:    r.Rating,
-			Body:      r.Body,
-			IsPublic:  r.IsPublic,
-			LikeCount: r.LikeCount,
-			CreatedAt: r.CreatedAt.Format(time.RFC3339),
+			ID:         r.ID,
+			UserID:     r.UserID,
+			Username:   r.Username,
+			MediaID:    r.MediaID,
+			MediaType:  r.MediaType,
+			MediaTitle: title,
+			PosterURL:  poster,
+			Rating:     r.Rating,
+			Body:       r.Body,
+			IsPublic:   r.IsPublic,
+			LikeCount:  r.LikeCount,
+			CreatedAt:  r.CreatedAt.Format(time.RFC3339),
 		}
 	}
 
 	return result, total, nil
+}
+
+func fetchMediaTitleAndPoster(mediaID int, mediaType string) (title, posterURL string) {
+	if mediaType == "movie" {
+		m, err := tmdbmodule.GetMovieByID(mediaID)
+		if err == nil && m != nil {
+			return m.Title, tmdbmodule.ImageURL(m.PosterPath)
+		}
+	} else if mediaType == "tv" {
+		s, err := tmdbmodule.GetSeriesByID(mediaID)
+		if err == nil && s != nil {
+			return s.Name, tmdbmodule.ImageURL(s.PosterPath)
+		}
+	}
+	return "", ""
 }
 
 func (r *gormRepository) ListAuditLogs(filter AuditLogFilter) ([]AdminAuditLogRow, int64, error) {
