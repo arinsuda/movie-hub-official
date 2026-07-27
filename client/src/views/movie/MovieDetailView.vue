@@ -234,7 +234,7 @@
             <MovieReviews
               :movie-id="displayMovieId"
               :media-poster-path="movie?.poster_path"
-              :media-title="movie?.title"
+              :media-title="movie?.original_title || movie?.title"
               @review-submitted="onReviewSubmitted"
             />
           </section>
@@ -293,7 +293,7 @@
     return {
       id: movie.value.id,
       mediaType: "movie",
-      title: movie.value.title,
+      title: movie.value.original_title || movie.value.title,
       posterPath: movie.value.poster_path || null,
       posterUrl: null,
       releaseYear: movie.value.release_date
