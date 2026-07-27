@@ -95,6 +95,13 @@
   import PosterShareTemplate from "./PosterShareTemplate.vue"
   import ReviewShareTemplate from "./ReviewShareTemplate.vue"
 
+  function getApiBaseUrl(): string {
+    const envUrl = import.meta.env.VITE_API_BASE_URL
+    if (!envUrl) return "/api"
+    const cleanUrl = (envUrl as string).replace(/\/+$/, "")
+    return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`
+  }
+
   const props = defineProps<{
     modelValue: boolean
     shareType: "poster" | "review"
@@ -151,12 +158,30 @@
 
     // Load avatar for review shares
     if (props.shareType === "review" && props.review?.authorAvatarUrl) {
-      const blob = await share.fetchImageAsBlob(props.review.authorAvatarUrl)
-      if (blob) {
-        avatarBlobUrl.value = blob
-      } else {
-        avatarBlobUrl.value = null
-        share.markFallbackUsed()
+      let avatarUrl = props.review.authorAvatarUrl.trim()
+      if (
+        avatarUrl &&
+        !avatarUrl.startsWith("http://") &&
+        !avatarUrl.startsWith("https://") &&
+        !avatarUrl.startsWith("data:")
+      ) {
+        const apiBase = getApiBaseUrl()
+        if (apiBase.startsWith("http")) {
+          const origin = new URL(apiBase).origin
+          avatarUrl = `${origin}${avatarUrl.startsWith("/") ? "" : "/"}${avatarUrl}`
+        } else {
+          avatarUrl = `${window.location.origin}${avatarUrl.startsWith("/") ? "" : "/"}${avatarUrl}`
+        }
+      }
+
+      if (avatarUrl) {
+        const blob = await share.fetchImageAsBlob(avatarUrl)
+        if (blob) {
+          avatarBlobUrl.value = blob
+        } else {
+          avatarBlobUrl.value = null
+          share.markFallbackUsed()
+        }
       }
     }
 

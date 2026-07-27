@@ -13,7 +13,11 @@ function getApiBaseUrl(): string {
 }
 
 /** Hosts known to reject browser CORS fetch — skip direct attempt, go straight to proxy */
-const CORS_UNFRIENDLY_HOSTS = ["image.tmdb.org"]
+const CORS_UNFRIENDLY_HOSTS = [
+  "image.tmdb.org",
+  "googleusercontent.com",
+  "gravatar.com",
+]
 
 function isCorsUnfriendly(url: string): boolean {
   try {
