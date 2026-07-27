@@ -42,6 +42,7 @@ type Movie struct {
 
 type MovieDetail struct {
 	Movie
+	EnglishTitle        string              `json:"english_title,omitempty"`
 	Runtime             int                 `json:"runtime"`
 	Status              string              `json:"status"`
 	Tagline             string              `json:"tagline"`
@@ -103,6 +104,7 @@ type TVSeries struct {
 
 type TVSeriesDetail struct {
 	TVSeries
+	EnglishTitle        string              `json:"english_title,omitempty"`
 	NumberOfSeasons     int                 `json:"number_of_seasons"`
 	NumberOfEpisodes    int                 `json:"number_of_episodes"`
 	Status              string              `json:"status"`

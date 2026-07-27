@@ -21,6 +21,7 @@ export interface Movie {
 }
 
 export interface MovieDetail extends Movie {
+  english_title?: string
   runtime: number
   status: string
   tagline: string
@@ -47,6 +48,7 @@ export interface TVSeries {
 }
 
 export interface TVSeriesDetail extends TVSeries {
+  english_title?: string
   number_of_seasons: number
   number_of_episodes: number
   status: string

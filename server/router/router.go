@@ -3,6 +3,7 @@ package router
 import (
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -120,6 +121,28 @@ func healthHandler(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"status": "ok"})
 }
 
+func isPrivateHost(host string) bool {
+	hostOnly := strings.ToLower(host)
+	if h, _, err := net.SplitHostPort(hostOnly); err == nil {
+		hostOnly = h
+	}
+
+	if hostOnly == "localhost" || hostOnly == "0.0.0.0" || strings.HasSuffix(hostOnly, ".local") || strings.HasSuffix(hostOnly, ".internal") {
+		return true
+	}
+
+	ip := net.ParseIP(hostOnly)
+	if ip == nil {
+		return false
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	return false
+}
+
 func shareImageProxyHandler(cfg *config.Config) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		rawURL := c.Query("url")
@@ -132,27 +155,9 @@ func shareImageProxyHandler(cfg *config.Config) fiber.Handler {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid url"})
 		}
 
-		// Security Allowlist check (SSRF prevention)
-		host := strings.ToLower(parsed.Host)
-		minioEndpoint := strings.ToLower(cfg.MinIO.Endpoint)
-
-		isAllowed := host == "image.tmdb.org" ||
-			strings.HasSuffix(host, ".tmdb.org") ||
-			host == "googleusercontent.com" ||
-			strings.HasSuffix(host, ".googleusercontent.com") ||
-			host == "gravatar.com" ||
-			strings.HasSuffix(host, ".gravatar.com") ||
-			host == "cloudflarestorage.com" ||
-			strings.HasSuffix(host, ".cloudflarestorage.com") ||
-			(minioEndpoint != "" && (host == minioEndpoint || strings.Contains(host, minioEndpoint))) ||
-			strings.Contains(host, "minio") ||
-			strings.Contains(host, "s3") ||
-			strings.Contains(host, "r2") ||
-			strings.Contains(host, "storage") ||
-			strings.Contains(host, "amazonaws")
-
-		if !isAllowed {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "untrusted image host"})
+		// Security check: restrict internal/loopback/private IP addresses to prevent SSRF
+		if isPrivateHost(parsed.Host) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "restricted host"})
 		}
 
 		// Fetch image from target
