@@ -12,23 +12,6 @@ function getApiBaseUrl(): string {
   return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`
 }
 
-/** Hosts known to reject browser CORS fetch — skip direct attempt, go straight to proxy */
-const CORS_UNFRIENDLY_HOSTS = [
-  "image.tmdb.org",
-  "googleusercontent.com",
-  "gravatar.com",
-  "cloudflarestorage.com",
-]
-
-function isCorsUnfriendly(url: string): boolean {
-  try {
-    const host = new URL(url).hostname
-    return CORS_UNFRIENDLY_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))
-  } catch {
-    return false
-  }
-}
-
 export function useShareImage() {
   let t: (key: string) => string
   try {
@@ -44,23 +27,28 @@ export function useShareImage() {
   const blobUrlsToRevoke: string[] = []
   let hasFallback = false
 
-  /** Fetch a remote image as a blob URL to bypass CORS canvas taint */
+  /** Fetch a remote image as a blob URL to bypass CORS canvas taint and avoid console errors */
   async function fetchImageAsBlob(url: string): Promise<string | null> {
     try {
-      let response: Response | null = null
+      if (!url) return null
 
-      // 1. Skip direct fetch for hosts known to block CORS (e.g. TMDB CDN)
-      if (!isCorsUnfriendly(url)) {
-        response = await fetch(url, { mode: "cors" }).catch(() => null)
+      // If it's already a blob URL or data URI, return as-is
+      if (url.startsWith("blob:") || url.startsWith("data:")) {
+        return url
       }
 
-      // 2. If direct fetch failed or was skipped, use backend proxy
-      if (!response || !response.ok) {
-        const apiBase = getApiBaseUrl()
-        const proxyUrl = `${apiBase}/share/proxy-image?url=${encodeURIComponent(url)}`
-        response = await fetch(proxyUrl).catch(() => null)
+      let targetUrl = url
+
+      // For any external HTTP/HTTPS image, route through backend proxy to avoid direct browser CORS console errors
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        const currentOrigin = window.location.origin
+        if (!url.startsWith(currentOrigin)) {
+          const apiBase = getApiBaseUrl()
+          targetUrl = `${apiBase}/share/proxy-image?url=${encodeURIComponent(url)}`
+        }
       }
 
+      const response = await fetch(targetUrl).catch(() => null)
       if (!response || !response.ok) return null
 
       const blob = await response.blob()

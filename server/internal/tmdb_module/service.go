@@ -140,6 +140,16 @@ func GetMovieByID(tmdbID int) (*MovieDetail, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GetMovieByID(%d): %w", tmdbID, err)
 	}
+
+	var enMovie struct {
+		Title string `json:"title"`
+	}
+	enParams := url.Values{}
+	enParams.Set("language", "en-US")
+	if err := get(path, enParams, &enMovie); err == nil && enMovie.Title != "" {
+		movie.EnglishTitle = enMovie.Title
+	}
+
 	return &movie, nil
 }
 
@@ -213,6 +223,16 @@ func GetSeriesByID(tmdbID int) (*TVSeriesDetail, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GetSeriesByID(%d): %w", tmdbID, err)
 	}
+
+	var enSeries struct {
+		Name string `json:"name"`
+	}
+	enParams := url.Values{}
+	enParams.Set("language", "en-US")
+	if err := get(path, enParams, &enSeries); err == nil && enSeries.Name != "" {
+		series.EnglishTitle = enSeries.Name
+	}
+
 	return &series, nil
 }
 

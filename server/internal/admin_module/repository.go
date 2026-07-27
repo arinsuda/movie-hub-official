@@ -362,12 +362,20 @@ func fetchMediaTitleAndPoster(mediaID int, mediaType string) (title, posterURL s
 	if mediaType == "movie" {
 		m, err := tmdbmodule.GetMovieByID(mediaID)
 		if err == nil && m != nil {
-			return m.Title, tmdbmodule.ImageURL(m.PosterPath)
+			t := m.EnglishTitle
+			if t == "" {
+				t = m.Title
+			}
+			return t, tmdbmodule.ImageURL(m.PosterPath)
 		}
 	} else if mediaType == "tv" {
 		s, err := tmdbmodule.GetSeriesByID(mediaID)
 		if err == nil && s != nil {
-			return s.Name, tmdbmodule.ImageURL(s.PosterPath)
+			t := s.EnglishTitle
+			if t == "" {
+				t = s.Name
+			}
+			return t, tmdbmodule.ImageURL(s.PosterPath)
 		}
 	}
 	return "", ""
