@@ -28,7 +28,7 @@
         </div>
         <div class="media-info">
           <div class="type-badge">
-            {{ media.mediaType === 'movie' ? $t('share.movie') : $t('share.tvSeries') }}
+            {{ media.mediaType === 'movie' ? 'MOVIE' : 'TV SERIES' }}
           </div>
           <h2
             class="media-title"
@@ -98,7 +98,7 @@
     <!-- Branding footer -->
     <div class="brand-footer">
       <div class="brand-divider" />
-      <span class="reviewed-label">{{ $t('share.reviewedOn') }}</span>
+      <span class="reviewed-label">REVIEWED ON</span>
       <div class="brand-logo">
         <span class="logo-re">RE</span><span class="logo-mov">MOV</span>
       </div>

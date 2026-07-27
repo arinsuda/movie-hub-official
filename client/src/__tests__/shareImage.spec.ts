@@ -75,7 +75,7 @@ describe("Share as Image Feature", () => {
       const { buildPosterCaption } = useShareImage()
       const caption = buildPosterCaption("Inception", "2010", "movie")
       expect(caption).toContain("Inception (2010)")
-      expect(caption).toContain("share.sharedFrom")
+      expect(caption).toContain("Shared from REMOV")
     })
 
     it("builds review caption correctly with author attribution", () => {
@@ -83,7 +83,7 @@ describe("Share as Image Feature", () => {
       const caption = buildReviewCaption("Dune: Part Two", "JohnDoe", 4.5)
       expect(caption).toContain("4.5/5 — Dune: Part Two")
       expect(caption).toContain("JohnDoe")
-      expect(caption).toContain("share.sharedFrom")
+      expect(caption).toContain("Shared from REMOV")
     })
 
     it("builds share links accurately", () => {
@@ -180,7 +180,7 @@ describe("Share as Image Feature", () => {
       expect(wrapper.find(".author-name").text()).toBe("Nolan Fan")
       expect(wrapper.find(".author-username").text()).toBe("@nolanfan")
       expect(wrapper.find(".review-text").text()).toContain("masterpiece")
-      expect(wrapper.find(".reviewed-label").text()).toBe("Reviewed on REMOV")
+      expect(wrapper.find(".reviewed-label").text()).toBe("REVIEWED ON")
     })
 
     it("renders avatar fallback when avatarBlobUrl is null", () => {

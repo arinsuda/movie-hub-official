@@ -235,7 +235,7 @@
     return {
       id: props.movieId,
       mediaType: props.mediaType,
-      title: r.media?.title || props.mediaTitle || "",
+      title: props.mediaTitle || r.media?.title || "",
       posterPath: props.mediaPosterPath || null,
       posterUrl: r.media?.poster_url || null,
       releaseYear: null,
