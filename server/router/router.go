@@ -138,8 +138,16 @@ func shareImageProxyHandler(cfg *config.Config) fiber.Handler {
 
 		isAllowed := host == "image.tmdb.org" ||
 			strings.HasSuffix(host, ".tmdb.org") ||
+			host == "googleusercontent.com" ||
+			strings.HasSuffix(host, ".googleusercontent.com") ||
+			host == "gravatar.com" ||
+			strings.HasSuffix(host, ".gravatar.com") ||
 			(minioEndpoint != "" && (host == minioEndpoint || strings.Contains(host, minioEndpoint))) ||
-			strings.Contains(host, "minio")
+			strings.Contains(host, "minio") ||
+			strings.Contains(host, "s3") ||
+			strings.Contains(host, "r2") ||
+			strings.Contains(host, "storage") ||
+			strings.Contains(host, "amazonaws")
 
 		if !isAllowed {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "untrusted image host"})
