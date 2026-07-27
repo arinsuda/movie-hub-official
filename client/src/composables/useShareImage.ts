@@ -17,6 +17,7 @@ const CORS_UNFRIENDLY_HOSTS = [
   "image.tmdb.org",
   "googleusercontent.com",
   "gravatar.com",
+  "cloudflarestorage.com",
 ]
 
 function isCorsUnfriendly(url: string): boolean {

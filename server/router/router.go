@@ -142,6 +142,8 @@ func shareImageProxyHandler(cfg *config.Config) fiber.Handler {
 			strings.HasSuffix(host, ".googleusercontent.com") ||
 			host == "gravatar.com" ||
 			strings.HasSuffix(host, ".gravatar.com") ||
+			host == "cloudflarestorage.com" ||
+			strings.HasSuffix(host, ".cloudflarestorage.com") ||
 			(minioEndpoint != "" && (host == minioEndpoint || strings.Contains(host, minioEndpoint))) ||
 			strings.Contains(host, "minio") ||
 			strings.Contains(host, "s3") ||
