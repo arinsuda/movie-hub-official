@@ -229,7 +229,7 @@
               :movie-id="displayTvId"
               media-type="tv"
               :media-poster-path="tv?.poster_path"
-              :media-title="tv?.original_name || tv?.name || tv?.title"
+              :media-title="tv?.english_title || tv?.name || tv?.title"
               @review-submitted="onReviewSubmitted"
             />
           </section>
@@ -288,7 +288,7 @@
     return {
       id: tv.value.id,
       mediaType: "tv",
-      title: tv.value.original_name || tv.value.name || tv.value.title || "",
+      title: tv.value.english_title || tv.value.name || tv.value.title || "",
       posterPath: tv.value.poster_path || null,
       posterUrl: null,
       releaseYear: tv.value.first_air_date
