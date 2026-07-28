@@ -14,10 +14,10 @@ type Review struct {
 	MediaID   int    `gorm:"not null;index"`
 	MediaType string `gorm:"type:varchar(10);not null"`
 
-	Rating    float32 `gorm:"type:decimal(3,1);not null"`
-	Body      string  `gorm:"type:text;not null"`
-	IsPublic   bool   `gorm:"default:true"` // deprecated
-	Visibility string `gorm:"type:varchar(20);not null;default:'public'"`
+	Rating     float32 `gorm:"type:decimal(3,1);not null"`
+	Body       string  `gorm:"type:text;not null"`
+	IsPublic   bool    `gorm:"default:true"` // deprecated
+	Visibility string  `gorm:"type:varchar(20);not null;default:'public'"`
 
 	LikeCount    int `gorm:"default:0"`
 	CommentCount int `gorm:"default:0"`

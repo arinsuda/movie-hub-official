@@ -9,12 +9,12 @@ import (
 // ── Review ────────────────────────────────────────────────────────
 
 type CreateReviewRequest struct {
-	MediaID    int      `json:"media_id"`
-	MediaType  string   `json:"media_type"` // "movie" | "tv"
-	Rating     float32  `json:"rating"`     // 0.5 - 5.0 (increments of 0.5)
-	Body       string   `json:"body"`
-	Visibility string   `json:"visibility"`
-	IsPublic   *bool    `json:"is_public,omitempty"` // DEPRECATED: expand-and-contract compat
+	MediaID    int     `json:"media_id"`
+	MediaType  string  `json:"media_type"` // "movie" | "tv"
+	Rating     float32 `json:"rating"`     // 0.5 - 5.0 (increments of 0.5)
+	Body       string  `json:"body"`
+	Visibility string  `json:"visibility"`
+	IsPublic   *bool   `json:"is_public,omitempty"` // DEPRECATED: expand-and-contract compat
 }
 
 type UpdateReviewRequest struct {

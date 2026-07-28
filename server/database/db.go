@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
+	"github.com/arinsuda/movie-hub/database/migrate"
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/admin_module"
 	"github.com/arinsuda/movie-hub/internal/bmol_module"
@@ -19,7 +20,6 @@ import (
 	"github.com/arinsuda/movie-hub/internal/like_module"
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	noti "github.com/arinsuda/movie-hub/internal/notification_module"
-	"github.com/arinsuda/movie-hub/database/migrate"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"

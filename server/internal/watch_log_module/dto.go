@@ -17,12 +17,12 @@ type UpdateWatchLogRequest struct {
 }
 
 type WatchLogResponse struct {
-	ID         uint                 `json:"id"`
-	Media      shared.MediaSummary  `json:"media"`
-	WatchedOn  string               `json:"watched_on"`
-	Visibility string               `json:"visibility"`
-	CreatedAt  time.Time            `json:"created_at"`
-	UpdatedAt  time.Time            `json:"updated_at"`
+	ID         uint                `json:"id"`
+	Media      shared.MediaSummary `json:"media"`
+	WatchedOn  string              `json:"watched_on"`
+	Visibility string              `json:"visibility"`
+	CreatedAt  time.Time           `json:"created_at"`
+	UpdatedAt  time.Time           `json:"updated_at"`
 }
 
 type PaginationQuery struct {

@@ -15,7 +15,6 @@ var (
 	ErrInvalidMediaID    = errors.New("invalid media id")
 )
 
-
 type Repository interface {
 	Create(log *MediaWatchLog) error
 	FindByID(id uint) (*MediaWatchLog, error)

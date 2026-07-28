@@ -21,7 +21,7 @@ const (
 	ActivityAchievementUnlocked ActivityType = privacy_policy.ActivityAchievementUnlocked
 	ActivityUserFollowed        ActivityType = privacy_policy.ActivityUserFollowed
 	ActivityWatchLogCreated     ActivityType = privacy_policy.ActivityWatchLogCreated
-	ActivityRewatched       ActivityType = privacy_policy.ActivityRewatched
+	ActivityRewatched           ActivityType = privacy_policy.ActivityRewatched
 )
 
 var AllActivityTypes = []ActivityType{
@@ -47,7 +47,7 @@ var defaultEnabled = map[ActivityType]bool{
 	ActivityAchievementUnlocked: true,
 	ActivityUserFollowed:        false,
 	ActivityWatchLogCreated:     false,
-	ActivityRewatched:       false,
+	ActivityRewatched:           false,
 }
 
 type ActivityEvent struct {
