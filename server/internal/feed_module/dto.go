@@ -15,6 +15,7 @@ type ActivityPayload struct {
 	CommentID     *uint
 	AchievementID *uint
 	LibraryItemID *uint
+	WatchLogID    *uint
 	TargetUserID  *uint
 
 	Message string
@@ -74,6 +75,7 @@ type FeedItemResponse struct {
 	CommentID     *uint `json:"comment_id,omitempty"`
 	AchievementID *uint `json:"achievement_id,omitempty"`
 	LibraryItemID *uint `json:"library_item_id,omitempty"`
+	WatchLogID    *uint `json:"watch_log_id,omitempty"`
 
 	TargetUser *ActorSummary `json:"target_user,omitempty"`
 

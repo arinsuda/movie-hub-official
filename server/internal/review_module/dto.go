@@ -9,19 +9,19 @@ import (
 // ── Review ────────────────────────────────────────────────────────
 
 type CreateReviewRequest struct {
-	MediaID   int     `json:"media_id"`
-	MediaType string  `json:"media_type"` // "movie" | "tv"
-	Rating    float32 `json:"rating"`     // 0.5 - 5.0 (increments of 0.5)
-	Body      string  `json:"body"`
-	IsPublic  bool    `json:"is_public"`
-	WatchedAt *string `json:"watched_at"` // "2026-05-01"
+	MediaID    int     `json:"media_id"`
+	MediaType  string  `json:"media_type"` // "movie" | "tv"
+	Rating     float32 `json:"rating"`     // 0.5 - 5.0 (increments of 0.5)
+	Body       string  `json:"body"`
+	Visibility string  `json:"visibility"`
+	IsPublic   *bool   `json:"is_public,omitempty"` // DEPRECATED: expand-and-contract compat
 }
 
 type UpdateReviewRequest struct {
-	Rating    *float32 `json:"rating"`
-	Body      *string  `json:"body"`
-	IsPublic  *bool    `json:"is_public"`
-	WatchedAt *string  `json:"watched_at"`
+	Rating     *float32 `json:"rating"`
+	Body       *string  `json:"body"`
+	Visibility *string  `json:"visibility"`
+	IsPublic   *bool    `json:"is_public,omitempty"` // DEPRECATED: expand-and-contract compat
 }
 
 type ReviewResponse struct {
@@ -30,8 +30,7 @@ type ReviewResponse struct {
 	Media          tmdb.Media                `json:"media"`
 	Rating         float32                   `json:"rating"`
 	Body           string                    `json:"body"`
-	IsPublic       bool                      `json:"is_public"`
-	WatchedAt      *time.Time                `json:"watched_at"`
+	Visibility     string                    `json:"visibility"`
 	LikeCount      int                       `json:"like_count"`
 	CommentCount   int                       `json:"comment_count"`
 	IsLiked        bool                      `json:"is_liked"`

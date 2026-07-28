@@ -111,6 +111,12 @@ func (r *repository) DeleteCommentActivity(ctx context.Context, actorID uint, co
 		Delete(&ActivityEvent{}).Error
 }
 
+func (r *repository) DeleteWatchLogActivity(ctx context.Context, actorID uint, watchLogID uint) error {
+	return r.db.WithContext(ctx).
+		Where("actor_id = ? AND watch_log_id = ? AND deleted_at IS NULL", actorID, watchLogID).
+		Delete(&ActivityEvent{}).Error
+}
+
 func (r *repository) DeleteMediaActivity(ctx context.Context, actorID uint, activityType ActivityType, mediaID int, mediaType string) error {
 	return r.db.WithContext(ctx).
 		Where("actor_id = ? AND type = ? AND media_id = ? AND media_type = ? AND deleted_at IS NULL", actorID, string(activityType), mediaID, mediaType).

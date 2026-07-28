@@ -28,6 +28,8 @@ const (
 	ActivityMediaLiked          ActivityType = "media_liked"
 	ActivityWatchlistAdded      ActivityType = "watchlist_added"
 	ActivityWatchedAdded        ActivityType = "watched_added"
+	ActivityWatchLogCreated     ActivityType = "watch_log_created"
+	ActivityRewatched           ActivityType = "rewatched"
 	ActivityAchievementUnlocked ActivityType = "achievement_unlocked"
 	ActivityUserFollowed        ActivityType = "user_followed"
 )

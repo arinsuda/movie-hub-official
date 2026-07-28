@@ -230,6 +230,10 @@ const actionDescription = computed(() => {
       return `ได้รับความสำเร็จระดับใหม่: "${props.item.message}"`;
     case "user_followed":
       return `ได้เริ่มติดตามผู้ใช้ ${targetName}`;
+    case "watch_log_created":
+      return `ได้บันทึกการดูภาพยนตร์ ${mediaTitle}`;
+    case "rewatched":
+      return `ได้ดูภาพยนตร์ ${mediaTitle} ซ้ำ`;
     default:
       return props.item.message;
   }
@@ -246,6 +250,8 @@ const badgeClasses = computed(() => {
     case "watchlist_added":
       return "bg-blue-500/10 text-blue-400 border-blue-500/20";
     case "watched_added":
+    case "watch_log_created":
+    case "rewatched":
       return "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
     case "achievement_unlocked":
       return "bg-amber-500/10 text-amber-400 border-amber-500/20";

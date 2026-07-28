@@ -8,30 +8,7 @@
       ></textarea>
 
       <div class="extra-fields-row">
-        <div class="watched-at-field">
-          <label for="watched-date">วันที่คุณดู (ไม่บังคับ)</label>
-          <VueDatePicker
-            id="watched-date"
-            v-model="form.watchedAt.value"
-            :max-date="new Date()"
-            :enable-time-picker="false"
-            format="dd/MM/yyyy"
-            :locale="th"
-            dark
-            auto-apply
-            placeholder="เลือกวันที่"
-            teleport
-            menu-class-name="movie-dp-menu"
-          />
-        </div>
-
-        <label class="visibility-toggle">
-          <input type="checkbox" v-model="form.isPublic.value" />
-          <span>{{
-            form.isPublic.value ? "รีวิวสาธารณะ" : "รีวิวส่วนตัว"
-          }}</span>
-          <i :class="form.isPublic.value ? 'pi pi-globe' : 'pi pi-lock'"></i>
-        </label>
+        <VisibilitySelector v-model="form.visibility.value" size="sm" />
       </div>
 
       <div class="form-footer">
@@ -93,15 +70,13 @@
                   formatDate(item.created_at)
                 }}</span>
 
-                <!-- แสดงวันที่ดูเฉพาะเมื่อมีข้อมูลเท่านั้น -->
-                <span v-if="item.watched_at" class="watched-badge">
-                  <i class="pi pi-calendar"></i>
-                  ดูเมื่อ {{ formatDate(item.watched_at) }}
-                </span>
-
-                <span v-if="!item.is_public" class="private-badge">
+                <span v-if="item.visibility === 'private'" class="private-badge">
                   <i class="pi pi-lock"></i>
                   ส่วนตัว
+                </span>
+                <span v-else-if="item.visibility === 'followers'" class="followers-badge">
+                  <i class="pi pi-users"></i>
+                  ผู้ติดตาม
                 </span>
               </div>
             </div>
@@ -157,7 +132,7 @@
           </span>
 
           <button
-            v-if="item.is_public"
+            v-if="item.visibility === 'public'"
             class="action-btn share-btn"
             @click="openReviewShare(item)"
           >
@@ -188,10 +163,8 @@
   import { useAuthStore } from "@/stores/auth"
   import { computed, onMounted, ref, watch } from "vue"
   import type { ReviewResponse } from "@/types/review"
-  import { VueDatePicker } from "@vuepic/vue-datepicker"
-  import "@vuepic/vue-datepicker/dist/main.css"
-  import { th } from "date-fns/locale"
   import StarRatingInput from "@/components/movie/Starratinginput.vue"
+  import VisibilitySelector from "@/components/common/VisibilitySelector.vue"
   import { useReviewForm } from "@/composables/useReviewForm"
   import { useProfileNav } from "@/composables/useProfileNav"
   import ShareImageModal from "@/components/share/ShareImageModal.vue"
@@ -255,8 +228,7 @@
       authorAvatarUrl: r.user.avatar_url,
       rating: r.rating,
       body: r.body,
-      isPublic: r.is_public,
-      watchedAt: r.watched_at,
+      visibility: r.visibility || "public",
       createdAt: r.created_at,
     }
   })

@@ -13,6 +13,8 @@
     "review": "เขียนรีวิวเรื่อง {title}",
     "like": "ถูกใจเรื่อง {title}",
     "watchlist": "เพิ่มเรื่อง {title} ลงใน Watchlist",
-    "watched": "บันทึกเรื่อง {title} เป็นเรื่องที่ดูแล้ว"
+    "watched": "บันทึกเรื่อง {title} เป็นเรื่องที่ดูแล้ว",
+    "watchLogCreated": "บันทึกการรับชมเรื่อง {title}",
+    "rewatched": "รับชมเรื่อง {title} อีกครั้ง"
   }
 }

@@ -18,6 +18,8 @@ import admin from "./admin.json";
 import session from "./session.json";
 import actor from "./actor.json";
 import share from "./share.json";
+import watchLog from "./watchLog.json";
+import visibility from "./visibility.json";
 
 export default {
   common,
@@ -40,4 +42,6 @@ export default {
   session,
   actor,
   share,
+  watchLog,
+  visibility,
 };

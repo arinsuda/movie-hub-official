@@ -1,4 +1,4 @@
-import type { MediaType } from "./common"
+import type { MediaType, Visibility } from "./common"
 import type { Genre } from "./movie"
 
 export interface ShareMediaContext {
@@ -20,7 +20,6 @@ export interface ShareReviewContext {
   authorAvatarUrl: string | null
   rating: number
   body: string
-  isPublic: boolean
-  watchedAt: string | null
+  visibility: Visibility
   createdAt: string
 }

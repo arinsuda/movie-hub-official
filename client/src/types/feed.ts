@@ -8,7 +8,9 @@ export type ActivityType =
   | "watchlist_added"
   | "watched_added"
   | "achievement_unlocked"
-  | "user_followed";
+  | "user_followed"
+  | "watch_log_created"
+  | "rewatched";
 
 export interface FeedActorSummary {
   id: number;
@@ -35,6 +37,7 @@ export interface FeedItemResponse {
   comment_id?: number;
   achievement_id?: number;
   library_item_id?: number;
+  watch_log_id?: number;
   target_user?: FeedActorSummary;
   message: string;
   visibility: "default" | "public" | "followers" | "private";

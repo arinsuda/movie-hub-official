@@ -3,7 +3,6 @@ package review_module
 import (
 	"context"
 	"math"
-	"time"
 
 	achievementsmodule "github.com/arinsuda/movie-hub/internal/achievements_module"
 	"github.com/arinsuda/movie-hub/internal/feed_module"
@@ -49,25 +48,45 @@ func NewService(
 	}
 }
 
+func resolveVisibility(visibility string, isPublic *bool) (string, error) {
+	if visibility != "" {
+		if visibility != "public" && visibility != "followers" && visibility != "private" {
+			return "", ErrInvalidVisibility
+		}
+		if isPublic != nil {
+			if (*isPublic && visibility != "public") || (!*isPublic && visibility == "public") {
+				return "", ErrConflictingVisibility
+			}
+		}
+		return visibility, nil
+	}
+	if isPublic != nil {
+		if *isPublic {
+			return "public", nil
+		}
+		return "private", nil
+	}
+	return "public", nil
+}
+
 func (s *Service) CreateReview(ctx context.Context, userID uint, req CreateReviewRequest) (*ReviewResponse, error) {
 	if err := validateReviewRequest(req); err != nil {
 		return nil, err
 	}
 
-	review := &Review{
-		UserID:    userID,
-		MediaID:   req.MediaID,
-		MediaType: req.MediaType,
-		Rating:    req.Rating,
-		Body:      req.Body,
-		IsPublic:  req.IsPublic,
+	vis, err := resolveVisibility(req.Visibility, req.IsPublic)
+	if err != nil {
+		return nil, err
 	}
-	if req.WatchedAt != nil {
-		t, err := time.Parse("2006-01-02", *req.WatchedAt)
-		if err != nil {
-			return nil, ErrInvalidWatchedAt
-		}
-		review.WatchedAt = &t
+
+	review := &Review{
+		UserID:     userID,
+		MediaID:    req.MediaID,
+		MediaType:  req.MediaType,
+		Rating:     req.Rating,
+		Body:       req.Body,
+		Visibility: vis,
+		IsPublic:   vis == "public",
 	}
 
 	if err := s.repo.CreateReview(review); err != nil {
@@ -108,7 +127,7 @@ func (s *Service) CreateReview(ctx context.Context, userID uint, req CreateRevie
 		s.createAchievementFeedActivities(ctx, userID, unlocked)
 	}
 
-	if req.IsPublic && s.notifSvc != nil {
+	if vis == "public" && s.notifSvc != nil {
 		if actor, err := s.getUserSummary(userID); err == nil {
 			title, _ := fetchMediaSummary(req.MediaID, req.MediaType)
 			_ = s.notifSvc.PushFollowingReviewed(
@@ -121,7 +140,7 @@ func (s *Service) CreateReview(ctx context.Context, userID uint, req CreateRevie
 		}
 	}
 
-	if req.IsPublic && s.feedSvc != nil {
+	if (vis == "public" || vis == "followers") && s.feedSvc != nil {
 		_ = s.feedSvc.CreateActivity(ctx, userID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
 			MediaID:   &req.MediaID,
 			MediaType: &req.MediaType,
@@ -180,7 +199,7 @@ func (s *Service) GetMediaReviews(ctx context.Context, mediaID int, mediaType st
 	for _, r := range reviews {
 		canView, err := s.policy.CanViewProfileSection(ctx, requesterID, r.UserID, privacy_policy.SectionReviews)
 		if err == nil && canView {
-			if r.UserID == requesterID || r.IsPublic {
+			if r.UserID == requesterID || r.Visibility == "public" || r.IsPublic {
 				visibleReviews = append(visibleReviews, r)
 			}
 		}
@@ -213,7 +232,10 @@ func (s *Service) UpdateReview(ctx context.Context, reviewID, requesterID uint, 
 		return nil, ErrForbidden
 	}
 
-	updates := buildUpdateMap(req)
+	updates, err := buildUpdateMap(req)
+	if err != nil {
+		return nil, err
+	}
 	if len(updates) == 0 {
 		liked, _ := s.repo.IsLiked(reviewID, requesterID)
 		helpful, _ := s.repo.IsHelpful(reviewID, requesterID)
@@ -229,9 +251,7 @@ func (s *Service) UpdateReview(ctx context.Context, reviewID, requesterID uint, 
 		return nil, err
 	}
 
-	// Update feed message dynamically if body changed
 	if s.feedSvc != nil && req.Body != nil {
-		// Restore/Create dynamically takes care of updating matching activity message
 		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewCreated, feed_module.ActivityPayload{
 			MediaID:   &updated.MediaID,
 			MediaType: &updated.MediaType,
@@ -303,7 +323,7 @@ func (s *Service) LikeReview(ctx context.Context, reviewID, requesterID uint) er
 	if err != nil {
 		return err
 	}
-	if !review.IsPublic && review.UserID != requesterID {
+	if review.Visibility == "private" && review.UserID != requesterID {
 		return ErrForbidden
 	}
 
@@ -334,7 +354,7 @@ func (s *Service) LikeReview(ctx context.Context, reviewID, requesterID uint) er
 		}
 	}
 
-	if review.IsPublic && s.feedSvc != nil {
+	if (review.Visibility == "public" || review.IsPublic) && s.feedSvc != nil {
 		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewLiked, feed_module.ActivityPayload{
 			MediaID:   &review.MediaID,
 			MediaType: &review.MediaType,
@@ -369,7 +389,7 @@ func (s *Service) MarkHelpful(ctx context.Context, reviewID, requesterID uint) e
 	if err != nil {
 		return err
 	}
-	if !review.IsPublic && review.UserID != requesterID {
+	if review.Visibility == "private" && review.UserID != requesterID {
 		return ErrForbidden
 	}
 	if review.UserID == requesterID {
@@ -411,7 +431,7 @@ func (s *Service) CreateComment(ctx context.Context, reviewID, requesterID uint,
 	if err != nil {
 		return nil, err
 	}
-	if !review.IsPublic && review.UserID != requesterID {
+	if review.Visibility == "private" && review.UserID != requesterID {
 		return nil, ErrForbidden
 	}
 
@@ -428,7 +448,7 @@ func (s *Service) CreateComment(ctx context.Context, reviewID, requesterID uint,
 		}
 	}
 
-	if review.IsPublic && s.feedSvc != nil {
+	if (review.Visibility == "public" || review.IsPublic) && s.feedSvc != nil {
 		_ = s.feedSvc.CreateActivity(ctx, requesterID, feed_module.ActivityReviewCommented, feed_module.ActivityPayload{
 			MediaID:   &review.MediaID,
 			MediaType: &review.MediaType,
@@ -445,7 +465,7 @@ func (s *Service) GetComments(ctx context.Context, reviewID, requesterID uint) (
 	if err != nil {
 		return nil, err
 	}
-	if !review.IsPublic && review.UserID != requesterID {
+	if review.Visibility == "private" && review.UserID != requesterID {
 		return nil, ErrForbidden
 	}
 
@@ -523,12 +543,6 @@ func validateReviewRequest(req CreateReviewRequest) error {
 	if req.MediaID <= 0 {
 		return ErrInvalidMediaID
 	}
-	if req.WatchedAt != nil {
-		_, err := time.Parse("2006-01-02", *req.WatchedAt)
-		if err != nil {
-			return ErrInvalidWatchedAt
-		}
-	}
 	return nil
 }
 
@@ -538,16 +552,10 @@ func validateUpdateReviewRequest(req UpdateReviewRequest) error {
 			return ErrInvalidRating
 		}
 	}
-	if req.WatchedAt != nil {
-		_, err := time.Parse("2006-01-02", *req.WatchedAt)
-		if err != nil {
-			return ErrInvalidWatchedAt
-		}
-	}
 	return nil
 }
 
-func buildUpdateMap(req UpdateReviewRequest) map[string]any {
+func buildUpdateMap(req UpdateReviewRequest) (map[string]any, error) {
 	updates := map[string]any{}
 	if req.Rating != nil {
 		updates["rating"] = *req.Rating
@@ -555,16 +563,19 @@ func buildUpdateMap(req UpdateReviewRequest) map[string]any {
 	if req.Body != nil {
 		updates["body"] = *req.Body
 	}
-	if req.IsPublic != nil {
-		updates["is_public"] = *req.IsPublic
-	}
-	if req.WatchedAt != nil {
-		t, err := time.Parse("2006-01-02", *req.WatchedAt)
-		if err == nil {
-			updates["watched_at"] = t
+	if req.Visibility != nil || req.IsPublic != nil {
+		visStr := ""
+		if req.Visibility != nil {
+			visStr = *req.Visibility
 		}
+		vis, err := resolveVisibility(visStr, req.IsPublic)
+		if err != nil {
+			return nil, err
+		}
+		updates["visibility"] = vis
+		updates["is_public"] = (vis == "public")
 	}
-	return updates
+	return updates, nil
 }
 
 func toReviewResponse(r *Review, isLiked, isHelpful bool, minio *storage.MinIOClient) *ReviewResponse {
@@ -585,8 +596,7 @@ func toReviewResponse(r *Review, isLiked, isHelpful bool, minio *storage.MinIOCl
 		},
 		Rating:         r.Rating,
 		Body:           r.Body,
-		IsPublic:       r.IsPublic,
-		WatchedAt:      r.WatchedAt,
+		Visibility:     r.Visibility,
 		LikeCount:      r.LikeCount,
 		CommentCount:   r.CommentCount,
 		IsLiked:        isLiked,

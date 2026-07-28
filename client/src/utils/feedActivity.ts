@@ -8,7 +8,9 @@ import {
   CheckCircle2,
   Trophy,
   UserPlus,
-  HelpCircle
+  HelpCircle,
+  Eye,
+  Repeat
 } from "lucide-vue-next";
 
 interface ActivityMeta {
@@ -25,6 +27,8 @@ const ACTIVITY_META: Record<ActivityType, ActivityMeta> = {
   watched_added: { label: "ดูแล้ว", icon: CheckCircle2 },
   achievement_unlocked: { label: "ปลดล็อกความสำเร็จ", icon: Trophy },
   user_followed: { label: "ติดตามผู้ใช้", icon: UserPlus },
+  watch_log_created: { label: "บันทึกการดู", icon: Eye },
+  rewatched: { label: "ดูซ้ำ", icon: Repeat },
 };
 
 export function getActivityMeta(type: ActivityType): ActivityMeta {

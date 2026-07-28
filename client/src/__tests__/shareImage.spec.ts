@@ -159,8 +159,7 @@ describe("Share as Image Feature", () => {
       authorAvatarUrl: "/avatar.jpg",
       rating: 5.0,
       body: "A masterpiece of modern cinema.",
-      isPublic: true,
-      watchedAt: "2024-01-15",
+      visibility: 'public',
       createdAt: "2024-01-16",
     }
 
