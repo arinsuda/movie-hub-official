@@ -25,6 +25,7 @@ type Service interface {
 
 	DeleteReviewActivity(ctx context.Context, actorID uint, reviewID uint) error
 	DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error
+	DeleteWatchLogActivity(ctx context.Context, actorID uint, watchLogID uint) error
 	DeleteMediaActivity(ctx context.Context, actorID uint, activityType ActivityType, mediaID int, mediaType string) error
 	DeleteFollowActivity(ctx context.Context, followerID uint, followeeID uint) error
 }
@@ -61,6 +62,7 @@ func (s *service) CreateActivity(ctx context.Context, actorID uint, activityType
 		CommentID:     payload.CommentID,
 		AchievementID: payload.AchievementID,
 		LibraryItemID: payload.LibraryItemID,
+		WatchLogID:    payload.WatchLogID,
 		TargetUserID:  payload.TargetUserID,
 		Message:       payload.Message,
 		Visibility:    privacy_policy.VisibilityDefault,
@@ -126,6 +128,14 @@ func (s *service) DeleteReviewActivity(ctx context.Context, actorID uint, review
 
 func (s *service) DeleteCommentActivity(ctx context.Context, actorID uint, commentID uint) error {
 	err := s.repo.DeleteCommentActivity(ctx, actorID, commentID)
+	if err == nil {
+		s.broadcastRefresh(ctx, actorID)
+	}
+	return err
+}
+
+func (s *service) DeleteWatchLogActivity(ctx context.Context, actorID uint, watchLogID uint) error {
+	err := s.repo.DeleteWatchLogActivity(ctx, actorID, watchLogID)
 	if err == nil {
 		s.broadcastRefresh(ctx, actorID)
 	}

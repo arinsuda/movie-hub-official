@@ -5,8 +5,12 @@ import "github.com/gofiber/fiber/v3"
 type ErrorCode string
 
 const (
-	ErrorCodeDuplicateReview ErrorCode = "DUPLICATE_REVIEW"
-	ErrorCodeInvalidRating   ErrorCode = "INVALID_RATING"
+	ErrorCodeDuplicateReview   ErrorCode = "DUPLICATE_REVIEW"
+	ErrorCodeInvalidRating     ErrorCode = "INVALID_RATING"
+	ErrorCodeInvalidVisibility ErrorCode = "INVALID_VISIBILITY"
+	ErrorCodeWatchLogNotFound  ErrorCode = "WATCH_LOG_NOT_FOUND"
+	ErrorCodeInvalidDate       ErrorCode = "INVALID_DATE"
+	ErrorCodeFutureDate        ErrorCode = "FUTURE_DATE"
 )
 
 type APIError struct {

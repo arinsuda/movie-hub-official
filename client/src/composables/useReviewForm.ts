@@ -3,17 +3,11 @@ import { useAuthStore } from "@/stores/auth"
 import { useToast } from "@/composables/useToast"
 import { computed, ref } from "vue"
 import type { ReviewResponse } from "@/types/review"
+import type { Visibility } from "@/types"
 
 type MediaType = "movie" | "tv"
 
-function toDateString(d: Date): string {
-  // BE parses with time.Parse("2006-01-02", ...), so this must stay zero-padded
-  // local-time YYYY-MM-DD (not toISOString, which shifts to UTC).
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const dd = String(d.getDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
-}
+
 
 export function useReviewForm(mediaId: number, mediaType: MediaType) {
   const auth = useAuthStore()
@@ -21,8 +15,7 @@ export function useReviewForm(mediaId: number, mediaType: MediaType) {
 
   const body = ref("")
   const rating = ref(5)
-  const isPublic = ref(true)
-  const watchedAt = ref<Date | null>(null)
+  const visibility = ref<Visibility>("public")
   const isSubmitting = ref(false)
 
   const isAuthenticated = computed(() => Boolean(auth.user?.id))
@@ -36,8 +29,7 @@ export function useReviewForm(mediaId: number, mediaType: MediaType) {
   function reset() {
     body.value = ""
     rating.value = 5
-    isPublic.value = true
-    watchedAt.value = null
+    visibility.value = "public"
   }
 
   async function submit(): Promise<ReviewResponse | null> {
@@ -54,8 +46,7 @@ export function useReviewForm(mediaId: number, mediaType: MediaType) {
         media_type: mediaType,
         rating: rating.value,
         body: body.value,
-        is_public: isPublic.value,
-        watched_at: watchedAt.value ? toDateString(watchedAt.value) : null,
+        visibility: visibility.value,
       })
       reset()
       return res.data.review
@@ -71,8 +62,7 @@ export function useReviewForm(mediaId: number, mediaType: MediaType) {
   return {
     body,
     rating,
-    isPublic,
-    watchedAt,
+    visibility,
     isSubmitting,
     isAuthenticated,
     canSubmit,

@@ -159,17 +159,13 @@
 
           <div class="meta-row">
             <time class="review-date">{{ review.createdAt }}</time>
-            <Lock
-              v-if="!review.is_public"
+            <component
+              :is="review.visibility === 'private' ? Lock : review.visibility === 'followers' ? Users : Globe"
               class="private-icon"
-              :size="10"
+              :size="12"
               :stroke-width="2.2"
-              aria-label="Private"
+              :title="review.visibility"
             />
-            <span v-if="review.watchedLabel" class="watched-pill">
-              <Calendar :size="10" :stroke-width="2" />
-              ดูเมื่อ {{ review.watchedLabel }}
-            </span>
           </div>
 
           <p class="review-content">{{ review.content }}</p>
@@ -266,6 +262,8 @@ import {
   Calendar,
   Lock,
   Globe2,
+  Globe,
+  Users,
   Layers,
   X,
 } from "lucide-vue-next";
@@ -460,7 +458,6 @@ const displayReviews = computed(() =>
     }),
     content: r.body,
     tags: [] as string[],
-    watchedLabel: formatWatched(r.watched_at ?? null),
     likeCount: r.like_count ?? 0,
     helpfulCount: r.helpful_count ?? 0,
     isLiked: r.is_liked ?? false,

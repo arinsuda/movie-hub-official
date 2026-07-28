@@ -13,6 +13,8 @@
     "review": "reviewed {title}",
     "like": "liked {title}",
     "watchlist": "added {title} to watchlist",
-    "watched": "marked {title} as watched"
+    "watched": "marked {title} as watched",
+    "watchLogCreated": "Watch recorded for {title}",
+    "rewatched": "Rewatched {title}"
   }
 }

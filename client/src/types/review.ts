@@ -1,6 +1,6 @@
 import type { UserSummary } from "./user";
 import type { MediaSummary } from "./movie";
-import type { MediaType, ListType } from "./common";
+import type { MediaType, ListType, Visibility } from "./common";
 
 export interface ReviewResponse {
   id: number;
@@ -8,8 +8,8 @@ export interface ReviewResponse {
   media: MediaSummary;
   rating: number;
   body: string;
-  is_public: boolean;
-  watched_at: string | null;
+  visibility: Visibility;
+  is_public?: boolean;
   like_count: number;
   comment_count: number;
   is_liked: boolean;
@@ -24,15 +24,13 @@ export interface CreateReviewRequest {
   media_type: MediaType;
   rating: number;
   body: string;
-  is_public: boolean;
-  watched_at?: string | null;
+  visibility: Visibility;
 }
 
 export interface UpdateReviewRequest {
   rating?: number;
   body?: string;
-  is_public?: boolean;
-  watched_at?: string;
+  visibility?: Visibility;
 }
 
 export interface CommentResponse {

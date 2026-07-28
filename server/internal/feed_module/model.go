@@ -20,6 +20,8 @@ const (
 	ActivityWatchedAdded        ActivityType = privacy_policy.ActivityWatchedAdded
 	ActivityAchievementUnlocked ActivityType = privacy_policy.ActivityAchievementUnlocked
 	ActivityUserFollowed        ActivityType = privacy_policy.ActivityUserFollowed
+	ActivityWatchLogCreated     ActivityType = privacy_policy.ActivityWatchLogCreated
+	ActivityRewatched       ActivityType = privacy_policy.ActivityRewatched
 )
 
 var AllActivityTypes = []ActivityType{
@@ -31,6 +33,8 @@ var AllActivityTypes = []ActivityType{
 	ActivityWatchedAdded,
 	ActivityAchievementUnlocked,
 	ActivityUserFollowed,
+	ActivityWatchLogCreated,
+	ActivityRewatched,
 }
 
 var defaultEnabled = map[ActivityType]bool{
@@ -42,6 +46,8 @@ var defaultEnabled = map[ActivityType]bool{
 	ActivityWatchedAdded:        false,
 	ActivityAchievementUnlocked: true,
 	ActivityUserFollowed:        false,
+	ActivityWatchLogCreated:     false,
+	ActivityRewatched:       false,
 }
 
 type ActivityEvent struct {
@@ -59,6 +65,7 @@ type ActivityEvent struct {
 	CommentID     *uint `gorm:"index"`
 	AchievementID *uint `gorm:"index"`
 	LibraryItemID *uint `gorm:"index"`
+	WatchLogID    *uint `gorm:"index"`
 
 	TargetUserID *uint       `gorm:"index"`
 	TargetUser   *users.User `gorm:"foreignKey:TargetUserID;references:ID;constraint:OnDelete:SET NULL;"`

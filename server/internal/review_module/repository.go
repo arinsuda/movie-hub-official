@@ -22,6 +22,8 @@ var (
 	ErrInvalidRating        = errors.New("rating must be between 0.5 and 5 in increments of 0.5")
 	ErrInvalidMediaType     = errors.New("media_type must be 'movie' or 'tv'")
 	ErrInvalidMediaID       = errors.New("invalid media_id")
+	ErrInvalidVisibility    = errors.New("invalid visibility")
+	ErrConflictingVisibility = errors.New("conflicting visibility and is_public values")
 )
 
 // ReviewFilter ใช้กับ GET /users/:userId/reviews
@@ -53,9 +55,11 @@ func (r *repository) FindReviewsByUser(userID uint, filter ReviewFilter) ([]Revi
 
 	switch filter.Visibility {
 	case "public":
-		q = q.Where("is_public = ?", true)
+		q = q.Where("visibility = ?", "public")
 	case "private":
-		q = q.Where("is_public = ?", false)
+		q = q.Where("visibility = ?", "private")
+	case "followers":
+		q = q.Where("visibility = ?", "followers")
 	}
 
 	if filter.DateFrom != nil {
@@ -73,7 +77,7 @@ func (r *repository) FindReviewsByUser(userID uint, filter ReviewFilter) ([]Revi
 func (r *repository) FindReviewsByMedia(mediaID int, mediaType string) ([]Review, error) {
 	var reviews []Review
 	err := r.db.Preload("User").
-		Where("media_id = ? AND media_type = ? AND is_public = true", mediaID, mediaType).
+		Where("media_id = ? AND media_type = ? AND visibility = 'public'", mediaID, mediaType).
 		Order("created_at DESC").
 		Find(&reviews).Error
 	return reviews, err
@@ -115,7 +119,7 @@ func (r *repository) GetMediaRating(ctx context.Context, id shared.MediaIdentity
 	var res row
 	err := r.db.WithContext(ctx).Model(&Review{}).
 		Select("AVG(rating) AS avg_rating, COUNT(*) AS review_count").
-		Where("media_id = ? AND media_type = ? AND is_public = true AND deleted_at IS NULL",
+		Where("media_id = ? AND media_type = ? AND visibility = 'public' AND deleted_at IS NULL",
 			id.ID, string(id.Type)).
 		Scan(&res).Error
 	return shared.RatingStats{Average: res.AvgRating, Count: res.ReviewCount}, err
@@ -129,7 +133,7 @@ func (r *repository) GetBatchMediaRatings(ctx context.Context, ids []shared.Medi
 
 	q := r.db.WithContext(ctx).Model(&Review{}).
 		Select("media_id, media_type, AVG(rating) AS avg_rating, COUNT(*) AS review_count").
-		Where("is_public = true AND deleted_at IS NULL").
+		Where("visibility = 'public' AND deleted_at IS NULL").
 		Group("media_id, media_type")
 
 	type row struct {

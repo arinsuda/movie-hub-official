@@ -87,11 +87,7 @@
           <span class="quote-mark quote-end">&rdquo;</span>
         </div>
 
-        <!-- Watched date -->
-        <p v-if="review.watchedAt" class="watched-date">
-          <i class="pi pi-calendar" />
-          {{ formattedWatchedDate }}
-        </p>
+
       </div>
     </div>
 
@@ -123,19 +119,7 @@
 
   const truncatedBody = computed(() => truncateReview(props.review.body, 200))
 
-  const formattedWatchedDate = computed(() => {
-    if (!props.review.watchedAt) return ""
-    try {
-      const date = new Date(props.review.watchedAt)
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    } catch {
-      return props.review.watchedAt
-    }
-  })
+
 </script>
 
 <style scoped>

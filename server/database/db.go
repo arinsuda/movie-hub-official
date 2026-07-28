@@ -19,9 +19,11 @@ import (
 	"github.com/arinsuda/movie-hub/internal/like_module"
 	"github.com/arinsuda/movie-hub/internal/media_stats_module"
 	noti "github.com/arinsuda/movie-hub/internal/notification_module"
+	"github.com/arinsuda/movie-hub/database/migrate"
 	"github.com/arinsuda/movie-hub/internal/review_module"
 	"github.com/arinsuda/movie-hub/internal/user_module"
 	"github.com/arinsuda/movie-hub/internal/user_stats_module"
+	"github.com/arinsuda/movie-hub/internal/watch_log_module"
 	"golang.org/x/crypto/bcrypt"
 
 	"gorm.io/driver/postgres"
@@ -106,6 +108,7 @@ func autoMigrate(db *gorm.DB) error {
 
 		&bmol_module.BMOLItem{},
 		&admin_module.AdminAuditLog{},
+		&watch_log_module.MediaWatchLog{},
 	)
 	if err != nil {
 		return err
@@ -152,6 +155,10 @@ func runMigrationWithHistory(db *gorm.DB, version string, sql string) error {
 func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 	log.Println("Running SQL migrations...")
 
+	if err := runMigrationWithHistory(db, "watch_log_visibility_v1", migrate.WatchLogVisibilityV1); err != nil {
+		return err
+	}
+
 	migrations := []struct {
 		name string
 		sql  string
@@ -168,14 +175,14 @@ func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
                     COUNT(DISTINCT r.id)   AS review_count,
                     COUNT(DISTINCT ml.id)  AS like_count,
                     COUNT(DISTINCT CASE WHEN li_w.list_type  = 'watchlist' THEN li_w.id END) AS watchlist_count,
-                    COUNT(DISTINCT CASE WHEN li_wd.list_type = 'watched'   THEN li_wd.id END) AS watched_count,
+                    COUNT(DISTINCT mwl.id) AS watched_count,
                     COUNT(DISTINCT f_in.id)  AS follower_count,
                     COUNT(DISTINCT f_out.id) AS following_count
                 FROM users u
                 LEFT JOIN reviews r ON r.user_id = u.id AND r.deleted_at IS NULL
                 LEFT JOIN media_likes ml ON ml.user_id = u.id AND ml.deleted_at IS NULL
                 LEFT JOIN library_items li_w ON li_w.user_id = u.id AND li_w.list_type = 'watchlist' AND li_w.deleted_at IS NULL
-                LEFT JOIN library_items li_wd ON li_wd.user_id = u.id AND li_wd.list_type = 'watched' AND li_wd.deleted_at IS NULL
+                LEFT JOIN media_watch_logs mwl ON mwl.user_id = u.id AND mwl.deleted_at IS NULL
                 LEFT JOIN user_follows f_in ON f_in.followee_id = u.id AND f_in.status = 'accepted'
                 LEFT JOIN user_follows f_out ON f_out.follower_id = u.id AND f_out.status = 'accepted'
                 GROUP BY u.id

@@ -113,6 +113,11 @@
             <span class="char-count">{{ form.body.length }} / 1000</span>
           </div>
 
+          <div class="field">
+            <label class="field-label">Visibility</label>
+            <VisibilitySelector v-model="form.visibility" size="sm" />
+          </div>
+
           <!-- Footer -->
           <div class="modal-footer">
             <button class="btn btn--ghost" @click="$emit('close')">
@@ -138,6 +143,8 @@
   import { Star, Film, X } from "lucide-vue-next"
   import { reviewApi } from "@/api/api"
   import type { ReviewResponse } from "@/types"
+  import type { Visibility } from "@/types"
+  import VisibilitySelector from "@/components/common/VisibilitySelector.vue"
 
   const props = defineProps<{ userId: number; review: ReviewResponse }>()
   const emit = defineEmits<{
@@ -151,6 +158,7 @@
   const form = reactive({
     rating: props.review.rating,
     body: props.review.body ?? "",
+    visibility: props.review.visibility || "public",
   })
 
   function starFillClass(n: number, rating: number) {
@@ -171,6 +179,7 @@
       const res = await reviewApi.updateReview(props.review.id, {
         rating: form.rating,
         body: form.body,
+        visibility: form.visibility,
       })
       emit("saved", res.data.review)
     } catch (err) {

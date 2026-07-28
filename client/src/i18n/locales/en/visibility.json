@@ -1,0 +1,8 @@
+{
+  "public": "Public",
+  "publicDesc": "Anyone can view this content",
+  "followers": "Followers",
+  "followersDesc": "Only you and people who follow you can view this",
+  "private": "Private",
+  "privateDesc": "Only you can view this"
+}
