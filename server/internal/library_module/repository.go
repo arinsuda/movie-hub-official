@@ -2,6 +2,7 @@ package library_module
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/arinsuda/movie-hub/internal/movie_module"
@@ -45,7 +46,20 @@ func (r *repository) FindByUser(userID uint, listType *movie_module.ListType, me
 
 	var items []LibraryItem
 	err := query.Order("created_at DESC").Find(&items).Error
-	return items, err
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]bool)
+	uniqueItems := make([]LibraryItem, 0, len(items))
+	for _, item := range items {
+		key := fmt.Sprintf("%d_%s_%s", item.MediaID, item.MediaType, item.ListType)
+		if !seen[key] {
+			seen[key] = true
+			uniqueItems = append(uniqueItems, item)
+		}
+	}
+	return uniqueItems, nil
 }
 
 func (r *repository) FindOne(id, userID uint) (*LibraryItem, error) {

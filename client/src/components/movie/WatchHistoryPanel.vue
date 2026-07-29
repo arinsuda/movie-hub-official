@@ -12,7 +12,7 @@
 
           <div class="panel-content">
             <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
-            <div v-else-if="!logs.length" class="empty">
+            <div v-else-if="!logs || !logs.length" class="empty">
               {{ t('watchLog.noHistory') }}
             </div>
             <div v-else class="logs-list">
@@ -71,7 +71,7 @@ function getVisibilityText(visibility: Visibility): string {
 async function loadHistory() {
   try {
     const res = await watchLogApi.getMyWatchLogs(props.mediaType, props.mediaId)
-    logs.value = res.data.logs
+    logs.value = res.data?.logs || []
   } catch (err) {
     console.error('Failed to load watch history:', err)
     toastError(t('watchLog.loadFailed'))

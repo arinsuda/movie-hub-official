@@ -248,7 +248,7 @@
     | "watchlist"
     | "likes"
     | "watched"
-    | "bmol"
+    | "bol"
     | "achievements"
 
   const activeTab = ref<TabKey>("reviews")
@@ -258,7 +258,7 @@
     { key: "watchlist" as TabKey, label: "Watchlist", icon: Bookmark },
     { key: "likes" as TabKey, label: "Likes", icon: Heart, count: undefined },
     { key: "watched" as TabKey, label: "Watched", icon: TvMinimalPlay },
-    { key: "bmol" as TabKey, label: "BMOL", icon: Award },
+    { key: "bol" as TabKey, label: "BOL", icon: Award },
     { key: "achievements" as TabKey, label: "Achievements", icon: Trophy },
   ])
 
@@ -268,7 +268,7 @@
     watchlist: UserWatchlist,
     likes: UserLikes,
     watched: UserWatched,
-    bmol: UserBmol,
+    bol: UserBmol,
     achievements: UserAchievements,
   }
 

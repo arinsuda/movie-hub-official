@@ -159,6 +159,22 @@ func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
+	dedupSQL := `
+		DELETE FROM library_items a USING library_items b
+		WHERE a.id < b.id 
+		  AND a.user_id = b.user_id 
+		  AND a.media_id = b.media_id 
+		  AND a.media_type = b.media_type 
+		  AND a.list_type = b.list_type;
+
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_library_items_user_media_list 
+		ON library_items(user_id, media_id, media_type, list_type) 
+		WHERE deleted_at IS NULL;
+	`
+	if err := runMigrationWithHistory(db, "deduplicate_library_items_v1", dedupSQL); err != nil {
+		return err
+	}
+
 	migrations := []struct {
 		name string
 		sql  string

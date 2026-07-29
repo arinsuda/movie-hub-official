@@ -78,14 +78,19 @@ function toDateString(d: Date): string {
 
 async function handleSave() {
   if (saving.value) return
+  saving.value = true
+  const data = {
+    watched_on: toDateString(watchedOn.value),
+    visibility: visibility.value
+  }
+
+  // Close modal immediately and notify parent for smooth, instant UX
+  emit('logged')
+  emit('close')
+
   try {
-    saving.value = true
-    await watchLogApi.createWatchLog(props.mediaType, props.mediaId, {
-      watched_on: toDateString(watchedOn.value),
-      visibility: visibility.value
-    })
+    await watchLogApi.createWatchLog(props.mediaType, props.mediaId, data)
     toastSuccess(t('watchLog.createSuccess'))
-    emit('logged')
   } catch (err) {
     console.error('Failed to create watch log:', err)
     toastError(t('watchLog.createFailed'))

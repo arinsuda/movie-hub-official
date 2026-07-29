@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrDuplicate        = errors.New("media item is already ranked in your BMOL")
+	ErrDuplicate        = errors.New("media item is already ranked in your BOL")
 	ErrForbidden        = errors.New("you do not have permission to modify this item")
 	ErrInvalidMediaType = errors.New("invalid media type, must be movie or tv")
 	ErrNotFound         = errors.New("item not found")
