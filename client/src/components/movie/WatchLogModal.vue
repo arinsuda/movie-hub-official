@@ -2,16 +2,16 @@
   <Teleport to="body">
     <Transition name="modal">
       <div class="modal-backdrop" @click.self="$emit('close')">
-        <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal" role="dialog" aria-modal="true" :aria-label="t('watchLog.recordWatch')">
           <div class="modal-header">
-            <h2 class="modal-title">Log a Watch</h2>
-            <button class="modal-close" @click="$emit('close')">
+            <h2 class="modal-title">{{ t('watchLog.recordWatch') }}</h2>
+            <button class="modal-close" :aria-label="t('common.close')" @click="$emit('close')">
               <X class="icon" />
             </button>
           </div>
 
           <div class="field">
-            <label class="field-label">Date Watched</label>
+            <label class="field-label">{{ t('watchLog.watchedDate') }}</label>
             <VueDatePicker
               v-model="watchedOn"
               :max-date="new Date()"
@@ -19,20 +19,20 @@
               format="dd/MM/yyyy"
               dark
               auto-apply
-              placeholder="Select date"
+              :placeholder="t('watchLog.watchedDate')"
               teleport
             />
           </div>
 
           <div class="field">
-            <label class="field-label">Visibility</label>
+            <label class="field-label">{{ t('visibility.label') }}</label>
             <VisibilitySelector v-model="visibility" size="md" />
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn--ghost" @click="$emit('close')">Cancel</button>
+            <button class="btn btn--ghost" @click="$emit('close')">{{ t('common.cancel') }}</button>
             <button class="btn btn--primary" :disabled="saving" @click="handleSave">
-              {{ saving ? 'Saving...' : 'Save Log' }}
+              {{ saving ? t('watchLog.saving') : t('watchLog.save') }}
             </button>
           </div>
         </div>
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X } from 'lucide-vue-next'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
@@ -61,7 +62,8 @@ const emit = defineEmits<{
   logged: []
 }>()
 
-const { error: toastError } = useToast()
+const { t } = useI18n()
+const { success: toastSuccess, error: toastError } = useToast()
 
 const saving = ref(false)
 const watchedOn = ref<Date>(new Date())
@@ -82,10 +84,11 @@ async function handleSave() {
       watched_on: toDateString(watchedOn.value),
       visibility: visibility.value
     })
+    toastSuccess(t('watchLog.createSuccess'))
     emit('logged')
   } catch (err) {
     console.error('Failed to create watch log:', err)
-    toastError('Failed to log watch')
+    toastError(t('watchLog.createFailed'))
   } finally {
     saving.value = false
   }

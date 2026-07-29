@@ -82,12 +82,12 @@
             </router-link>
             <div class="review-card-stars">
               <span class="rating-num">{{ review.rating.toFixed(1) }}</span>
-              <span class="stars-icon">★</span>
+              <Star :size="12" class="stars-icon" />
             </div>
           </div>
           <p class="review-card-body">{{ review.body }}</p>
           <div class="review-card-footer">
-            <span class="review-date">{{ new Date(review.created_at).toLocaleDateString() }}</span>
+            <span class="review-date">{{ formatDate(review.created_at) }}</span>
             <div class="review-meta-actions">
               <span class="action-count"><Heart :size="12" class="liked-heart" /> {{ review.like_count }}</span>
             </div>
@@ -101,7 +101,7 @@
             <Star :size="36" class="empty-trophy-icon" />
           </div>
         </div>
-        <h3 class="empty-state-title">ยังไม่มีการเขียนรีวิว</h3>
+        <h3 class="empty-state-title">{{ $t("library.noReviewsTitle") || 'ยังไม่มีการเขียนรีวิว' }}</h3>
         <p class="empty-state-description">{{ $t("library.empty_reviews") }}</p>
       </div>
     </div>
@@ -136,12 +136,33 @@
             {{ item.media.title }}
           </router-link>
           <div class="media-details-row">
-            <span class="media-rating-badge">★ {{ item.media.vote_average.toFixed(1) }}</span>
-            <span class="save-date">{{ new Date(item.created_at).toLocaleDateString() }}</span>
+            <span class="media-rating-badge"><Star :size="12" class="inline-star" /> {{ item.media.vote_average.toFixed(1) }}</span>
+            <span class="save-date">{{ formatDate(item.created_at) }}</span>
           </div>
           <!-- User tags if present -->
           <div v-if="item.tags && item.tags.length > 0" class="tags-wrapper">
             <span v-for="t in item.tags" :key="t" class="tag-badge">{{ t }}</span>
+          </div>
+
+          <!-- Watch Log Bar for Watched Tab -->
+          <div v-if="activeTab === 'watched'" class="watch-log-bar">
+            <button
+              class="watch-count-chip"
+              :title="$t('watchLog.watchHistory')"
+              @click.prevent="openWatchHistory(item)"
+            >
+              <Eye :size="12" />
+              <span>{{ getWatchCountText(item) }}</span>
+            </button>
+            <button
+              v-if="isOwner"
+              class="btn-log-watch-mini"
+              :title="$t('watchLog.recordAnother')"
+              @click.prevent="openWatchLogModal(item)"
+            >
+              <Plus :size="12" />
+              <span>{{ $t('watchLog.recordWatch') }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -162,13 +183,46 @@
         <p class="empty-state-description">{{ $t("library.empty") }}</p>
       </div>
     </div>
+
+    <!-- Modals for Watch Log & History -->
+    <WatchLogModal
+      v-if="showLogModal && activeLogMedia"
+      :media-id="activeLogMedia.id"
+      :media-type="activeLogMedia.type"
+      @close="showLogModal = false"
+      @logged="onWatchLogged"
+    />
+
+    <WatchHistoryPanel
+      v-if="showHistoryPanel && activeHistoryMedia"
+      :media-id="activeHistoryMedia.id"
+      :media-type="activeHistoryMedia.type"
+      @close="showHistoryPanel = false"
+      @changed="onWatchHistoryChanged"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue"
-import { Search, Film, ArrowUpDown, Heart, Star, Bookmark, Film as FilmIcon } from "lucide-vue-next"
+import { ref, computed, watch, onMounted } from "vue"
+import { useI18n } from "vue-i18n"
+import { Search, Film, ArrowUpDown, Heart, Star, Bookmark, Film as FilmIcon, Eye, Plus, History } from "lucide-vue-next"
 import type { LibraryItemResponse, ReviewResponse, LibraryListTab } from "@/types"
+import { watchLogApi } from "@/api/endpoints/watchLog"
+import WatchLogModal from "@/components/movie/WatchLogModal.vue"
+import WatchHistoryPanel from "@/components/movie/WatchHistoryPanel.vue"
+
+const { t, locale } = useI18n()
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return ""
+  const d = new Date(dateStr)
+  return d.toLocaleDateString(locale.value === "th" ? "th-TH" : "en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
+}
 
 const props = defineProps<{
   activeTab: LibraryListTab
@@ -303,6 +357,92 @@ const filteredReviews = computed(() => {
 
   return sorted
 })
+
+// Watch Log & History Management for Watched Tab
+const watchSummaries = ref<Record<string, number>>({})
+const showLogModal = ref(false)
+const activeLogMedia = ref<{ id: number; type: "movie" | "tv" } | null>(null)
+const showHistoryPanel = ref(false)
+const activeHistoryMedia = ref<{ id: number; type: "movie" | "tv" } | null>(null)
+
+function getWatchMediaKey(mediaId: number, mediaType: "movie" | "tv"): string {
+  return `${mediaType}_${mediaId}`
+}
+
+function getWatchCount(item: LibraryItemResponse): number {
+  const key = getWatchMediaKey(item.media.id, item.media.media_type)
+  return watchSummaries.value[key] ?? 1
+}
+
+function getWatchCountText(item: LibraryItemResponse): string {
+  const count = getWatchCount(item)
+  if (count === 1) {
+    return t("watchLog.watchedOnce")
+  }
+  return t("watchLog.watchedTimes", { count })
+}
+
+async function fetchWatchSummaryForItem(mediaId: number, mediaType: "movie" | "tv") {
+  try {
+    const res = await watchLogApi.getMyWatchLogs(mediaType, mediaId)
+    const key = getWatchMediaKey(mediaId, mediaType)
+    if (res.data && res.data.summary) {
+      watchSummaries.value[key] = res.data.summary.watch_count
+    }
+  } catch (err) {
+    // Fallback gracefully
+  }
+}
+
+async function loadAllWatchSummaries() {
+  if (props.activeTab !== "watched") return
+  const items = props.watchedItems
+  for (const item of items) {
+    fetchWatchSummaryForItem(item.media.id, item.media.media_type)
+  }
+}
+
+function openWatchLogModal(item: LibraryItemResponse) {
+  activeLogMedia.value = { id: item.media.id, type: item.media.media_type }
+  showLogModal.value = true
+}
+
+function onWatchLogged() {
+  if (activeLogMedia.value) {
+    fetchWatchSummaryForItem(activeLogMedia.value.id, activeLogMedia.value.type)
+  }
+}
+
+function openWatchHistory(item: LibraryItemResponse) {
+  activeHistoryMedia.value = { id: item.media.id, type: item.media.media_type }
+  showHistoryPanel.value = true
+}
+
+function onWatchHistoryChanged() {
+  if (activeHistoryMedia.value) {
+    fetchWatchSummaryForItem(activeHistoryMedia.value.id, activeHistoryMedia.value.type)
+  }
+}
+
+watch(
+  () => props.activeTab,
+  (newTab) => {
+    if (newTab === "watched") {
+      loadAllWatchSummaries()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => props.watchedItems,
+  () => {
+    if (props.activeTab === "watched") {
+      loadAllWatchSummaries()
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
@@ -729,5 +869,58 @@ const filteredReviews = computed(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Watch Log Bar inside media-card-meta */
+.watch-log-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.watch-count-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(79, 70, 229, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  color: #a5b4fc;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.watch-count-chip:hover {
+  background: rgba(79, 70, 229, 0.22);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: #c7d2fe;
+}
+
+.btn-log-watch-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e4e4e7;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-log-watch-mini:hover {
+  background: rgba(225, 37, 27, 0.15);
+  border-color: rgba(225, 37, 27, 0.4);
+  color: #ffffff;
 }
 </style>
