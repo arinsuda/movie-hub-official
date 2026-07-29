@@ -5,20 +5,30 @@
       <h2 class="bmol-section-title">
         {{ bmolSubTab === 'movie' ? $t("library.bmol.movieTitle") : $t("library.bmol.tvTitle") }}
       </h2>
-      <div class="bmol-view-selector">
+      <div class="bmol-header-actions">
+        <div class="bmol-view-selector">
+          <button
+            class="view-selector-btn"
+            :class="{ 'view-selector-btn--active': bmolSubTab === 'movie' }"
+            @click="bmolSubTab = 'movie'"
+          >
+            {{ $t("library.filters.movies") }}
+          </button>
+          <button
+            class="view-selector-btn"
+            :class="{ 'view-selector-btn--active': bmolSubTab === 'tv' }"
+            @click="bmolSubTab = 'tv'"
+          >
+            {{ $t("library.filters.tvSeries") }}
+          </button>
+        </div>
         <button
-          class="view-selector-btn"
-          :class="{ 'view-selector-btn--active': bmolSubTab === 'movie' }"
-          @click="bmolSubTab = 'movie'"
+          class="btn-share-bol"
+          @click="showShareModal = true"
+          :title="$t('share.shareAsImage')"
         >
-          {{ $t("library.filters.movies") }}
-        </button>
-        <button
-          class="view-selector-btn"
-          :class="{ 'view-selector-btn--active': bmolSubTab === 'tv' }"
-          @click="bmolSubTab = 'tv'"
-        >
-          {{ $t("library.filters.tvSeries") }}
+          <Share2 :size="16" />
+          <span>{{ $t("share.shareAsImage") }}</span>
         </button>
       </div>
     </div>
@@ -378,16 +388,25 @@
       @confirm="confirmDelete"
       @cancel="showDeleteConfirm = false"
     />
+
+    <BolShareModal
+      v-model="showShareModal"
+      :media-type="bmolSubTab"
+      :ranks="groupedBmolItems"
+      :username="authStore.user?.username || authStore.user?.display_name || ''"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from "vue"
-import { Search, Trophy, ChevronLeft, Film, Sparkles } from "lucide-vue-next"
+import { Search, Trophy, ChevronLeft, Film, Sparkles, Share2 } from "lucide-vue-next"
 import { bmolApi, movieApi } from "@/api/api"
+import { useAuthStore } from "@/stores/auth"
 import type { BMOLItemResponse, Movie, TVSeries } from "@/types"
 import BmolSpotlightModal from "./BmolSpotlightModal.vue"
 import BmolDeleteConfirmModal from "./BmolDeleteConfirmModal.vue"
+import BolShareModal from "@/components/share/BolShareModal.vue"
 
 const props = defineProps<{
   isOwner: boolean
@@ -398,6 +417,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "update:bmolItems", items: BMOLItemResponse[]): void
 }>()
+
+const authStore = useAuthStore()
+const showShareModal = ref(false)
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
@@ -1161,6 +1183,34 @@ function getMediaDate(media: Movie | TVSeries): string {
   font-weight: 700;
   color: #ffffff;
   margin: 0;
+}
+
+.bmol-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-share-bol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(229, 9, 20, 0.9) 0%, rgba(180, 0, 10, 0.9) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(229, 9, 20, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-share-bol:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(229, 9, 20, 0.45);
+  background: linear-gradient(135deg, rgba(245, 10, 20, 1) 0%, rgba(200, 0, 10, 1) 100%);
 }
 
 .bmol-view-selector {
