@@ -27,7 +27,7 @@ export function useShareImage() {
   const blobUrlsToRevoke: string[] = []
   let hasFallback = false
 
-  /** Fetch a remote image as a blob URL to bypass CORS canvas taint and avoid console errors */
+  /** Fetch a remote image as a Data URI to bypass CORS canvas taint and avoid console errors */
   async function fetchImageAsBlob(url: string): Promise<string | null> {
     try {
       if (!url) return null
@@ -37,18 +37,19 @@ export function useShareImage() {
         return url
       }
 
-      let targetUrl = url
+      // 1. Try direct CORS fetch first (TMDB image.tmdb.org supports CORS out-of-the-box!)
+      let response = await fetch(url, { mode: "cors" }).catch(() => null)
 
-      // For any external HTTP/HTTPS image, route through backend proxy to avoid direct browser CORS console errors
-      if (url.startsWith("http://") || url.startsWith("https://")) {
+      // 2. If direct CORS fetch failed and it's an external HTTP/HTTPS image, fall back to backend proxy
+      if ((!response || !response.ok) && (url.startsWith("http://") || url.startsWith("https://"))) {
         const currentOrigin = window.location.origin
         if (!url.startsWith(currentOrigin)) {
           const apiBase = getApiBaseUrl()
-          targetUrl = `${apiBase}/share/proxy-image?url=${encodeURIComponent(url)}`
+          const proxyUrl = `${apiBase}/share/proxy-image?url=${encodeURIComponent(url)}`
+          response = await fetch(proxyUrl).catch(() => null)
         }
       }
 
-      const response = await fetch(targetUrl).catch(() => null)
       if (!response || !response.ok) return null
 
       const blob = await response.blob()
