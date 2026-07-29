@@ -104,8 +104,30 @@ export function useShareImage() {
     }
   }
 
-  /** Trigger a browser download for a blob */
-  function downloadBlob(blob: Blob, filename: string): void {
+  /** Download blob or trigger native mobile share sheet for direct 'Save to Gallery/Photos' */
+  async function downloadBlob(blob: Blob, filename: string): Promise<void> {
+    try {
+      const file = new File([blob], filename, { type: blob.type || "image/png" })
+
+      // Check if Web Share API with files support is available (Mobile iOS / Android)
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [file] }) &&
+        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      ) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+        })
+        toast.success(t("share.downloadSuccess"))
+        return
+      }
+    } catch (err: any) {
+      // User dismissed native share sheet — handle gracefully
+      if (err?.name === "AbortError") return
+    }
+
+    // Fallback standard browser download (Desktop PC / fallback)
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
