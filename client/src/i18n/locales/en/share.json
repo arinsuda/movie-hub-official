@@ -21,5 +21,11 @@
   "clipboardFailed": "Could not copy to clipboard",
   "ratingOutOf": "/5",
   "imageFallbackUsed": "An image could not be loaded. A placeholder was used in the share card.",
-  "generating": "Generating…"
+  "generating": "Generating…",
+  "bolShareTitle": "Best of Life Share",
+  "styleGrid": "Poster Grid",
+  "styleColor": "Dominant Color",
+  "styleBars": "Bookshelf",
+  "showUsername": "Show Username",
+  "rankLabel": "Rank #{rank}"
 }

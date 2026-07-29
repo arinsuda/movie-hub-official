@@ -92,10 +92,29 @@
 
       <div class="divider" />
 
+      <!-- ── Mobile Dedicated Navigation Bar (< 960px) ── -->
+      <div class="mobile-nav-section">
+        <div class="mobile-nav-bar" role="tablist">
+          <button
+            v-for="tab in tabs"
+            :key="tab.key"
+            class="mobile-nav-tab"
+            :class="{ 'mobile-nav-tab--active': activeTab === tab.key }"
+            role="tab"
+            :aria-selected="activeTab === tab.key"
+            @click="activeTab = tab.key"
+          >
+            <component :is="tab.icon" :size="15" />
+            <span class="mobile-nav-label">{{ tab.label }}</span>
+            <span v-if="tab.count !== undefined" class="mobile-nav-count">{{ tab.count }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- ── Main Content Grid ── -->
       <div class="content-grid">
-        <!-- Left: Nav -->
-        <aside class="nav-aside">
+        <!-- Left: Desktop Nav Sidebar (PC >= 960px) -->
+        <aside class="desktop-nav-aside">
           <p class="nav-eyebrow">Menu</p>
           <nav>
             <button
@@ -122,7 +141,7 @@
           </div>
         </aside>
 
-        <!-- Center: Tab Content -->
+        <!-- Center: Tab Content Container -->
         <main class="content-main">
           <Transition name="fade-up" mode="out-in">
             <component
@@ -149,6 +168,7 @@
         </div>
       </Transition>
     </Teleport>
+
     <ConfirmModal
       v-model="showUnfollowConfirm"
       list-type="unfollow"
@@ -200,40 +220,106 @@
 
   const user = ref<UserProfile | null>(null)
   const loading = ref(true)
+  const activeTab = ref("reviews")
   const showEdit = ref(false)
-
-  type FollowStatus = "none" | "pending" | "accepted"
-
-  const followStatus = ref<FollowStatus>("none")
+  const isFollowing = ref(false)
+  const isPendingFollow = ref(false)
   const followLoading = ref(false)
   const showUnfollowConfirm = ref(false)
 
-  const viewedUserId = computed(() => {
-    const raw = route.params.userId
-    const value = Array.isArray(raw) ? raw[0] : raw
-    return Number(value)
+  const userIdParam = computed(() => Number(route.params.userId))
+  const notMe = computed(() => auth.user?.id !== userIdParam.value)
+
+  const joinYear = computed(() => {
+    if (!user.value?.created_at) return new Date().getFullYear()
+    return new Date(user.value.created_at).getFullYear()
   })
 
-  const currentUserId = computed(() => auth.user?.id ?? null)
+  // Synchronize active tab from route query (e.g. ?tab=bol)
+  watch(
+    () => route.query.tab,
+    (newTab) => {
+      if (newTab && typeof newTab === "string") {
+        const validKeys = ["reviews", "watchlist", "likes", "watched", "bol", "achievements"]
+        if (validKeys.includes(newTab)) {
+          activeTab.value = newTab
+        }
+      }
+    },
+    { immediate: true }
+  )
 
-  const notMe = computed(() => {
-    return currentUserId.value !== viewedUserId.value
+  const tabs = computed(() => [
+    {
+      key: "reviews",
+      label: "Reviews",
+      icon: Star,
+      count: (user.value as any)?.review_count,
+    },
+    {
+      key: "watchlist",
+      label: "Watchlist",
+      icon: Bookmark,
+      count: (user.value as any)?.watchlist_count,
+    },
+    {
+      key: "likes",
+      label: "Likes",
+      icon: Heart,
+      count: (user.value as any)?.like_count,
+    },
+    {
+      key: "watched",
+      label: "Watched",
+      icon: TvMinimalPlay,
+      count: (user.value as any)?.watched_count,
+    },
+    {
+      key: "bol",
+      label: "BOL",
+      icon: Trophy,
+      count: (user.value as any)?.bmol_count,
+    },
+    {
+      key: "achievements",
+      label: "Achievements",
+      icon: Award,
+    },
+  ])
+
+  const activeComponentMap: Record<string, any> = {
+    reviews: UserReviews,
+    watchlist: UserWatchlist,
+    likes: UserLikes,
+    watched: UserWatched,
+    bol: UserBmol,
+    achievements: UserAchievements,
+  }
+
+  const activeComponent = computed(
+    () => activeComponentMap[activeTab.value] || UserReviews
+  )
+
+  const activeProps = computed(() => {
+    const key = activeTab.value
+    if (key === "reviews") return { userId: userIdParam.value }
+    if (key === "watchlist")
+      return { userId: userIdParam.value, listType: "watchlist" as ListType }
+    if (key === "likes")
+      return { userId: userIdParam.value, listType: "likes" as ListType }
+    if (key === "watched")
+      return { userId: userIdParam.value, listType: "watched" as ListType }
+    if (key === "bol") return { userId: userIdParam.value }
+    if (key === "achievements") return { userId: userIdParam.value }
+    return {}
   })
 
-  const isFollowing = computed(() => followStatus.value === "accepted")
-  const isPendingFollow = computed(() => followStatus.value === "pending")
+  const activeComponentKey = computed(() => `${activeTab.value}-${userIdParam.value}`)
 
   const followButtonLabel = computed(() => {
-    if (followLoading.value) return "กำลังโหลด..."
-    if (isFollowing.value) return "กำลังติดตาม"
-    if (isPendingFollow.value) return "ส่งคำขอแล้ว"
+    if (isFollowing.value) return "Following"
+    if (isPendingFollow.value) return "Requested"
     return "Follow"
-  })
-
-  const followButtonIcon = computed(() => {
-    if (isFollowing.value) return UserCheck
-    if (isPendingFollow.value) return Clock
-    return UserPlus
   })
 
   const followButtonClass = computed(() => {
@@ -242,210 +328,92 @@
     return "btn-primary"
   })
 
-  type TabKey =
-    | "profile"
-    | "reviews"
-    | "watchlist"
-    | "likes"
-    | "watched"
-    | "bmol"
-    | "achievements"
-
-  const activeTab = ref<TabKey>("reviews")
-
-  const tabs = computed(() => [
-    { key: "reviews" as TabKey, label: "Reviews", icon: Star },
-    { key: "watchlist" as TabKey, label: "Watchlist", icon: Bookmark },
-    { key: "likes" as TabKey, label: "Likes", icon: Heart, count: undefined },
-    { key: "watched" as TabKey, label: "Watched", icon: TvMinimalPlay },
-    { key: "bmol" as TabKey, label: "BMOL", icon: Award },
-    { key: "achievements" as TabKey, label: "Achievements", icon: Trophy },
-  ])
-
-  const componentMap: Record<TabKey, unknown> = {
-    profile: ProfileInfo,
-    reviews: UserReviews,
-    watchlist: UserWatchlist,
-    likes: UserLikes,
-    watched: UserWatched,
-    bmol: UserBmol,
-    achievements: UserAchievements,
-  }
-
-  const activeComponent = computed(() => componentMap[activeTab.value])
-
-  const activeProps = computed(() => {
-    const typeMap: Record<string, ListType | undefined> = {
-      watchlist: "watchlist",
-      likes: "likes",
-      watched: "watched",
-    }
-
-    return {
-      userId: viewedUserId.value,
-      listType: typeMap[activeTab.value],
-    }
+  const followButtonIcon = computed(() => {
+    if (isFollowing.value) return UserCheck
+    if (isPendingFollow.value) return Clock
+    return UserPlus
   })
 
-  const activeComponentKey = computed(() => {
-    return `${activeTab.value}-${viewedUserId.value}`
-  })
-
-  const joinYear = computed(() =>
-    user.value?.created_at
-      ? new Date(user.value.created_at).getFullYear()
-      : "—",
-  )
-
-  function normalizeFollowStatus(data: unknown): FollowStatus {
-    const value = data as {
-      status?: string
-      is_following?: boolean
-      following?: boolean
-      is_pending?: boolean
-    }
-
-    if (value.status === "accepted" || value.status === "following") {
-      return "accepted"
-    }
-
-    if (value.status === "pending") {
-      return "pending"
-    }
-
-    if (value.is_following || value.following) {
-      return "accepted"
-    }
-
-    if (value.is_pending) {
-      return "pending"
-    }
-
-    return "none"
-  }
-
-  async function loadProfile() {
-    if (!Number.isInteger(viewedUserId.value) || viewedUserId.value <= 0) {
-      user.value = null
-      loading.value = false
-      return
-    }
-
+  async function fetchProfile() {
+    loading.value = true
     try {
-      loading.value = true
-      const res = await userApi.getProfile(viewedUserId.value)
-      user.value = res.data.user
-    } catch (err) {
+      const targetId = userIdParam.value
+      const res = await userApi.getProfile(targetId)
+      user.value = (res.data as any).user || res.data
+      if (notMe.value && auth.isLoggedIn) {
+        const fRes = await followApi.getFollowStatus(targetId)
+        isFollowing.value = Boolean(fRes.data.is_following)
+        isPendingFollow.value = fRes.data.follow_status === "pending"
+      }
+    } catch (e) {
       user.value = null
-      console.error("fetchUserProfile failed:", err)
     } finally {
       loading.value = false
     }
   }
 
-  async function loadFollowStatus() {
-    if (!auth.user || !notMe.value) {
-      followStatus.value = "none"
-      return
-    }
-
-    try {
-      const res = await followApi.getFollowStatus(viewedUserId.value)
-      followStatus.value = normalizeFollowStatus(res.data)
-    } catch (err) {
-      followStatus.value = "none"
-      console.error("getFollowStatus failed:", err)
-    }
-  }
-
-  async function loadProfilePage() {
-    await loadProfile()
-    await loadFollowStatus()
-  }
-
-  async function handleEditClose() {
-    showEdit.value = false
-    await loadProfile()
-  }
-
-  async function handleFollowButtonClick() {
-    if (followLoading.value) return
-
+  function handleFollowButtonClick() {
     if (isFollowing.value) {
       showUnfollowConfirm.value = true
-      return
+    } else {
+      handleFollow()
     }
-
-    if (isPendingFollow.value) {
-      return
-    }
-
-    await followUser()
   }
 
-  async function followUser() {
+  async function handleFollow() {
+    if (followLoading.value) return
+    followLoading.value = true
     try {
-      followLoading.value = true
-
-      const res = await followApi.follow(viewedUserId.value)
-      followStatus.value = normalizeFollowStatus(res.data)
-
-      await loadProfile()
-    } catch (err) {
-      console.error("follow failed:", err)
+      const res = await followApi.follow(userIdParam.value)
+      const st = (res.data as any).status
+      if (st === "following" || st === "accepted") {
+        isFollowing.value = true
+        isPendingFollow.value = false
+        if (user.value) user.value.follower_count++
+      } else if (st === "pending") {
+        isFollowing.value = false
+        isPendingFollow.value = true
+      }
+    } catch (e) {
+      console.error(e)
     } finally {
       followLoading.value = false
     }
   }
 
   async function confirmUnfollow() {
+    if (followLoading.value) return
+    followLoading.value = true
     try {
-      followLoading.value = true
-
-      await followApi.unfollow(viewedUserId.value)
-
-      followStatus.value = "none"
+      await followApi.unfollow(userIdParam.value)
+      isFollowing.value = false
+      isPendingFollow.value = false
+      if (user.value) user.value.follower_count = Math.max(0, user.value.follower_count - 1)
       showUnfollowConfirm.value = false
-
-      await loadProfile()
-    } catch (err) {
-      console.error("unfollow failed:", err)
+    } catch (e) {
+      console.error(e)
     } finally {
       followLoading.value = false
     }
   }
 
-  watch(viewedUserId, loadProfilePage, { immediate: true })
-
-  watch(showEdit, (newVal) => {
-    if (newVal) {
-      document.body.style.overflow = "hidden"
-    } else {
-      const activeBackdrops = document.querySelectorAll(".modal-backdrop")
-      if (activeBackdrops.length <= 1) {
-        document.body.style.overflow = ""
-      }
+  function handleEditClose(updatedUser?: UserProfile) {
+    showEdit.value = false
+    if (updatedUser) {
+      user.value = updatedUser
     }
-  })
+  }
 
-  onBeforeUnmount(() => {
-    const activeBackdrops = document.querySelectorAll(".modal-backdrop")
-    if (activeBackdrops.length <= 1) {
-      document.body.style.overflow = ""
-    }
-  })
+  watch(userIdParam, () => fetchProfile(), { immediate: true })
 </script>
 
 <style scoped>
-  /* ─────────────────────────────────────────
-   Design Tokens
-  ───────────────────────────────────────── */
   .profile-root {
-    --c-bg: #080808;
-    --c-surface: #111111;
-    --c-card: #161616;
-    --c-border: rgba(255, 255, 255, 0.06);
-    --c-border-h: rgba(255, 255, 255, 0.12);
+    --c-bg: #0d0d11;
+    --c-surface: #141419;
+    --c-card: #141419;
+    --c-border: rgba(255, 255, 255, 0.07);
+    --c-border-h: rgba(255, 255, 255, 0.15);
     --c-red: #e1251b;
     --c-red-dim: rgba(225, 37, 27, 0.08);
     --c-text: #f0f0f0;
@@ -459,9 +427,12 @@
       "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
     --radius: 10px;
     --ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --profile-gutter: 24px;
 
     position: relative;
     min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
     background: var(--c-bg);
     color: var(--c-text);
     font-family: var(--font-ui);
@@ -539,7 +510,7 @@
     z-index: 1;
     max-width: 1100px;
     margin: 0 auto;
-    padding: 0 24px 80px;
+    padding: 0 var(--profile-gutter) 80px;
     animation: fadeIn 0.5s var(--ease) both;
   }
   @keyframes fadeIn {
@@ -564,8 +535,8 @@
   .hero-backdrop {
     position: absolute;
     top: 0;
-    left: -24px;
-    right: -24px;
+    left: calc(-1 * var(--profile-gutter));
+    right: calc(-1 * var(--profile-gutter));
     height: 220px;
     background: linear-gradient(
       180deg,
@@ -588,7 +559,6 @@
     flex-shrink: 0;
   }
 
-  /* Outer padding ring — creates the "halo" gap */
   .avatar-ring {
     width: 120px;
     height: 120px;
@@ -601,14 +571,13 @@
     );
   }
 
-  /* Inner circle — clips the image perfectly */
   .avatar-inner {
     width: 100%;
     height: 100%;
     border-radius: 50%;
     overflow: hidden;
     background: var(--c-card);
-    border: 2px solid var(--c-bg); /* gap between image and outer ring */
+    border: 2px solid var(--c-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -689,7 +658,7 @@
     font-style: italic;
   }
 
-  /* ── Inline hero stats (Instagram-style) ── */
+  /* ── Inline hero stats ── */
   .hero-stats {
     display: flex;
     align-items: center;
@@ -745,6 +714,7 @@
     cursor: pointer;
     transition: all 0.2s var(--ease);
     white-space: nowrap;
+    touch-action: manipulation;
   }
   .btn-primary {
     background: var(--c-red);
@@ -769,24 +739,30 @@
   .divider {
     height: 1px;
     background: var(--c-border);
-    margin-bottom: 28px;
+    margin-bottom: 24px;
   }
 
-  /* ─────────── Content Grid ─────────── */
+  /* ─────────── Mobile Navigation Section (< 960px) ─────────── */
+  .mobile-nav-section {
+    display: none;
+  }
+
+  /* ─────────── Main Content Grid (PC >= 960px) ─────────── */
   .content-grid {
     display: grid;
     grid-template-columns: 188px 1fr;
     gap: 0;
     min-height: 480px;
+    width: 100%;
   }
 
-  /* Nav Aside */
-  .nav-aside {
+  /* Desktop Nav Sidebar */
+  .desktop-nav-aside {
+    display: flex;
+    flex-direction: column;
     border-right: 1px solid var(--c-border);
     padding-right: 20px;
     padding-top: 4px;
-    display: flex;
-    flex-direction: column;
   }
 
   .nav-eyebrow {
@@ -814,6 +790,7 @@
     transition: all 0.15s var(--ease);
     margin-bottom: 2px;
     text-align: left;
+    touch-action: manipulation;
   }
   .nav-item:hover {
     color: var(--c-text);
@@ -834,9 +811,12 @@
     border-radius: 4px;
   }
 
-  /* Main Content */
+  /* Main Content Container */
   .content-main {
     padding: 0 28px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   /* Sidebar Badges */
@@ -876,6 +856,7 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
+    touch-action: manipulation;
   }
   .modal-panel {
     background: var(--c-surface);
@@ -886,6 +867,7 @@
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+    touch-action: manipulation;
   }
   .modal-enter-active,
   .modal-leave-active {
@@ -920,33 +902,89 @@
     border: 1px solid rgba(255, 184, 0, 0.22);
   }
 
-  /* ─────────── Responsive ─────────── */
-  @media (max-width: 960px) {
-    .content-grid {
-      grid-template-columns: 1fr;
+  /* ─────────── Responsive Mobile & Tablet (< 960px) ─────────── */
+  @media (max-width: 959px) {
+    .desktop-nav-aside {
+      display: none !important;
     }
-    .nav-aside {
-      border-right: none;
-      border-bottom: 1px solid var(--c-border);
-      padding-right: 0;
-      padding-bottom: 16px;
-      margin-bottom: 24px;
+
+    .mobile-nav-section {
+      display: block;
+      width: 100%;
+      margin-bottom: 20px;
+      box-sizing: border-box;
     }
-    nav {
+
+    .mobile-nav-bar {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 6px;
+      background: #141418;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      scrollbar-width: none;
+      touch-action: manipulation;
     }
-    .nav-item {
-      width: auto;
+
+    .mobile-nav-bar::-webkit-scrollbar {
+      display: none;
     }
-    .sidebar-badges {
-      border-top: none;
-      margin-top: 16px;
-      padding-top: 0;
+
+    .mobile-nav-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--c-sub);
+      font-size: 0.82rem;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+      touch-action: manipulation;
     }
+
+    .mobile-nav-tab--active {
+      background: rgba(225, 37, 27, 0.15);
+      color: #ffffff;
+      border-color: rgba(225, 37, 27, 0.35);
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(225, 37, 27, 0.2);
+    }
+
+    .mobile-nav-tab--active svg {
+      color: var(--c-red);
+    }
+
+    .mobile-nav-count {
+      font-size: 0.62rem;
+      font-weight: 700;
+      background: var(--c-red);
+      color: #ffffff;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .content-grid {
+      grid-template-columns: 1fr !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+    }
+
     .content-main {
-      padding: 0;
+      padding: 0 !important;
+      min-width: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      overflow-x: hidden !important;
     }
   }
 
@@ -978,8 +1016,11 @@
   }
 
   @media (max-width: 480px) {
+    .profile-root {
+      --profile-gutter: 16px;
+    }
     .profile-layout {
-      padding: 0 16px 60px;
+      padding-bottom: 60px;
     }
     .display-name {
       font-size: 1.4rem;
@@ -989,10 +1030,24 @@
       height: 84px;
     }
     .hero-stats {
-      gap: 14px;
+      gap: 10px 14px;
+      flex-wrap: wrap;
     }
     .hstat-val {
       font-size: 0.95rem;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .profile-root {
+      --profile-gutter: 12px;
+    }
+    .display-name {
+      font-size: 1.25rem;
+    }
+    .avatar-ring {
+      width: 72px;
+      height: 72px;
     }
   }
 </style>

@@ -52,9 +52,12 @@ export function useShareImage() {
       if (!response || !response.ok) return null
 
       const blob = await response.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      blobUrlsToRevoke.push(blobUrl)
-      return blobUrl
+      return new Promise<string | null>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+      })
     } catch {
       return null
     }
@@ -87,7 +90,7 @@ export function useShareImage() {
         pixelRatio: 1,
         width: 1080,
         height: 1920,
-        cacheBust: true,
+        cacheBust: false,
       })
 
       const response = await fetch(dataUrl)

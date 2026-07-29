@@ -284,6 +284,19 @@ const filteredLibraryItems = computed(() => {
       ? props.watchedItems
       : props.likedItems
 
+  // Deduplicate items by media id and media type
+  const seen = new Set<string>()
+  const uniqueList: typeof list = []
+  for (const item of list) {
+    if (!item.media) continue
+    const key = `${item.media.media_type}_${item.media.id}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      uniqueList.push(item)
+    }
+  }
+  list = uniqueList
+
   // 1. Search Query
   if (filters.value.search.trim()) {
     const query = filters.value.search.toLowerCase()
@@ -386,8 +399,11 @@ async function fetchWatchSummaryForItem(mediaId: number, mediaType: "movie" | "t
   try {
     const res = await watchLogApi.getMyWatchLogs(mediaType, mediaId)
     const key = getWatchMediaKey(mediaId, mediaType)
-    if (res.data && res.data.summary) {
-      watchSummaries.value[key] = res.data.summary.watch_count
+    if (res.data) {
+      const count = res.data.summary?.watch_count ?? res.data.logs?.length
+      if (count !== undefined) {
+        watchSummaries.value[key] = count
+      }
     }
   } catch (err) {
     // Fallback gracefully
@@ -408,7 +424,10 @@ function openWatchLogModal(item: LibraryItemResponse) {
 }
 
 function onWatchLogged() {
+  showLogModal.value = false
   if (activeLogMedia.value) {
+    const key = getWatchMediaKey(activeLogMedia.value.id, activeLogMedia.value.type)
+    watchSummaries.value[key] = (watchSummaries.value[key] || 1) + 1
     fetchWatchSummaryForItem(activeLogMedia.value.id, activeLogMedia.value.type)
   }
 }

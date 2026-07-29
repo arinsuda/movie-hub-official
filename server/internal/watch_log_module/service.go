@@ -16,7 +16,7 @@ import (
 
 type Service interface {
 	CreateWatchLog(ctx context.Context, userID uint, mediaType string, mediaID int, req CreateWatchLogRequest) (*WatchLogResponse, error)
-	GetMyWatchLogs(ctx context.Context, userID uint, mediaType string, mediaID int) ([]WatchLogResponse, error)
+	GetMyWatchLogs(ctx context.Context, userID uint, mediaType string, mediaID int) (*MyWatchLogsResponse, error)
 	GetUserWatchHistory(ctx context.Context, userID, requesterID uint, pq PaginationQuery) (*WatchLogListResponse, error)
 	UpdateWatchLog(ctx context.Context, watchLogID, userID uint, req UpdateWatchLogRequest) (*WatchLogResponse, error)
 	DeleteWatchLog(ctx context.Context, watchLogID, userID uint) error
@@ -129,7 +129,7 @@ func (s *service) CreateWatchLog(ctx context.Context, userID uint, mediaType str
 	return toWatchLogResponse(watchLog), nil
 }
 
-func (s *service) GetMyWatchLogs(ctx context.Context, userID uint, mediaType string, mediaID int) ([]WatchLogResponse, error) {
+func (s *service) GetMyWatchLogs(ctx context.Context, userID uint, mediaType string, mediaID int) (*MyWatchLogsResponse, error) {
 	logs, err := s.repo.FindByUserAndMedia(userID, mediaType, mediaID)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,21 @@ func (s *service) GetMyWatchLogs(ctx context.Context, userID uint, mediaType str
 	for i, log := range logs {
 		responses[i] = *toWatchLogResponse(&log)
 	}
-	return responses, nil
+
+	summary, err := s.repo.ComputeSummary(userID, mediaType, mediaID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MyWatchLogsResponse{
+		Logs: responses,
+		Summary: WatchSummaryResponse{
+			WatchCount:     summary.WatchCount,
+			FirstWatchedOn: summary.FirstWatchedOn,
+			LastWatchedOn:  summary.LastWatchedOn,
+			HasWatched:     summary.HasWatched,
+		},
+	}, nil
 }
 
 func (s *service) GetUserWatchHistory(ctx context.Context, userID, requesterID uint, pq PaginationQuery) (*WatchLogListResponse, error) {

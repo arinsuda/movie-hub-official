@@ -25,6 +25,11 @@ type WatchLogResponse struct {
 	UpdatedAt  time.Time           `json:"updated_at"`
 }
 
+type MyWatchLogsResponse struct {
+	Logs    []WatchLogResponse   `json:"logs"`
+	Summary WatchSummaryResponse `json:"summary"`
+}
+
 type PaginationQuery struct {
 	Page  int `query:"page"`
 	Limit int `query:"limit"`

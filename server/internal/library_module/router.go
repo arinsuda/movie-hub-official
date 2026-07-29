@@ -18,7 +18,7 @@ func RegisterRoutes(
 	notif *notification_module.Service,
 	feed feed_module.Service,
 	policy privacy_policy.UserAccessPolicy,
-) {
+) *Service {
 	svc := NewService(db, statsSvc, achieve, notif, feed, policy)
 	h := NewHandler(svc)
 
@@ -28,4 +28,6 @@ func RegisterRoutes(
 	library.Get("/media/:mediaType/:mediaId", h.GetMediaStatus)
 	library.Delete("/:itemId", h.RemoveItem)
 	library.Patch("/:itemId", h.UpdateItem)
+
+	return svc
 }
