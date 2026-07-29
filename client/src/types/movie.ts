@@ -90,6 +90,10 @@ export interface Video {
 export interface MediaSummary {
   id: number
   title: string
+  english_title?: string
+  original_title?: string
+  original_name?: string
+  name?: string
   poster_url: string
   media_type: MediaType
   genres: Genre[] 

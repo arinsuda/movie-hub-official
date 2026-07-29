@@ -422,4 +422,26 @@
   .poster-name:hover {
     color: var(--c-red);
   }
+
+  @media (hover: none), (max-width: 640px) {
+    .rm-btn {
+      opacity: 1;
+      transform: scale(1);
+      background: rgba(0, 0, 0, 0.75);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .poster-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 12px 10px;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .poster-grid {
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 10px 8px;
+    }
+  }
 </style>

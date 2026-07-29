@@ -1,5 +1,5 @@
 <template>
-  <div class="bol-share-card" :class="[`style-${style}`]">
+  <div class="bol-share-card">
     <!-- Ambient Background Glows -->
     <div class="bg-glow bg-glow-1" :style="headerGlowStyle"></div>
     <div class="bg-glow bg-glow-2"></div>
@@ -21,98 +21,47 @@
       </div>
     </div>
 
-    <!-- Main Rank Cards List -->
+    <!-- Main Ranks Container (Fixed 5 Equal Rows Grid - Poster Grid Mode) -->
     <div class="ranks-container">
       <div
-        v-for="group in topRanks"
+        v-for="group in processedRanks"
         :key="group.rank"
         class="rank-row"
-        :style="getRankRowStyle(group)"
       >
-        <!-- STYLE 1: POSTER GRID -->
-        <template v-if="style === 'grid'">
-          <div class="row-left">
-            <div class="rank-badge-grid" :class="[`rank-badge-${group.rank}`]">
-              <span class="rank-hash">#</span>{{ group.rank }}
-            </div>
+        <div class="row-left">
+          <div class="rank-badge-grid" :class="[`rank-badge-${group.rank}`]">
+            <span class="rank-hash">#</span>{{ group.rank }}
           </div>
-          <div class="row-content-grid">
-            <div class="posters-grid">
-              <div
-                v-for="item in group.items.slice(0, 4)"
-                :key="item.id"
-                class="poster-item"
-              >
-                <img
-                  v-if="getPosterUrl(item)"
-                  :src="getPosterUrl(item)"
-                  :alt="item.media.title"
-                  class="poster-img"
-                />
-                <div v-else class="poster-fallback">
-                  <span>{{ item.media.title.charAt(0) }}</span>
-                </div>
-              </div>
-              <div v-if="group.items.length > 4" class="more-count-badge">
-                +{{ group.items.length - 4 }}
-              </div>
-            </div>
-            <div class="titles-summary">
-              {{ formatTitles(group.items) }}
-            </div>
-          </div>
-        </template>
-
-        <!-- STYLE 2: DOMINANT COLOR -->
-        <template v-else-if="style === 'color'">
-          <div class="color-row-inner">
-            <div class="rank-badge-color" :style="getRankColorAccentStyle(group)">
-              <span class="rank-num">#{{ group.rank }}</span>
-            </div>
-            <div class="color-row-body">
-              <div class="color-titles">
-                {{ formatTitles(group.items) }}
-              </div>
-              <div class="color-item-count">
-                {{ group.items.length }} {{ group.items.length === 1 ? 'item' : 'items' }}
-              </div>
-            </div>
-            <!-- Main item thumbnail preview -->
-            <div class="color-thumb-wrapper" v-if="group.items[0] && getPosterUrl(group.items[0])">
+        </div>
+        <div class="row-content-grid">
+          <div class="posters-grid">
+            <div
+              v-for="item in group.processedItems.slice(0, group.items.length > 7 ? 6 : 7)"
+              :key="item.id"
+              class="poster-item"
+            >
               <img
-                :src="getPosterUrl(group.items[0])"
-                :alt="group.items[0].media.title"
-                class="color-thumb-img"
+                v-if="item.posterUrl"
+                :src="item.posterUrl"
+                :alt="item.displayTitle"
+                class="poster-img"
               />
-            </div>
-          </div>
-        </template>
-
-        <!-- STYLE 3: COLOR BARS -->
-        <template v-else-if="style === 'bars'">
-          <div class="bars-row-inner">
-            <div class="rank-badge-bars">
-              #{{ group.rank }}
-            </div>
-            <div class="bars-container">
-              <div
-                v-for="item in group.items.slice(0, 5)"
-                :key="item.id"
-                class="bar-item"
-                :style="getBarItemStyle(item)"
-              >
-                <span class="bar-title">{{ item.media.title }}</span>
-              </div>
-              <div v-if="group.items.length > 5" class="bar-more-tag">
-                +{{ group.items.length - 5 }}
+              <div v-else class="poster-fallback">
+                <span>{{ item.displayTitle.charAt(0) }}</span>
               </div>
             </div>
+            <div v-if="group.items.length > 7" class="more-count-badge">
+              +{{ group.items.length - 6 }}
+            </div>
           </div>
-        </template>
+          <div class="titles-summary">
+            {{ group.titlesSummary }}
+          </div>
+        </div>
       </div>
 
-      <!-- Empty state if fewer than 5 ranks -->
-      <div v-if="topRanks.length === 0" class="empty-ranks">
+      <!-- Empty state if no ranks at all -->
+      <div v-if="displayRanks.length === 0" class="empty-ranks">
         No {{ mediaType === 'movie' ? 'movies' : 'TV series' }} ranked yet
       </div>
     </div>
@@ -135,6 +84,7 @@ import { computed } from "vue"
 import type { BMOLItemResponse } from "@/types/movie"
 import type { MediaType } from "@/types/common"
 import type { ExtractedColor } from "@/utils/extractDominantColor"
+import { getTmdbImageUrl } from "@/utils/image"
 
 export interface RankGroup {
   rank: number
@@ -144,15 +94,15 @@ export interface RankGroup {
 const props = defineProps<{
   mediaType: MediaType
   ranks: RankGroup[]
-  style: "grid" | "color" | "bars"
   username?: string
   showUsername?: boolean
   posterBlobUrls: Record<string, string>
   dominantColors: Record<string, ExtractedColor>
+  englishTitles?: Record<string, string>
 }>()
 
-// Take top 5 ranks only
-const topRanks = computed(() => props.ranks.slice(0, 5))
+// Take top 5 ranks
+const displayRanks = computed(() => props.ranks.slice(0, 5))
 
 const DEFAULT_COLOR: ExtractedColor = {
   r: 229,
@@ -162,11 +112,29 @@ const DEFAULT_COLOR: ExtractedColor = {
   rgbStr: "rgb(229, 9, 20)",
 }
 
+// Extract English title for item
+function getItemEnglishTitle(item: BMOLItemResponse | undefined): string {
+  if (!item || !item.media) return ""
+  const key = `${item.media_type}:${item.media.id}`
+  if (props.englishTitles && props.englishTitles[key]) {
+    return props.englishTitles[key]
+  }
+  const m = item.media
+  return m.english_title || m.original_title || m.original_name || m.title || m.name || ""
+}
+
 // Poster URL getter
 function getPosterUrl(item: BMOLItemResponse | undefined): string | undefined {
   if (!item) return undefined
   const key = `${item.media_type}:${item.media.id}`
-  return props.posterBlobUrls[key] || item.media.poster_url || undefined
+  const blob = props.posterBlobUrls[key]
+  if (blob) return blob
+
+  let rawUrl = item.media.poster_url
+  if (rawUrl && !rawUrl.startsWith("http://") && !rawUrl.startsWith("https://") && !rawUrl.startsWith("data:")) {
+    rawUrl = getTmdbImageUrl(rawUrl, "w500") || rawUrl
+  }
+  return rawUrl || undefined
 }
 
 // Dominant color getter for a single item
@@ -176,15 +144,44 @@ function getItemColor(item: BMOLItemResponse | undefined): ExtractedColor {
   return props.dominantColors[key] || DEFAULT_COLOR
 }
 
-// Format titles list as "Title 1 · Title 2"
-function formatTitles(items: BMOLItemResponse[]): string {
+// Pre-calculate processed items & English titles
+const processedRanks = computed(() => {
+  return displayRanks.value.map((group) => {
+    const processedItems = group.items.map((item) => {
+      const displayTitle = getItemEnglishTitle(item)
+      return {
+        ...item,
+        displayTitle,
+        posterUrl: getPosterUrl(item),
+      }
+    })
+
+    const titlesSummary = formatTitles(processedItems, group.items.length > 7 ? 6 : 7)
+
+    return {
+      rank: group.rank,
+      items: group.items,
+      processedItems,
+      titlesSummary,
+    }
+  })
+})
+
+// Format titles list using pre-extracted English titles
+function formatTitles(items: { displayTitle: string }[], maxVisible: number = 7): string {
   if (!items || items.length === 0) return ""
-  return items.map((i) => i.media.title).join("  ·  ")
+  const visibleItems = items.slice(0, maxVisible)
+  const titlesStr = visibleItems.map((i) => i.displayTitle).join("  ·  ")
+  const remainingCount = items.length - maxVisible
+  if (remainingCount > 0) {
+    return `${titlesStr}  ·  ... [+${remainingCount}]`
+  }
+  return titlesStr
 }
 
 // Top header glow style based on #1 rank color if available
 const headerGlowStyle = computed(() => {
-  const firstRank = topRanks.value[0]
+  const firstRank = displayRanks.value[0]
   const firstItem = firstRank?.items[0]
   if (firstItem) {
     const col = getItemColor(firstItem)
@@ -196,38 +193,6 @@ const headerGlowStyle = computed(() => {
     background: "radial-gradient(circle, rgba(229, 9, 20, 0.3) 0%, rgba(0, 0, 0, 0) 70%)",
   }
 })
-
-// Dynamic row background for Style 2 (Dominant Color)
-function getRankRowStyle(group: RankGroup) {
-  const firstItem = group.items[0]
-  if (props.style !== "color" || !firstItem) return {}
-  const col = getItemColor(firstItem)
-  return {
-    background: `linear-gradient(135deg, rgba(${col.r}, ${col.g}, ${col.b}, 0.28) 0%, rgba(${Math.max(0, col.r - 40)}, ${Math.max(0, col.g - 40)}, ${Math.max(0, col.b - 40)}, 0.08) 100%)`,
-    borderLeft: `4px solid rgba(${col.r}, ${col.g}, ${col.b}, 0.9)`,
-    boxShadow: `0 8px 32px rgba(${col.r}, ${col.g}, ${col.b}, 0.15)`,
-  }
-}
-
-// Accent badge style for Style 2
-function getRankColorAccentStyle(group: RankGroup) {
-  const firstItem = group.items[0]
-  if (!firstItem) return {}
-  const col = getItemColor(firstItem)
-  return {
-    background: `linear-gradient(135deg, rgba(${col.r}, ${col.g}, ${col.b}, 0.9) 0%, rgba(${col.r}, ${col.g}, ${col.b}, 0.6) 100%)`,
-    boxShadow: `0 4px 14px rgba(${col.r}, ${col.g}, ${col.b}, 0.4)`,
-  }
-}
-
-// Bar item style for Style 3
-function getBarItemStyle(item: BMOLItemResponse) {
-  const col = getItemColor(item)
-  return {
-    background: `linear-gradient(90deg, rgba(${col.r}, ${col.g}, ${col.b}, 0.85) 0%, rgba(${col.r}, ${col.g}, ${col.b}, 0.4) 100%)`,
-    borderColor: `rgba(${col.r}, ${col.g}, ${col.b}, 0.6)`,
-  }
-}
 </script>
 
 <style scoped>
@@ -244,9 +209,10 @@ function getBarItemStyle(item: BMOLItemResponse) {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 80px 72px 70px 72px;
+  padding: 72px 64px 60px 64px;
   box-sizing: border-box;
   overflow: hidden;
+  contain: content;
 }
 
 /* Ambient Glows */
@@ -276,7 +242,7 @@ function getBarItemStyle(item: BMOLItemResponse) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 40px;
+  padding-bottom: 32px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -326,7 +292,6 @@ function getBarItemStyle(item: BMOLItemResponse) {
   align-items: flex-end;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(16px);
   padding: 14px 28px;
   border-radius: 40px;
 }
@@ -345,46 +310,43 @@ function getBarItemStyle(item: BMOLItemResponse) {
   color: #ffffff;
 }
 
-/* Ranks Container */
+/* Ranks Container (Fixed 5 Equal Rows Grid Layout) */
 .ranks-container {
   position: relative;
   z-index: 2;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-evenly;
-  margin: 40px 0;
-  gap: 24px;
+  display: grid;
+  grid-template-rows: repeat(5, 1fr);
+  margin: 28px 0;
+  gap: 16px;
 }
 
 .rank-row {
-  border-radius: 24px;
-  transition: all 0.2s ease;
-}
-
-/* STYLE 1: POSTER GRID */
-.style-grid .rank-row {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  padding: 24px 32px;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 32px;
+  border-radius: 20px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 24px;
+  gap: 24px;
 }
 
 .rank-badge-grid {
-  width: 76px;
-  height: 76px;
-  border-radius: 20px;
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 38px;
+  font-size: 34px;
   font-weight: 900;
   color: #ffffff;
+  flex-shrink: 0;
 }
 
 .rank-badge-1 {
@@ -409,7 +371,7 @@ function getBarItemStyle(item: BMOLItemResponse) {
 }
 
 .rank-hash {
-  font-size: 24px;
+  font-size: 22px;
   opacity: 0.8;
   margin-right: 2px;
 }
@@ -418,19 +380,19 @@ function getBarItemStyle(item: BMOLItemResponse) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-width: 0;
 }
 
 .posters-grid {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .poster-item {
-  width: 80px;
-  height: 120px;
+  width: 72px;
+  height: 108px;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -451,7 +413,7 @@ function getBarItemStyle(item: BMOLItemResponse) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.4);
 }
@@ -460,151 +422,22 @@ function getBarItemStyle(item: BMOLItemResponse) {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  padding: 10px 18px;
-  font-size: 20px;
+  padding: 8px 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #ffffff;
 }
 
 .titles-summary {
-  font-size: 26px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* STYLE 2: DOMINANT COLOR */
-.style-color .rank-row {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
-  padding: 24px 32px;
-}
-
-.color-row-inner {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-}
-
-.rank-badge-color {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  font-weight: 900;
-  color: #ffffff;
-  flex-shrink: 0;
-}
-
-.color-row-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.color-titles {
-  font-size: 32px;
-  font-weight: 800;
-  color: #ffffff;
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-.color-item-count {
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.6);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-}
-
-.color-thumb-wrapper {
-  width: 90px;
-  height: 135px;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  flex-shrink: 0;
-}
-
-.color-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* STYLE 3: COLOR BARS */
-.style-bars .rank-row {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 20px 28px;
-}
-
-.bars-row-inner {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-}
-
-.rank-badge-bars {
-  font-size: 36px;
-  font-weight: 900;
-  color: #e50914;
-  min-width: 60px;
-  flex-shrink: 0;
-}
-
-.bars-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  overflow: hidden;
-}
-
-.bar-item {
-  flex: 1;
-  height: 64px;
-  border-radius: 16px;
-  padding: 0 20px;
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  min-width: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.bar-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.bar-more-tag {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  padding: 12px 18px;
   font-size: 20px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.8);
-  flex-shrink: 0;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .empty-ranks {
@@ -620,7 +453,7 @@ function getBarItemStyle(item: BMOLItemResponse) {
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
 }
 
 .footer-divider {

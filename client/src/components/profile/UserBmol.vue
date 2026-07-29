@@ -48,6 +48,15 @@
           {{ $t("library.filters.tvSeries") }}
         </button>
       </div>
+
+      <button
+        class="btn-share-bol"
+        @click="showShareModal = true"
+        :title="$t('share.shareAsImage')"
+      >
+        <Share2 :size="16" />
+        <span>{{ $t("share.shareAsImage") }}</span>
+      </button>
     </div>
 
     <!-- DETAIL VIEW: When a specific Rank is selected -->
@@ -297,15 +306,15 @@
                 </div>
               </div>
 
-              <!-- "+ X More" Card (If more than 3 items exist in this rank) -->
+              <!-- "+ X More" Card -->
               <div
-                v-if="group.items.length > 3"
+                v-if="group.items.length > maxSlots"
                 class="bmol-item-card bmol-more-card"
                 @click="openShowAllDetail(group.rank)"
               >
                 <div class="more-card-inner">
                   <span class="more-count">
-                    {{ $t("library.bmol.moreItems", { count: group.items.length - 3 }) }}
+                    {{ $t("library.bmol.moreItems", { count: getMoreCount(group.items) }) }}
                   </span>
                   <span class="more-sub">Click to view all</span>
                 </div>
@@ -471,6 +480,13 @@
       @confirm="confirmDelete"
       @cancel="showDeleteConfirm = false"
     />
+
+    <BolShareModal
+      v-model="showShareModal"
+      :media-type="subTab"
+      :ranks="groupedBmolItems"
+      :username="auth.user?.username || auth.user?.display_name || ''"
+    />
   </div>
 </template>
 
@@ -480,8 +496,9 @@ import { useRouter } from "vue-router"
 import { useAuthStore } from "@/stores/auth"
 import { bmolApi, movieApi } from "@/api/api"
 import type { BMOLItemResponse, Movie, TVSeries } from "@/types"
-import { Search, Film, Trophy, ChevronLeft, Sparkles } from "lucide-vue-next"
+import { Search, Film, Trophy, ChevronLeft, Sparkles, Share2 } from "lucide-vue-next"
 import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
+import BolShareModal from "@/components/share/BolShareModal.vue"
 
 const props = defineProps<{
   userId: number
@@ -489,6 +506,7 @@ const props = defineProps<{
 
 const router = useRouter()
 const auth = useAuthStore()
+const showShareModal = ref(false)
 
 function goToDetail(id: number, type: string) {
   router.push(type === "tv" ? `/tv/${id}` : `/movies/${id}`)
@@ -819,15 +837,46 @@ watch(spotlightActive, (newVal) => {
   }
 })
 
+const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1200)
+
+function updateWindowWidth() {
+  windowWidth.value = window.innerWidth
+}
+
+onMounted(() => {
+  window.addEventListener("resize", updateWindowWidth, { passive: true })
+  updateWindowWidth()
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateWindowWidth)
   const activeBackdrops = document.querySelectorAll(".modal-backdrop, .spotlight-backdrop")
   if (activeBackdrops.length <= 1) {
     document.body.style.overflow = ""
   }
 })
 
+// Dynamic maximum visible item slots in a rank row
+const maxSlots = computed(() => {
+  if (windowWidth.value >= 1400) return 6
+  if (windowWidth.value >= 1200) return 5
+  if (windowWidth.value >= 960) return 4
+  if (windowWidth.value >= 480) return 3
+  return 2
+})
+
 function getRankItemsToShow(items: BMOLItemResponse[]) {
-  return items.slice(0, 3)
+  const limit = maxSlots.value
+  if (items.length <= limit) {
+    return items
+  }
+  return items.slice(0, limit - 1)
+}
+
+function getMoreCount(items: BMOLItemResponse[]) {
+  const limit = maxSlots.value
+  if (items.length <= limit) return 0
+  return items.length - (limit - 1)
 }
 
 watch(subTab, () => {
@@ -928,6 +977,11 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Breadcrumb Styles */
@@ -1048,7 +1102,30 @@ onMounted(async () => {
 
 .bmol-header-row {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-share-bol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(229, 9, 20, 0.9) 0%, rgba(180, 0, 10, 0.9) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(229, 9, 20, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-share-bol:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(229, 9, 20, 0.45);
+  background: linear-gradient(135deg, rgba(245, 10, 20, 1) 0%, rgba(200, 0, 10, 1) 100%);
 }
 
 .bmol-type-selector {
@@ -1135,6 +1212,22 @@ onMounted(async () => {
   gap: 15px;
   flex-wrap: nowrap;
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+  box-sizing: border-box;
+}
+
+.bmol-rank-items-row::-webkit-scrollbar {
+  height: 4px;
+}
+.bmol-rank-items-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bmol-rank-items-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
 }
 
 .bmol-rank-items-row .bmol-item-card {
@@ -2240,6 +2333,28 @@ onMounted(async () => {
   }
   .detail-toolbar-actions {
     justify-content: space-between;
+  }
+  .bmol-header-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .bmol-type-selector {
+    width: 100%;
+  }
+  .type-selector-btn {
+    flex: 1;
+    text-align: center;
+  }
+  .btn-share-bol {
+    width: 100%;
+    justify-content: center;
+  }
+  .bmol-rank-items-row {
+    gap: 10px;
+  }
+  .bmol-rank-items-row .bmol-item-card {
+    min-width: 104px;
+    max-width: 120px;
   }
 }
 </style>

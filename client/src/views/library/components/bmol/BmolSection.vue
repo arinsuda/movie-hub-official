@@ -310,15 +310,15 @@
               </div>
             </div>
 
-            <!-- "+ X More" Card (If more than 3 items exist in this rank) -->
+            <!-- "+ X More" Card -->
             <div
-              v-if="group.items.length > 3"
+              v-if="group.items.length > maxSlots"
               class="bmol-item-card bmol-more-card"
               @click="openShowAllDetail(group.rank)"
             >
               <div class="more-card-inner">
                 <span class="more-count">
-                  {{ $t("library.bmol.moreItems", { count: group.items.length - 3 }) }}
+                  {{ $t("library.bmol.moreItems", { count: getMoreCount(group.items) }) }}
                 </span>
                 <span class="more-sub">Click to view all</span>
               </div>
@@ -399,7 +399,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue"
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue"
 import { Search, Trophy, ChevronLeft, Film, Sparkles, Share2 } from "lucide-vue-next"
 import { bmolApi, movieApi } from "@/api/api"
 import { useAuthStore } from "@/stores/auth"
@@ -422,6 +422,22 @@ const authStore = useAuthStore()
 const showShareModal = ref(false)
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
+
+// Responsive Viewport Slots calculation
+const windowWidth = ref(typeof window !== "undefined" ? window.innerWidth : 1200)
+
+function updateWindowWidth() {
+  windowWidth.value = window.innerWidth
+}
+
+onMounted(() => {
+  window.addEventListener("resize", updateWindowWidth, { passive: true })
+  updateWindowWidth()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", updateWindowWidth)
+})
 
 // Subtab & Detail selection
 const bmolSubTab = ref<"movie" | "tv">("movie")
@@ -462,8 +478,27 @@ const bmolFilteredItems = computed(() => {
   )
 })
 
+// Dynamic maximum visible item slots in a rank row
+const maxSlots = computed(() => {
+  if (windowWidth.value >= 1400) return 6
+  if (windowWidth.value >= 1200) return 5
+  if (windowWidth.value >= 960) return 4
+  if (windowWidth.value >= 480) return 3
+  return 2
+})
+
 function getRankItemsToShow(items: BMOLItemResponse[]) {
-  return items.slice(0, 3)
+  const limit = maxSlots.value
+  if (items.length <= limit) {
+    return items
+  }
+  return items.slice(0, limit - 1)
+}
+
+function getMoreCount(items: BMOLItemResponse[]) {
+  const limit = maxSlots.value
+  if (items.length <= limit) return 0
+  return items.length - (limit - 1)
 }
 
 function openShowAllDetail(rank: number) {
@@ -1169,6 +1204,14 @@ function getMediaDate(media: Movie | TVSeries): string {
   color: #71717a;
 }
 
+.bmol-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
 /* View Header area */
 .bmol-view-header {
   display: flex;
@@ -1176,6 +1219,8 @@ function getMediaDate(media: Movie | TVSeries): string {
   align-items: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   padding-bottom: 1rem;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .bmol-section-title {
@@ -1205,6 +1250,7 @@ function getMediaDate(media: Movie | TVSeries): string {
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(229, 9, 20, 0.3);
   transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
 .btn-share-bol:hover {
@@ -1231,6 +1277,7 @@ function getMediaDate(media: Movie | TVSeries): string {
   cursor: pointer;
   border-radius: 8px;
   transition: background-color 0.2s, color 0.2s;
+  touch-action: manipulation;
 }
 
 .view-selector-btn--active {
@@ -1278,15 +1325,14 @@ function getMediaDate(media: Movie | TVSeries): string {
 /* Scrollable row of items in same rank */
 .bmol-rank-items-row {
   display: flex;
-  gap: 1.5rem;
+  gap: clamp(10px, 2vw, 20px);
   flex-wrap: nowrap;
-  overflow: hidden;
-  width: 100%;
-}
-
-.bmol-rank-items-row--scrollable {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
   padding-bottom: 0.75rem;
+  box-sizing: border-box;
 }
 
 .bmol-rank-items-row--scrollable::-webkit-scrollbar {
@@ -1305,9 +1351,8 @@ function getMediaDate(media: Movie | TVSeries): string {
 }
 
 .bmol-rank-items-row .bmol-item-card {
-  width: calc(20% - 1.2rem);
-  min-width: 150px;
-  flex-shrink: 0;
+  flex: 0 0 clamp(104px, 22vw, 150px);
+  min-width: 0;
 }
 
 .btn-toggle-expand {
@@ -1635,7 +1680,42 @@ function getMediaDate(media: Movie | TVSeries): string {
   white-space: nowrap;
 }
 
-@media (max-width: 575px) {
+@media (max-width: 640px) {
+  .bmol-view-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .bmol-section-title {
+    font-size: 1.1rem;
+  }
+  .bmol-header-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .bmol-view-selector {
+    width: 100%;
+  }
+  .view-selector-btn {
+    flex: 1;
+    text-align: center;
+  }
+  .btn-share-bol {
+    width: 100%;
+    justify-content: center;
+  }
+  .bmol-breadcrumb-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+  .breadcrumb-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
   .detail-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -1649,18 +1729,8 @@ function getMediaDate(media: Movie | TVSeries): string {
 
 .bmol-detail-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.25rem;
-}
-@media (min-width: 576px) {
-  .bmol-detail-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (min-width: 768px) {
-  .bmol-detail-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  grid-template-columns: repeat(auto-fill, minmax(clamp(100px, 24vw, 150px), 1fr));
+  gap: clamp(10px, 2vw, 16px);
 }
 .bmol-detail-grid .bmol-item-card {
   width: 100% !important;

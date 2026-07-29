@@ -623,4 +623,34 @@
     border-color: rgba(225, 37, 27, 0.4);
     color: #ffffff;
   }
+
+  @media (hover: none), (max-width: 640px) {
+    .rm-btn {
+      opacity: 1;
+      transform: scale(1);
+      background: rgba(0, 0, 0, 0.75);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .poster-grid {
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 12px 10px;
+    }
+    .watch-log-bar {
+      gap: 3px;
+    }
+    .watch-count-chip,
+    .btn-log-watch-mini {
+      padding: 2px 4px;
+      font-size: 0.6rem;
+    }
+  }
+
+  @media (max-width: 360px) {
+    .poster-grid {
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 10px 8px;
+    }
+  }
 </style>
