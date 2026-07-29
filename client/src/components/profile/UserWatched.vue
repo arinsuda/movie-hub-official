@@ -79,18 +79,61 @@
           >
             {{ item.title }}
           </h4>
+
+          <!-- Watch Log Bar -->
+          <div class="watch-log-bar">
+            <button
+              class="watch-count-chip"
+              :title="$t('watchLog.watchHistory')"
+              @click.stop="openWatchHistory(item)"
+            >
+              <Eye :size="11" />
+              <span>{{ getWatchCountText(item) }}</span>
+            </button>
+            <button
+              v-if="isOwner"
+              class="btn-log-watch-mini"
+              :title="$t('watchLog.recordAnother')"
+              @click.stop="openWatchLogModal(item)"
+            >
+              <Plus :size="11" />
+              <span>{{ $t('watchLog.recordWatch') }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Modals for Watch Log & History -->
+    <WatchLogModal
+      v-if="showLogModal && activeLogMedia"
+      :media-id="activeLogMedia.id"
+      :media-type="activeLogMedia.type"
+      @close="showLogModal = false"
+      @logged="onWatchLogged"
+    />
+
+    <WatchHistoryPanel
+      v-if="showHistoryPanel && activeHistoryMedia"
+      :media-id="activeHistoryMedia.id"
+      :media-type="activeHistoryMedia.type"
+      @close="showHistoryPanel = false"
+      @changed="onWatchHistoryChanged"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref } from "vue"
-  import { Bookmark, Film, X, Clock, Star } from "lucide-vue-next"
+  import { onMounted, ref, computed } from "vue"
+  import { useI18n } from "vue-i18n"
+  import { Bookmark, Film, X, Clock, Star, Eye, Plus } from "lucide-vue-next"
   import { libraryApi } from "@/api/api"
+  import { watchLogApi } from "@/api/endpoints/watchLog"
+  import { useAuthStore } from "@/stores/auth"
   import { useRouter } from "vue-router"
   import ConfirmModal from "@/components/profile/components/ConfirmModal.vue"
+  import WatchLogModal from "@/components/movie/WatchLogModal.vue"
+  import WatchHistoryPanel from "@/components/movie/WatchHistoryPanel.vue"
   import type { ListType } from "@/types"
 
   const props = defineProps<{
@@ -99,15 +142,23 @@
   }>()
 
   const router = useRouter()
+  const { t } = useI18n()
+  const auth = useAuthStore()
+  const isOwner = computed(() => auth.user?.id === props.userId)
 
   const loading = ref(false)
-
   const TMDB_IMG = "https://image.tmdb.org/t/p/w342"
 
   const showModal = ref(false)
   const pendingId = ref<number | null>(null)
   const pendingType = ref<"movie" | "tv" | null>(null)
   const selectedItem = ref<WatchlistItem | null>(null)
+
+  const watchSummaries = ref<Record<string, number>>({})
+  const showLogModal = ref(false)
+  const activeLogMedia = ref<{ id: number; type: "movie" | "tv" } | null>(null)
+  const showHistoryPanel = ref(false)
+  const activeHistoryMedia = ref<{ id: number; type: "movie" | "tv" } | null>(null)
 
   interface WatchlistItem {
     id: number
@@ -122,6 +173,57 @@
   }
 
   const watchlist = ref<WatchlistItem[]>([])
+
+  function getWatchMediaKey(mediaId: number, mediaType: string): string {
+    return `${mediaType}_${mediaId}`
+  }
+
+  function getWatchCount(item: WatchlistItem): number {
+    const key = getWatchMediaKey(item.mediaId, item.mediaType)
+    return watchSummaries.value[key] ?? 1
+  }
+
+  function getWatchCountText(item: WatchlistItem): string {
+    const count = getWatchCount(item)
+    if (count === 1) {
+      return t("watchLog.watchedOnce")
+    }
+    return t("watchLog.watchedTimes", { count })
+  }
+
+  async function fetchWatchSummaryForItem(mediaId: number, mediaType: "movie" | "tv") {
+    try {
+      const res = await watchLogApi.getMyWatchLogs(mediaType, mediaId)
+      const key = getWatchMediaKey(mediaId, mediaType)
+      if (res.data && res.data.summary) {
+        watchSummaries.value[key] = res.data.summary.watch_count
+      }
+    } catch (err) {
+      // Fallback gracefully
+    }
+  }
+
+  function openWatchLogModal(item: WatchlistItem) {
+    activeLogMedia.value = { id: item.mediaId, type: item.mediaType as "movie" | "tv" }
+    showLogModal.value = true
+  }
+
+  function onWatchLogged() {
+    if (activeLogMedia.value) {
+      fetchWatchSummaryForItem(activeLogMedia.value.id, activeLogMedia.value.type)
+    }
+  }
+
+  function openWatchHistory(item: WatchlistItem) {
+    activeHistoryMedia.value = { id: item.mediaId, type: item.mediaType as "movie" | "tv" }
+    showHistoryPanel.value = true
+  }
+
+  function onWatchHistoryChanged() {
+    if (activeHistoryMedia.value) {
+      fetchWatchSummaryForItem(activeHistoryMedia.value.id, activeHistoryMedia.value.type)
+    }
+  }
 
   onMounted(async () => {
     try {
@@ -143,6 +245,10 @@
         genres: item.media.genres.map(g => g.name),
         rating: item.media.vote_average,
       }))
+
+      for (const item of watchlist.value) {
+        fetchWatchSummaryForItem(item.mediaId, item.mediaType as "movie" | "tv")
+      }
     } catch (err) {
       console.error("Fetch failed:", err)
     } finally {
@@ -449,5 +555,56 @@
   .overlay-rating {
     font-size: 0.58rem;
     color: rgba(255, 255, 255, 0.75);
+  }
+
+  /* Watch Log Controls */
+  .watch-log-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .watch-count-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(79, 70, 229, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    color: #a5b4fc;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+
+  .watch-count-chip:hover {
+    background: rgba(79, 70, 229, 0.22);
+    border-color: rgba(99, 102, 241, 0.45);
+    color: #c7d2fe;
+  }
+
+  .btn-log-watch-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e4e4e7;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+  }
+
+  .btn-log-watch-mini:hover {
+    background: rgba(225, 37, 27, 0.15);
+    border-color: rgba(225, 37, 27, 0.4);
+    color: #ffffff;
   }
 </style>
