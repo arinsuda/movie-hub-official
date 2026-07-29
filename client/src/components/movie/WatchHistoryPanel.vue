@@ -2,18 +2,18 @@
   <Teleport to="body">
     <Transition name="slide">
       <div class="panel-backdrop" @click.self="$emit('close')">
-        <div class="panel" role="dialog" aria-modal="true">
+        <div class="panel" role="dialog" aria-modal="true" :aria-label="t('watchLog.watchHistory')">
           <div class="panel-header">
-            <h2 class="panel-title">Watch History</h2>
-            <button class="panel-close" @click="$emit('close')">
+            <h2 class="panel-title">{{ t('watchLog.watchHistory') }}</h2>
+            <button class="panel-close" :aria-label="t('common.close')" @click="$emit('close')">
               <X class="icon" />
             </button>
           </div>
 
           <div class="panel-content">
-            <div v-if="loading" class="loading">Loading...</div>
+            <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
             <div v-else-if="!logs.length" class="empty">
-              No watch history yet.
+              {{ t('watchLog.noHistory') }}
             </div>
             <div v-else class="logs-list">
               <div v-for="log in logs" :key="log.id" class="log-item">
@@ -23,10 +23,10 @@
                     <Globe v-if="log.visibility === 'public'" class="vis-icon" />
                     <Users v-else-if="log.visibility === 'followers'" class="vis-icon" />
                     <Lock v-else class="vis-icon" />
-                    {{ log.visibility }}
+                    {{ getVisibilityText(log.visibility) }}
                   </div>
                 </div>
-                <button class="btn-delete" @click="handleDelete(log.id)">
+                <button class="btn-delete" :aria-label="t('watchLog.deleteWatch')" :title="t('watchLog.deleteWatch')" @click="handleDelete(log.id)">
                   <Trash2 class="icon" />
                 </button>
               </div>
@@ -40,9 +40,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { X, Trash2, Globe, Users, Lock } from 'lucide-vue-next'
 import { watchLogApi } from '@/api/endpoints/watchLog'
-import type { WatchLogResponse } from '@/types'
+import type { WatchLogResponse, Visibility } from '@/types'
 import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{
@@ -55,10 +56,17 @@ const emit = defineEmits<{
   changed: []
 }>()
 
-const { error: toastError } = useToast()
+const { t, locale } = useI18n()
+const { success: toastSuccess, error: toastError } = useToast()
 
 const logs = ref<WatchLogResponse[]>([])
 const loading = ref(true)
+
+function getVisibilityText(visibility: Visibility): string {
+  if (visibility === 'public') return t('visibility.public')
+  if (visibility === 'followers') return t('visibility.followers')
+  return t('visibility.private')
+}
 
 async function loadHistory() {
   try {
@@ -66,26 +74,33 @@ async function loadHistory() {
     logs.value = res.data.logs
   } catch (err) {
     console.error('Failed to load watch history:', err)
+    toastError(t('watchLog.loadFailed'))
   } finally {
     loading.value = false
   }
 }
 
 async function handleDelete(logId: number) {
-  if (!confirm('Are you sure you want to delete this watch log?')) return
+  if (!confirm(t('watchLog.deleteConfirm'))) return
   try {
     await watchLogApi.deleteWatchLog(logId)
     logs.value = logs.value.filter(l => l.id !== logId)
+    toastSuccess(t('watchLog.deleteSuccess'))
     emit('changed')
   } catch (err) {
     console.error('Failed to delete watch log:', err)
-    toastError('Failed to delete log')
+    toastError(t('watchLog.deleteFailed'))
   }
 }
 
 function formatDate(dateStr: string) {
+  if (!dateStr) return ''
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(locale.value === 'th' ? 'th-TH' : 'en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
 onMounted(() => {
