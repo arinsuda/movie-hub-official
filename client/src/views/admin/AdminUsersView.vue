@@ -70,7 +70,7 @@
               No users found.
             </td>
           </tr>
-          <tr v-for="u in users" :key="u.id">
+          <tr v-for="u in users" :key="u.id" class="user-row">
             <td>#{{ u.id }}</td>
             <td>
               <div class="user-cell">
@@ -79,6 +79,8 @@
                   :src="u.avatar_url"
                   class="user-avatar"
                   :alt="u.username"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div v-else class="user-avatar placeholder">
                   {{ u.username.charAt(0).toUpperCase() }}
@@ -159,16 +161,33 @@
         </button>
       </div>
     </div>
+
+    <!-- Official Admin Confirm Modal -->
+    <AdminConfirmModal
+      v-model="confirmModal.show"
+      :title="modalTitle"
+      :description="modalDescription"
+      :target-name="confirmModal.user ? `@${confirmModal.user.username}` : ''"
+      :variant="modalVariant"
+      :icon="modalIcon"
+      :confirm-text="modalConfirmText"
+      :loading="confirmModal.loading"
+      @confirm="onConfirmAction"
+      @cancel="confirmModal.show = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue"
 import { useAdminStore } from "@/stores/admin"
+import { useToast } from "@/composables/useToast"
 import type { AdminUserRow } from "@/types"
 import { Search, ArrowUpDown, Shield, UserX, UserCheck } from "lucide-vue-next"
+import AdminConfirmModal from "@/components/admin/AdminConfirmModal.vue"
 
 const adminStore = useAdminStore()
+const toast = useToast()
 const users = computed(() => adminStore.users)
 
 const search = ref("")
@@ -178,6 +197,55 @@ const sortBy = ref("created_at")
 const sortOrder = ref<"asc" | "desc">("desc")
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+interface ConfirmModalState {
+  show: boolean
+  type: "role" | "status"
+  user: AdminUserRow | null
+  targetRole?: string
+  newStatus?: boolean
+  loading: boolean
+}
+
+const confirmModal = ref<ConfirmModalState>({
+  show: false,
+  type: "role",
+  user: null,
+  loading: false,
+})
+
+const modalTitle = computed(() => {
+  if (!confirmModal.value.user) return ""
+  if (confirmModal.value.type === "role") {
+    return "เปลี่ยนสิทธิ์ผู้ใช้งาน"
+  }
+  return confirmModal.value.newStatus ? "เปิดคืนสิทธิ์ใช้งานบัญชี" : "ระงับการใช้งานบัญชี"
+})
+
+const modalDescription = computed(() => {
+  if (!confirmModal.value.user) return ""
+  if (confirmModal.value.type === "role") {
+    return `ต้องการเปลี่ยนสิทธิ์ของ @${confirmModal.value.user.username} จาก '${confirmModal.value.user.role}' เป็น '${confirmModal.value.targetRole}' หรือไม่?`
+  }
+  return confirmModal.value.newStatus
+    ? `คุณแน่ใจหรือไม่ที่จะเปิดคืนสิทธิ์ใช้งานบัญชี @${confirmModal.value.user.username}?`
+    : `คุณแน่ใจหรือไม่ที่จะระงับบัญชี @${confirmModal.value.user.username}? ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้`
+})
+
+const modalVariant = computed<"danger" | "info" | "success">(() => {
+  if (confirmModal.value.type === "role") return "info"
+  return confirmModal.value.newStatus ? "success" : "danger"
+})
+
+const modalIcon = computed(() => {
+  if (confirmModal.value.type === "role") return Shield
+  return confirmModal.value.newStatus ? UserCheck : UserX
+})
+
+const modalConfirmText = computed(() => {
+  if (confirmModal.value.type === "role") return "เปลี่ยนสิทธิ์"
+  return confirmModal.value.newStatus ? "เปิดใช้งานบัญชี" : "ระงับบัญชี"
+})
 
 function onSearchInput() {
   if (debounceTimer) clearTimeout(debounceTimer)
@@ -201,32 +269,50 @@ function fetchData(page = 1) {
   })
 }
 
-async function handleRoleChange(user: AdminUserRow) {
+function handleRoleChange(user: AdminUserRow) {
   const targetRole = user.role === "admin" ? "user" : "admin"
-  if (!confirm(`Change role of @${user.username} from '${user.role}' to '${targetRole}'?`)) return
-  const reason = prompt("Enter optional reason for this role change:") || undefined
-
-  try {
-    await adminStore.updateUserRole(user.id, targetRole, reason)
-    fetchData(adminStore.usersPage)
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } } }
-    alert(e.response?.data?.error || "Failed to update role")
+  confirmModal.value = {
+    show: true,
+    type: "role",
+    user,
+    targetRole,
+    loading: false,
   }
 }
 
-async function handleStatusChange(user: AdminUserRow) {
+function handleStatusChange(user: AdminUserRow) {
   const newStatus = !user.is_active
-  const actionText = newStatus ? "reactivate" : "deactivate"
-  if (!confirm(`Are you sure you want to ${actionText} @${user.username}?`)) return
-  const reason = prompt(`Enter optional reason to ${actionText} @${user.username}:`) || undefined
+  confirmModal.value = {
+    show: true,
+    type: "status",
+    user,
+    newStatus,
+    loading: false,
+  }
+}
+
+async function onConfirmAction(payload: { reason: string }) {
+  if (!confirmModal.value.user) return
+  confirmModal.value.loading = true
+  const user = confirmModal.value.user
+  const reason = payload.reason || undefined
 
   try {
-    await adminStore.updateUserStatus(user.id, newStatus, reason)
+    if (confirmModal.value.type === "role" && confirmModal.value.targetRole) {
+      await adminStore.updateUserRole(user.id, confirmModal.value.targetRole, reason)
+      toast.success(`อัปเดตสิทธิ์ของ @${user.username} เรียบร้อยแล้ว`)
+    } else if (confirmModal.value.type === "status" && confirmModal.value.newStatus !== undefined) {
+      await adminStore.updateUserStatus(user.id, confirmModal.value.newStatus, reason)
+      const statusText = confirmModal.value.newStatus ? "เปิดคืนสิทธิ์ใช้งาน" : "ระงับการใช้งาน"
+      toast.success(`${statusText} @${user.username} เรียบร้อยแล้ว`)
+    }
+    confirmModal.value.show = false
     fetchData(adminStore.usersPage)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
-    alert(e.response?.data?.error || "Failed to update status")
+    toast.error(e.response?.data?.error || "เกิดข้อผิดพลาดในการดำเนินการ")
+  } finally {
+    confirmModal.value.loading = false
   }
 }
 
@@ -323,6 +409,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   overflow-x: auto;
+  contain: layout style;
 }
 
 .admin-table {
@@ -344,6 +431,15 @@ onMounted(() => {
   padding: 0.85rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--color-text-primary);
+}
+
+.user-row {
+  transition: background-color 0.15s ease;
+  will-change: background-color;
+}
+
+.user-row:hover {
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 .user-cell {
@@ -410,12 +506,13 @@ onMounted(() => {
   color: var(--color-text-secondary);
   border-radius: 0.35rem;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transform: translateZ(0);
 }
-.action-btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-brand); }
+.action-btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-brand); transform: translateY(-1px) translateZ(0); }
 .action-btn.danger:hover:not(:disabled) { color: #ef4444; border-color: #ef4444; }
 .action-btn.success:hover:not(:disabled) { color: #10b981; border-color: #10b981; }
-.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
 
 .text-right { text-align: right; }
 .text-center { text-align: center; }
@@ -444,6 +541,7 @@ onMounted(() => {
   color: var(--color-text-primary);
   border-radius: 0.35rem;
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

@@ -94,6 +94,8 @@
                   :src="r.poster_url"
                   class="media-poster-thumb"
                   :alt="r.media_title || 'poster'"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div v-else class="media-poster-thumb placeholder">
                   <i class="pi pi-film" />
@@ -176,7 +178,7 @@
         <div class="review-detail-modal" role="dialog" aria-modal="true">
           <div class="detail-modal-header">
             <h3><i class="pi pi-comments" /> รายละเอียดรีวิว #{{ selectedReview.id }}</h3>
-            <button class="btn-close-modal" @click="selectedReview = null">
+            <button class="btn-close-modal" aria-label="Close detail modal" @click="selectedReview = null">
               <X :size="18" />
             </button>
           </div>
@@ -189,6 +191,8 @@
                 :src="selectedReview.poster_url"
                 class="modal-poster"
                 :alt="selectedReview.media_title || 'Poster'"
+                loading="lazy"
+                decoding="async"
               />
               <div v-else class="modal-poster placeholder">
                 <i class="pi pi-film" style="font-size: 2.5rem" />
@@ -256,7 +260,7 @@
           </div>
 
           <div class="detail-modal-footer">
-            <button class="btn-modal-delete" @click="handleDelete(selectedReview); selectedReview = null">
+            <button class="btn-modal-delete" @click="handleDelete(selectedReview)">
               <Trash2 :size="16" />
               <span>ลบรีวิวนี้</span>
             </button>
@@ -267,6 +271,19 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Official Admin Confirm Modal for Delete -->
+    <AdminConfirmModal
+      v-model="deleteModal.show"
+      title="ยืนยันการลบรีวิว"
+      description="คุณแน่ใจหรือไม่ที่จะลบรีวิวนี้? ระบบจะทำการลบแบบ Soft Delete"
+      :target-name="deleteModal.review ? `รีวิว #${deleteModal.review.id} (@${deleteModal.review.username})` : ''"
+      variant="danger"
+      confirm-text="ลบรีวิว"
+      :loading="deleteModal.loading"
+      @confirm="onConfirmDelete"
+      @cancel="deleteModal.show = false"
+    />
   </div>
 </template>
 
@@ -274,13 +291,28 @@
 import { ref, computed, onMounted } from "vue"
 import { RouterLink } from "vue-router"
 import { useAdminStore } from "@/stores/admin"
+import { useToast } from "@/composables/useToast"
 import type { AdminReviewRow } from "@/types"
 import { Search, ArrowUpDown, Star, Trash2, Eye, ExternalLink, Lock, Globe, X } from "lucide-vue-next"
+import AdminConfirmModal from "@/components/admin/AdminConfirmModal.vue"
 
 const adminStore = useAdminStore()
+const toast = useToast()
 const reviews = computed(() => adminStore.reviews)
 
 const selectedReview = ref<AdminReviewRow | null>(null)
+
+interface DeleteModalState {
+  show: boolean
+  review: AdminReviewRow | null
+  loading: boolean
+}
+
+const deleteModal = ref<DeleteModalState>({
+  show: false,
+  review: null,
+  loading: false,
+})
 
 function openDetail(review: AdminReviewRow) {
   selectedReview.value = review
@@ -316,16 +348,33 @@ function fetchData(page = 1) {
   })
 }
 
-async function handleDelete(review: AdminReviewRow) {
-  if (!confirm(`Are you sure you want to delete review #${review.id} by @${review.username}?`)) return
-  const reason = prompt("Enter optional reason for review deletion:") || undefined
+function handleDelete(review: AdminReviewRow) {
+  deleteModal.value = {
+    show: true,
+    review,
+    loading: false,
+  }
+}
+
+async function onConfirmDelete(payload: { reason: string }) {
+  if (!deleteModal.value.review) return
+  deleteModal.value.loading = true
+  const review = deleteModal.value.review
+  const reason = payload.reason || undefined
 
   try {
     await adminStore.deleteReview(review.id, reason)
+    toast.success(`ลบรีวิว #${review.id} เรียบร้อยแล้ว`)
+    deleteModal.value.show = false
+    if (selectedReview.value?.id === review.id) {
+      selectedReview.value = null
+    }
     fetchData(adminStore.reviewsPage)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
-    alert(e.response?.data?.error || "Failed to delete review")
+    toast.error(e.response?.data?.error || "เกิดข้อผิดพลาดในการลบรีวิว")
+  } finally {
+    deleteModal.value.loading = false
   }
 }
 
@@ -422,6 +471,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   overflow-x: auto;
+  contain: layout style;
 }
 
 .admin-table {
@@ -448,11 +498,12 @@ onMounted(() => {
 .font-semibold { font-weight: 600; }
 
 .review-row {
-  transition: background 0.15s ease;
+  transition: background-color 0.15s ease;
+  will-change: background-color;
 }
 
 .review-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 .author-cell {
@@ -490,11 +541,11 @@ onMounted(() => {
   color: var(--color-text-primary);
   padding: 0.25rem 0.4rem;
   border-radius: 0.35rem;
-  transition: background 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
 .media-info-link:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .media-info-link:hover .media-title-text {
@@ -531,7 +582,7 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: color 0.15s;
+  transition: color 0.15s ease;
 }
 
 .media-type-tag {
@@ -557,7 +608,7 @@ onMounted(() => {
 .ext-icon {
   color: var(--color-text-secondary);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s ease;
 }
 
 .media-info-link:hover .ext-icon {
@@ -602,19 +653,22 @@ onMounted(() => {
   color: var(--color-text-secondary);
   border-radius: 0.35rem;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+  transform: translateZ(0);
 }
 
 .action-btn.info:hover {
   color: #3b82f6;
   border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  background-color: rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px) translateZ(0);
 }
 
 .action-btn.danger:hover {
   color: #ef4444;
   border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  background-color: rgba(239, 68, 68, 0.1);
+  transform: translateY(-1px) translateZ(0);
 }
 
 .text-right { text-align: right; }
@@ -644,6 +698,7 @@ onMounted(() => {
   color: var(--color-text-primary);
   border-radius: 0.35rem;
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -654,10 +709,13 @@ onMounted(() => {
   z-index: 9999;
   background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  will-change: opacity;
+  transform: translateZ(0);
 }
 
 .review-detail-modal {
@@ -672,6 +730,9 @@ onMounted(() => {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
   overflow: hidden;
   color: #ffffff;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  contain: layout style;
 }
 
 .detail-modal-header {
@@ -705,7 +766,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s;
+  transition: color 0.15s ease;
 }
 
 .btn-close-modal:hover {
@@ -792,7 +853,7 @@ onMounted(() => {
   font-weight: 600;
   color: #3b82f6;
   text-decoration: none;
-  transition: color 0.15s;
+  transition: color 0.15s ease;
 }
 
 .btn-view-media:hover {
@@ -884,12 +945,14 @@ onMounted(() => {
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transform: translateZ(0);
 }
 
 .btn-modal-delete:hover {
-  background: rgba(239, 68, 68, 0.25);
+  background-color: rgba(239, 68, 68, 0.25);
   border-color: #ef4444;
+  transform: translateY(-1px) translateZ(0);
 }
 
 .btn-modal-close {
@@ -901,10 +964,10 @@ onMounted(() => {
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background-color 0.15s ease;
 }
 
 .btn-modal-close:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.15);
 }
 </style>
