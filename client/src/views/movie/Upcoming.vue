@@ -16,7 +16,7 @@
       <header class="page-header" ref="introRef">
         <div class="page-header__eyebrow">
           <span class="eyebrow-dot" />
-          <span class="eyebrow-text">REMOV</span>
+          <span class="eyebrow-text">REMOVY</span>
         </div>
         <div class="page-header__row">
           <div>

@@ -2,7 +2,7 @@
   <div class="session-bootstrap-container">
     <div class="session-bootstrap-card">
       <div class="brand-logo">
-        <span class="brand-movie">RE</span><span class="brand-hub">MOV</span>
+        <span class="brand-movie">RE</span><span class="brand-hub">MOVY</span>
       </div>
 
       <!-- Loading State -->

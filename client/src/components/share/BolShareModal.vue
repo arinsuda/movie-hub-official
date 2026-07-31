@@ -252,7 +252,7 @@ async function handleDownload() {
       const label = props.mediaType === "movie" ? "Movies" : "TV"
       const filename = share.sanitizeFilename(
         `BOL_${label}_Top5`,
-        "REMOV_BOL"
+        "REMOVY_BOL"
       )
       share.downloadBlob(blob, filename)
     }
@@ -263,7 +263,7 @@ async function handleDownload() {
 
 function handleCopyCaption() {
   const mediaLabel = props.mediaType === "movie" ? "Movies" : "TV Series"
-  let text = `🏆 My Top Best ${mediaLabel} of Life on REMOV ✨\n\n`
+  let text = `🏆 My Top Best ${mediaLabel} of Life on REMOVY ✨\n\n`
 
   const topRanks = props.ranks.slice(0, 5)
   topRanks.forEach((group) => {
@@ -275,7 +275,7 @@ function handleCopyCaption() {
     text += `\nCurated by @${props.username}\n`
   }
 
-  text += `\nShared from remov.app ✨`
+  text += `\nShared from removy.app ✨`
   share.copyText(text, "share.captionCopied")
 }
 

@@ -112,9 +112,9 @@
               <i class="pi pi-star-fill"></i>
               TMDB: {{ tv.vote_average.toFixed(1) }}
             </span>
-            <span class="meta-badge rating-remov" v-if="removStats.average_rating > 0">
-              <RemovRatingIcon :size="12" style="margin-right: 4px;" />
-              REMOV: {{ removStats.average_rating.toFixed(1) }}/5
+            <span class="meta-badge rating-removy" v-if="removyStats.average_rating > 0">
+              <RemovyRatingIcon :size="12" style="margin-right: 4px;" />
+              REMOVY: {{ removyStats.average_rating.toFixed(1) }}/5
             </span>
           </div>
 
@@ -124,39 +124,39 @@
             </span>
           </div>
 
-          <section class="remov-info-section">
-            <div class="remov-stat-card view">
+          <section class="removy-info-section">
+            <div class="removy-stat-card view">
               <i class="pi pi-eye"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.view_count.toLocaleString()
+                  removyStats.view_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">ยอดเข้าชม</span>
               </div>
             </div>
-            <div class="remov-stat-card like">
+            <div class="removy-stat-card like">
               <i class="pi pi-thumbs-up-fill"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.like_count.toLocaleString()
+                  removyStats.like_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">ถูกใจ</span>
               </div>
             </div>
-            <div class="remov-stat-card review">
+            <div class="removy-stat-card review">
               <i class="pi pi-comment"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.review_count.toLocaleString()
+                  removyStats.review_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">รีวิว</span>
               </div>
             </div>
-            <div class="remov-stat-card watchlist">
+            <div class="removy-stat-card watchlist">
               <i class="pi pi-bookmark-fill"></i>
               <div class="stat-details">
                 <span class="stat-count">{{
-                  removStats.watchlist_count.toLocaleString()
+                  removyStats.watchlist_count.toLocaleString()
                 }}</span>
                 <span class="stat-name">เพลย์ลิสต์</span>
               </div>
@@ -223,7 +223,7 @@
 
           <section class="info-section review-zone">
             <h2 class="section-title">
-              <i class="pi pi-comments"></i>รีวิวจากผู้ใช้งาน REMOV
+              <i class="pi pi-comments"></i>รีวิวจากผู้ใช้งาน REMOVY
             </h2>
             <MovieReviews
               :movie-id="displayTvId"
@@ -272,7 +272,7 @@
   import { resolveTrailer } from "@/composables/useTrailerPreview"
   import { useAuthStore } from "@/stores/auth"
   import { mediaApi } from "@/api/endpoints/media"
-  import RemovRatingIcon from "@/components/movie/RemovRatingIcon.vue"
+  import RemovyRatingIcon from "@/components/movie/RemovyRatingIcon.vue"
 
   const route = useRoute()
   const router = useRouter()
@@ -296,8 +296,8 @@
         : null,
       genres: tv.value.genres || [],
       voteAverage: tv.value.vote_average || 0,
-      removRating: removStats.value?.has_rating
-        ? removStats.value.average_rating
+      removyRating: removyStats.value?.has_rating
+        ? removyStats.value.average_rating
         : null,
     }
   })
@@ -340,9 +340,9 @@
     }
   }
 
-  const removStats = ref(createDefaultStats())
+  const removyStats = ref(createDefaultStats())
 
-  const isLiked = computed(() => removStats.value.liked_at !== null)
+  const isLiked = computed(() => removyStats.value.liked_at !== null)
 
   const isWatchlisted = ref(false)
   const isWatched = ref(false)
@@ -389,16 +389,16 @@
     try {
       if (isLiked.value) {
         await mediaApi.unlikeMedia("tv", tvId.value)
-        removStats.value.liked_at = null
-        removStats.value.like_count = Math.max(
+        removyStats.value.liked_at = null
+        removyStats.value.like_count = Math.max(
           0,
-          removStats.value.like_count - 1,
+          removyStats.value.like_count - 1,
         )
         window.$toast?.info("ลบภาพยนตร์ออกจากรายการที่ชอบแล้ว")
       } else {
         await mediaApi.likeMedia("tv", tvId.value)
-        removStats.value.liked_at = new Date().toISOString()
-        removStats.value.like_count += 1
+        removyStats.value.liked_at = new Date().toISOString()
+        removyStats.value.like_count += 1
         window.$toast?.success("เพิ่มเข้าภาพยนตร์ที่คุณชื่นชอบแล้ว")
       }
     } catch (err) {
@@ -437,9 +437,9 @@
            watchlist_ItemId.value!,
          )
 
-        removStats.value.watchlist_count = Math.max(
+        removyStats.value.watchlist_count = Math.max(
           0,
-          removStats.value.watchlist_count - 1,
+          removyStats.value.watchlist_count - 1,
         )
         isWatchlisted.value = false
         watchlist_ItemId.value = null
@@ -455,7 +455,7 @@
           watchlist_ItemId.value = res.data.item.id
         }
 
-        removStats.value.watchlist_count += 1
+        removyStats.value.watchlist_count += 1
         isWatchlisted.value = true
         window.$toast?.success("เพิ่มเข้าเพลย์ลิสต์สำเร็จ 🍿")
       }
@@ -654,7 +654,7 @@
       if (statsRes.data && statsRes.data.stats) {
         const incomingStats = statsRes.data.stats
 
-        removStats.value = {
+        removyStats.value = {
           media_id: incomingStats.media_id ?? 0,
           media_type: incomingStats.media_type ?? "tv",
           like_count: incomingStats.like_count ?? 0,
@@ -747,7 +747,7 @@
       isWatched.value = false
       watchlist_ItemId.value = null
       watched_ItemId.value = null
-      removStats.value = createDefaultStats()
+      removyStats.value = createDefaultStats()
       displayTvId.value = currentTvId
 
       mediaApi.recordMediaView("tv", currentTvId).catch(err => {
@@ -1068,13 +1068,13 @@
   .rating-tmdb i {
     color: var(--gold);
   }
-  .rating-remov {
+  .rating-removy {
     background: rgba(255, 42, 42, 0.15);
     border-color: rgba(255, 0, 0, 0.3);
     color: var(--red);
     font-weight: 600;
   }
-  .rating-remov i {
+  .rating-removy i {
     color: var(--red);
   }
   .genres-list {
@@ -1096,13 +1096,13 @@
     border-top: 1px solid var(--border);
     margin: 0.5rem 0;
   }
-  .remov-info-section {
+  .removy-info-section {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1rem;
     margin: 0.5rem 0;
   }
-  .remov-stat-card {
+  .removy-stat-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -1115,11 +1115,11 @@
       transform 0.2s,
       background 0.2s;
   }
-  .remov-stat-card:hover {
+  .removy-stat-card:hover {
     background: rgba(255, 255, 255, 0.06);
     transform: translateY(-2px);
   }
-  .remov-stat-card i {
+  .removy-stat-card i {
     font-size: 1.25rem;
     padding: 0.5rem;
     border-radius: 8px;
@@ -1141,19 +1141,19 @@
     color: var(--muted);
     white-space: nowrap;
   }
-  .remov-stat-card.view i {
+  .removy-stat-card.view i {
     background: rgba(115, 164, 255, 0.15);
     color: #73a4ff;
   }
-  .remov-stat-card.like i {
+  .removy-stat-card.like i {
     background: rgba(255, 42, 116, 0.15);
     color: var(--neon-pink);
   }
-  .remov-stat-card.review i {
+  .removy-stat-card.review i {
     background: rgba(46, 213, 115, 0.15);
     color: #2ed573;
   }
-  .remov-stat-card.watchlist i {
+  .removy-stat-card.watchlist i {
     background: rgba(245, 197, 24, 0.15);
     color: var(--gold);
   }
@@ -1330,7 +1330,7 @@
     .detail-backdrop {
       height: 460px;
     }
-    .remov-info-section {
+    .removy-info-section {
       grid-template-columns: repeat(4, 1fr);
       gap: 0.85rem;
     }
@@ -1364,7 +1364,7 @@
       font-size: 0.82rem;
       padding: 0.65rem;
     }
-    .remov-info-section {
+    .removy-info-section {
       grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
     }
@@ -1434,16 +1434,16 @@
       font-size: 0.7rem;
       padding: 0.15rem 0.6rem;
     }
-    .remov-info-section {
+    .removy-info-section {
       grid-template-columns: repeat(2, 1fr);
       gap: 0.6rem;
     }
-    .remov-stat-card {
+    .removy-stat-card {
       padding: 0.6rem 0.75rem;
       gap: 0.6rem;
       border-radius: 10px;
     }
-    .remov-stat-card i {
+    .removy-stat-card i {
       font-size: 1rem;
       padding: 0.4rem;
     }
@@ -1509,7 +1509,7 @@
     .genres-list {
       justify-content: center;
     }
-    .remov-info-section {
+    .removy-info-section {
       grid-template-columns: 1fr;
       gap: 0.6rem;
     }
@@ -1578,7 +1578,7 @@
       font-size: 0.68rem;
       padding: 0.28rem 0.55rem;
     }
-    .remov-stat-card {
+    .removy-stat-card {
       padding: 0.55rem 0.65rem;
     }
     .stat-count {

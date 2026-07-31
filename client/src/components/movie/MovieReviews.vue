@@ -214,7 +214,7 @@
       releaseYear: null,
       genres: r.media?.genres || [],
       voteAverage: r.media?.vote_average || 0,
-      removRating: null,
+      removyRating: null,
     }
   })
 

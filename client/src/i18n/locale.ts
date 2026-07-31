@@ -66,14 +66,14 @@ export function updateDocumentTitle() {
     const currentRoute = router.currentRoute.value;
     if (currentRoute && currentRoute.meta && currentRoute.meta.titleKey) {
       const titleKey = currentRoute.meta.titleKey as string;
-      document.title = `${i18n.global.t(titleKey)} | REMOV`;
+      document.title = `${i18n.global.t(titleKey)} | REMOVY`;
     } else if (currentRoute && currentRoute.meta && typeof currentRoute.meta.title === "string") {
-      document.title = `${currentRoute.meta.title} | REMOV`;
+      document.title = `${currentRoute.meta.title} | REMOVY`;
     } else if (currentRoute && currentRoute.name) {
       const routeName = String(currentRoute.name);
-      document.title = `${routeName.toUpperCase()} | REMOV`;
+      document.title = `${routeName.toUpperCase()} | REMOVY`;
     } else {
-      document.title = "REMOV";
+      document.title = "REMOVY";
     }
   });
 }
