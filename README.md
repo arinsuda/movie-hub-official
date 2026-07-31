@@ -1,4 +1,4 @@
-# REMOV
+# REMOVY
 
 A full-stack web application for browsing and reviewing movies, built with Vue 3 on the frontend and Go on the backend.
 
