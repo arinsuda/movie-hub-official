@@ -70,11 +70,24 @@
     <p class="popup__overview">{{ truncate(movie.overview, 130) }}</p>
 
     <div class="popup__actions">
-      <button class="action-btn action-btn--watched" title="Views Static">
-        <Eye :size="15" />
-        <span>{{ fmtCount(stats.view_count) }}</span>
+      <!-- 1. Watched Toggle Button -->
+      <button
+        class="action-btn action-btn--watched"
+        :class="{ 'action-btn--active': isWatched }"
+        :title="isWatched ? 'ดูแล้ว (คลิกเพื่อยกเลิก)' : 'ทำเครื่องหมายว่าดูแล้ว'"
+        @click.stop="handleWatchedToggle"
+      >
+        <CheckCircle2 :size="15" :fill="isWatched ? 'currentColor' : 'none'" />
+        <span>{{ isWatched ? 'ดูแล้ว' : 'ยังไม่ดู' }}</span>
       </button>
 
+      <!-- 2. Views Count Indicator -->
+      <div class="action-btn action-btn--views" title="ยอดเข้าชม">
+        <Eye :size="15" />
+        <span>{{ fmtCount(stats.view_count) }}</span>
+      </div>
+
+      <!-- 3. Review Button -->
       <RouterLink
         :to="{
           name: detailRouteName,
@@ -82,33 +95,33 @@
           query: { action: 'review' },
         }"
         class="action-btn action-btn--review"
-        title="Review"
+        title="รีวิว"
       >
         <PenLine :size="15" />
         <span>{{ fmtCount(stats.review_count) }}</span>
       </RouterLink>
 
+      <!-- 4. Favorite/Like Button -->
       <button
         class="action-btn action-btn--favorite"
         :class="{ 'action-btn--active': isLiked }"
-        title="Favourite"
+        :title="isLiked ? 'ถูกใจแล้ว (คลิกเพื่อยกเลิก)' : 'เพิ่มในรายการที่ชอบ'"
         @click.stop="handleLikeToggle"
       >
         <Heart :size="15" :fill="isLiked ? 'currentColor' : 'none'" />
-        <span>{{ fmtCount(stats.like_count) }}</span>
+        <span>{{ isLiked ? 'ถูกใจแล้ว' : 'ถูกใจ' }}</span>
       </button>
 
+      <!-- 5. Watchlist Button -->
       <button
         class="action-btn action-btn--watchlist"
         :class="{ 'action-btn--active': isInWatchlist }"
-        title="Watchlist"
+        :title="isInWatchlist ? 'อยู่ใน Watchlist แล้ว (คลิกเพื่อยกเลิก)' : 'เพิ่มเข้า Watchlist'"
         @click.stop="handleWatchlistToggle"
       >
-        <BookmarkPlus
-          :size="15"
-          :fill="isInWatchlist ? 'currentColor' : 'none'"
-        />
-        <span>{{ fmtCount(stats.watchlist_count) }}</span>
+        <BookmarkCheck v-if="isInWatchlist" :size="15" fill="currentColor" />
+        <BookmarkPlus v-else :size="15" fill="none" />
+        <span>{{ isInWatchlist ? 'รอดูแล้ว' : 'รอดู' }}</span>
       </button>
     </div>
   </div>
@@ -127,9 +140,11 @@ import {
   Film,
   Star,
   Eye,
+  CheckCircle2,
   PenLine,
   Heart,
   BookmarkPlus,
+  BookmarkCheck,
   VolumeX,
 } from "lucide-vue-next";
 import { useImageUrl } from "@/composables/useImageUrl";
@@ -261,6 +276,8 @@ const stats = ref({
 const isLiked = ref(false);
 const isInWatchlist = ref(false);
 const watchlistItemId = ref<number | null>(null);
+const isWatched = ref(false);
+const watchedItemId = ref<number | null>(null);
 
 // Populate stats and like status from props reactively
 watch(
@@ -275,6 +292,7 @@ watch(
         watchlist_count: s?.watchlist_count ?? newMovie.watchlist_count ?? 0,
       };
       isLiked.value = !!(s?.liked_at ?? newMovie.liked_at);
+      isWatched.value = !!(s?.watched_at ?? newMovie.watched_at);
     }
   },
   { immediate: true }
@@ -296,10 +314,61 @@ onMounted(async () => {
       isInWatchlist.value = true;
       watchlistItemId.value = watchlistInfo.item_id;
     }
+
+    const watchedInfo = resLibrary.data?.in_lists?.find(
+      (item: any) => item.list_type === "watched",
+    );
+
+    if (watchedInfo) {
+      isWatched.value = true;
+      watchedItemId.value = watchedInfo.item_id;
+    }
   } catch (err) {
     console.error("ไม่สามารถโหลดสถานะไลบรารีจากระบบหลังบ้านได้:", err);
   }
 });
+
+// ─── Watched Toggle ───────────────────────────────────────────────────────
+async function handleWatchedToggle() {
+  if (!currentUserId.value) {
+    window.$toast?.warning("กรุณาเข้าสู่ระบบก่อนใช้งาน", "แจ้งเตือน");
+    return;
+  }
+
+  try {
+    if (isWatched.value && watchedItemId.value) {
+      await libraryApi.removeItem(watchedItemId.value);
+      stats.value.view_count = Math.max(0, stats.value.view_count - 1);
+      isWatched.value = false;
+      watchedItemId.value = null;
+      window.$toast?.info(`ลบออกจากรายการดูแล้ว`, displayTitle.value);
+    } else {
+      const res = await libraryApi.addItem({
+        media_id: props.movie.id,
+        media_type: mt.value,
+        list_type: "watched",
+        watched_at: new Date().toISOString().split("T")[0],
+      });
+
+      if (res.data?.item) {
+        watchedItemId.value = res.data.item.id;
+      }
+
+      stats.value.view_count++;
+      isWatched.value = true;
+      window.$toast?.success(
+        `มาร์กสถานะว่าดูแล้วเรียบร้อย! ✔️`,
+        displayTitle.value,
+      );
+    }
+  } catch (err) {
+    console.error("Watched Error:", err);
+    window.$toast?.error(
+      "บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "REMOVY HUB",
+    );
+  }
+}
 
 // ─── Like Toggle ──────────────────────────────────────────────────────────
 async function handleLikeToggle() {
@@ -560,7 +629,9 @@ function fmtRuntime(mins: number) {
   }
 }
 .popup__info {
-  padding: 0.8rem 0.875rem 0.875rem;
+  padding: 0.85rem;
+  background: rgba(18, 18, 22, 0.95);
+  backdrop-filter: blur(12px);
 }
 .popup__title-row {
   display: flex;
@@ -571,18 +642,23 @@ function fmtRuntime(mins: number) {
 .popup__title-link {
   cursor: pointer;
   color: inherit;
+  text-decoration: none;
+}
+.popup__title-link:hover .popup__title {
+  color: #ffffff;
 }
 .popup__title {
   flex: 1;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #f0f0f0;
+  color: #f1f5f9;
   margin: 0;
   line-height: 1.3;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  transition: color 0.15s;
 }
 .popup__rating {
   display: flex;
@@ -606,33 +682,117 @@ function fmtRuntime(mins: number) {
 .popup__chip {
   font-size: 0.6rem;
   font-weight: 600;
-  color: #666;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 4px;
   padding: 2px 6px;
 }
 .popup__overview {
   font-size: 0.7rem;
-  color: #666;
+  color: #94a3b8;
   line-height: 1.6;
   margin: 0 0 0.75rem;
 }
 .popup__actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
 }
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  gap: 3px;
+  padding: 0.45rem 0.15rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.58rem;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.action-btn:hover {
+  transform: translateY(-2px);
+}
+
 .action-btn--watched {
-  background: #1d4ed8;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
+.action-btn--watched:hover {
+  background: rgba(6, 182, 212, 0.18);
+  border-color: rgba(6, 182, 212, 0.45);
+  color: #22d3ee;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+}
+.action-btn--watched.action-btn--active {
+  background: rgba(6, 182, 212, 0.28);
+  border-color: rgba(6, 182, 212, 0.85);
+  color: #67e8f9;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.45);
+}
+
+.action-btn--views {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.22);
+  color: #818cf8;
+  cursor: default;
+}
+.action-btn--views:hover {
+  transform: none;
+}
+
 .action-btn--review {
-  background: #16a34a;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #34d399;
 }
+.action-btn--review:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
 .action-btn--favorite {
-  background: #e50914;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
 }
+.action-btn--favorite:hover {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: rgba(244, 63, 94, 0.45);
+  color: #fb7185;
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.2);
+}
+.action-btn--favorite.action-btn--active {
+  background: rgba(244, 63, 94, 0.28);
+  border-color: rgba(244, 63, 94, 0.85);
+  color: #fecdd3;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.45);
+}
+
 .action-btn--watchlist {
-  background: #d97706;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+.action-btn--watchlist:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+.action-btn--watchlist.action-btn--active {
+  background: rgba(245, 158, 11, 0.28);
+  border-color: rgba(245, 158, 11, 0.85);
+  color: #fef3c7;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
 }
 </style>

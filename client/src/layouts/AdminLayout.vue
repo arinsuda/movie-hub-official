@@ -4,7 +4,7 @@
     <header class="admin-topbar">
       <div class="admin-brand">
         <RouterLink to="/" class="nav-logo">
-          <span class="logo-movie">RE</span><span class="logo-hub">MOV</span>
+          <span class="logo-movie">RE</span><span class="logo-hub">MOVY</span>
         </RouterLink>
         <span class="admin-badge">
           <Shield :size="14" /> {{ $t("admin.nav.adminMode") }}

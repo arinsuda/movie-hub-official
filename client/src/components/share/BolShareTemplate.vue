@@ -8,7 +8,7 @@
     <div class="card-header">
       <div class="header-branding">
         <div class="brand-logo">
-          <span class="logo-re">RE</span><span class="logo-mov">MOV</span>
+          <span class="logo-re">RE</span><span class="logo-mov">MOVY</span>
         </div>
         <div class="header-badge">
           <span class="badge-dot"></span>
