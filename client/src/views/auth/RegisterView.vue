@@ -4,10 +4,10 @@
     <div class="auth-container" ref="containerRef">
       <div class="auth-brand" ref="brandRef">
         <div class="brand-logo">
-          <span class="brand-movie">RE</span><span class="brand-hub">MOV</span>
+          <span class="brand-movie">RE</span><span class="brand-hub">MOVY</span>
         </div>
         <p class="brand-tagline">
-          Welcome to Remov – Your Ultimate Destination<br />
+          Welcome to Removy – Your Ultimate Destination<br />
           for Movie Reviews and Recommendations!
         </p>
       </div>

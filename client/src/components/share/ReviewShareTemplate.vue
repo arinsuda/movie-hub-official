@@ -99,9 +99,9 @@
       <div class="brand-divider" />
       <span class="reviewed-label">REVIEWED ON</span>
       <div class="brand-logo">
-        <span class="logo-re">RE</span><span class="logo-mov">MOV</span>
+        <span class="logo-re">RE</span><span class="logo-mov">MOVY</span>
       </div>
-      <span class="brand-handle">remov.app</span>
+      <span class="brand-handle">removy.app</span>
     </div>
   </div>
 </template>

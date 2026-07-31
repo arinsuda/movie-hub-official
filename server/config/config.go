@@ -114,7 +114,7 @@ func Load() (*Config, error) {
 			Port:     smtpPort,
 			Username: getEnv("SMTP_USERNAME", ""),
 			Password: getEnv("SMTP_PASSWORD", ""),
-			From:     getEnv("SMTP_FROM", "noreply@remov.app"),
+			From:     getEnv("SMTP_FROM", "noreply@removy.app"),
 		},
 		Cookie: CookieConfig{
 			Domain:   getEnv("COOKIE_DOMAIN", ""),
@@ -125,7 +125,7 @@ func Load() (*Config, error) {
 			Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
 			AccessKey:  getEnv("MINIO_ROOT_USER", "minioadmin"),
 			SecretKey:  getEnv("MINIO_ROOT_PASSWORD", "minioadmin"),
-			BucketName: getEnv("MINIO_BUCKET_NAME", "remov-private"),
+			BucketName: getEnv("MINIO_BUCKET_NAME", "removy-private"),
 			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
 		},
 		Google: GoogleConfig{

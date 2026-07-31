@@ -54,7 +54,7 @@
         <h3 class="popup__title">{{ displayTitle }}</h3>
       </RouterLink>
       <div class="popup__rating" :class="{ 'popup__rating--unrated': !ratingInfo.available }">
-        <RemovRatingIcon v-if="ratingInfo.available && ratingInfo.isRemov" :size="12" class="popup__star" />
+        <RemovyRatingIcon v-if="ratingInfo.available && ratingInfo.isRemovy" :size="12" class="popup__star" />
         <Star v-else-if="ratingInfo.available" :size="11" class="popup__star" />
         <span>{{ ratingInfo.display }}</span>
       </div>
@@ -138,7 +138,7 @@ import type { ResolvedTrailer } from "@/composables/useTrailerPreview";
 import { libraryApi } from "@/api/endpoints/library";
 import { useAuthStore } from "@/stores/auth";
 import { mediaApi } from "@/api/endpoints/media";
-import RemovRatingIcon from "./RemovRatingIcon.vue";
+import RemovyRatingIcon from "./RemovyRatingIcon.vue";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
@@ -218,17 +218,17 @@ const { t } = useI18n();
 const ratingInfo = computed(() => {
   const m = props.movie as any;
   if (m.ratings) {
-    if (m.ratings.remov && m.ratings.remov.available) {
+    if (m.ratings.removy && m.ratings.removy.available) {
       return {
         available: true,
-        isRemov: true,
-        display: `${m.ratings.remov.average.toFixed(1)}/5`
+        isRemovy: true,
+        display: `${m.ratings.removy.average.toFixed(1)}/5`
       };
     }
     if (m.ratings.tmdb && m.ratings.tmdb.available) {
       return {
         available: true,
-        isRemov: false,
+        isRemovy: false,
         display: `${m.ratings.tmdb.average.toFixed(1)}`
       };
     }
@@ -239,14 +239,14 @@ const ratingInfo = computed(() => {
   if (typeof legacyAvg === "number" && legacyAvg > 0) {
     return {
       available: true,
-      isRemov: false,
+      isRemovy: false,
       display: legacyAvg.toFixed(1)
     };
   }
 
   return {
     available: false,
-    isRemov: false,
+    isRemovy: false,
     display: t("reviews.errors.notRated")
   };
 });
@@ -319,7 +319,7 @@ async function handleLikeToggle() {
       );
     }
   } catch (err) {
-    window.$toast?.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", "REMOV HUB");
+    window.$toast?.error("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", "REMOVY HUB");
   }
 }
 
@@ -362,7 +362,7 @@ async function handleWatchlistToggle() {
     console.error("Watchlist Error:", err);
     window.$toast?.error(
       "บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
-      "REMOV HUB",
+      "REMOVY HUB",
     );
   }
 }

@@ -17,7 +17,7 @@ func New(cfg config.SMTPConfig) *Mailer {
 }
 
 func (m *Mailer) SendVerificationEmail(toEmail, username, verifyURL string) error {
-	subject := "ยืนยันอีเมลของคุณ — REMOV"
+	subject := "ยืนยันอีเมลของคุณ — REMOVY"
 	body := buildVerifyEmailBody(username, verifyURL)
 	return m.send(toEmail, subject, body)
 }
@@ -26,7 +26,7 @@ func (m *Mailer) send(to, subject, htmlBody string) error {
 	auth := smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
 
 	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOV <%s>", m.cfg.From),
+		fmt.Sprintf("From: REMOVY <%s>", m.cfg.From),
 		fmt.Sprintf("To: %s", to),
 		fmt.Sprintf("Subject: %s", subject),
 		"MIME-Version: 1.0",
@@ -55,7 +55,7 @@ func buildVerifyEmailBody(username, verifyURL string) string {
           <!-- Wordmark -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <span style="font-size:18px;font-weight:700;letter-spacing:4px;color:#ffffff;">REMOV</span>
+              <span style="font-size:18px;font-weight:700;letter-spacing:4px;color:#ffffff;">REMOVY</span>
               <div style="width:32px;height:2px;background:#e50914;margin:12px auto 0 auto;"></div>
             </td>
           </tr>
@@ -74,7 +74,7 @@ func buildVerifyEmailBody(username, verifyURL string) string {
                       สวัสดี %s
                     </p>
                     <p style="margin:0 0 32px 0;color:#8f8f8f;font-size:14px;line-height:1.8;max-width:300px;">
-                      ขอบคุณที่สมัครสมาชิก REMOV กดปุ่มด้านล่างเพื่อยืนยันอีเมล
+                      ขอบคุณที่สมัครสมาชิก REMOVY กดปุ่มด้านล่างเพื่อยืนยันอีเมล
                       และเริ่มต้นใช้งานบัญชีของคุณได้ทันที
                     </p>
                   </td>
@@ -118,14 +118,14 @@ func buildVerifyEmailBody(username, verifyURL string) string {
           <tr>
             <td style="padding:24px 8px 0 8px;">
               <p style="margin:0;color:#555555;font-size:11.5px;line-height:1.7;text-align:center;">
-                หากคุณไม่ได้สมัครสมาชิก REMOV กรุณาเพิกเฉยต่ออีเมลฉบับนี้
+                หากคุณไม่ได้สมัครสมาชิก REMOVY กรุณาเพิกเฉยต่ออีเมลฉบับนี้
               </p>
             </td>
           </tr>
           <tr>
             <td align="center" style="padding:28px 0 0 0;">
               <p style="margin:0;color:#3a3a3a;font-size:10.5px;letter-spacing:0.5px;">
-                REMOV — ระบบส่งอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
+                REMOVY — ระบบส่งอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
               </p>
             </td>
           </tr>

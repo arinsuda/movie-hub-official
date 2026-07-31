@@ -71,9 +71,9 @@
       <div class="footer-divider"></div>
       <div class="footer-content">
         <div class="footer-logo">
-          <span class="logo-re">RE</span><span class="logo-mov">MOV</span>
+          <span class="logo-re">RE</span><span class="logo-mov">MOVY</span>
         </div>
-        <span class="footer-url">remov.app</span>
+        <span class="footer-url">removy.app</span>
       </div>
     </div>
   </div>

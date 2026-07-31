@@ -194,7 +194,7 @@
     if (blob) {
       const filename = share.sanitizeFilename(
         props.media.title,
-        props.shareType === "poster" ? "REMOV_poster" : "REMOV_review",
+        props.shareType === "poster" ? "REMOVY_poster" : "REMOVY_review",
       )
       share.downloadBlob(blob, filename)
     }

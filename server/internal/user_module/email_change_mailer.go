@@ -32,11 +32,11 @@ func NewSMTPMailer() Mailer {
 func (m *smtpMailer) SendOTP(toEmail, otp string) error {
 	auth := smtp.PlainAuth("", m.username, m.password, m.host)
 
-	subject := "รหัสยืนยันการเปลี่ยนอีเมล — REMOV"
+	subject := "รหัสยืนยันการเปลี่ยนอีเมล — REMOVY"
 	htmlBody := buildOTPEmailBody(otp)
 
 	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOV <%s>", m.from),
+		fmt.Sprintf("From: REMOVY <%s>", m.from),
 		fmt.Sprintf("To: %s", toEmail),
 		fmt.Sprintf("Subject: %s", subject),
 		"MIME-Version: 1.0",
@@ -65,7 +65,7 @@ func buildOTPEmailBody(otp string) string {
           <!-- Wordmark -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <span style="font-size:18px;font-weight:700;letter-spacing:4px;color:#ffffff;">REMOV</span>
+              <span style="font-size:18px;font-weight:700;letter-spacing:4px;color:#ffffff;">REMOVY</span>
               <div style="width:32px;height:2px;background:#e50914;margin:12px auto 0 auto;"></div>
             </td>
           </tr>
@@ -130,7 +130,7 @@ func buildOTPEmailBody(otp string) string {
           <tr>
             <td align="center" style="padding:28px 0 0 0;">
               <p style="margin:0;color:#3a3a3a;font-size:10.5px;letter-spacing:0.5px;">
-                REMOV — ระบบส่งอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
+                REMOVY — ระบบส่งอัตโนมัติ กรุณาอย่าตอบกลับอีเมลนี้
               </p>
             </td>
           </tr>

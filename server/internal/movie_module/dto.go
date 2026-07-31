@@ -26,8 +26,8 @@ type RatingSourceResponse struct {
 }
 
 type MediaRatingsResponse struct {
-	REMOV RatingSourceResponse `json:"remov"`
-	TMDB  RatingSourceResponse `json:"tmdb"`
+	REMOVY RatingSourceResponse `json:"removy"`
+	TMDB   RatingSourceResponse `json:"tmdb"`
 }
 
 type MovieDTO struct {
@@ -45,12 +45,12 @@ type TVSeriesDTO struct {
 	Ratings MediaRatingsResponse `json:"ratings"`
 }
 
-func NewMediaRatingsResponse(removStats shared.RatingStats, tmdbAvg float32, tmdbVotes int) MediaRatingsResponse {
-	var removAvg *float64
-	if removStats.Average != nil {
-		removAvg = removStats.Average
+func NewMediaRatingsResponse(removyStats shared.RatingStats, tmdbAvg float32, tmdbVotes int) MediaRatingsResponse {
+	var removyAvg *float64
+	if removyStats.Average != nil {
+		removyAvg = removyStats.Average
 	}
-	removAvailable := removAvg != nil && removStats.Count > 0
+	removyAvailable := removyAvg != nil && removyStats.Count > 0
 
 	var tmdbAvgPtr *float64
 	if tmdbVotes > 0 {
@@ -60,10 +60,10 @@ func NewMediaRatingsResponse(removStats shared.RatingStats, tmdbAvg float32, tmd
 	tmdbAvailable := tmdbAvgPtr != nil && tmdbVotes > 0
 
 	return MediaRatingsResponse{
-		REMOV: RatingSourceResponse{
-			Average:   removAvg,
-			Count:     removStats.Count,
-			Available: removAvailable,
+		REMOVY: RatingSourceResponse{
+			Average:   removyAvg,
+			Count:     removyStats.Count,
+			Available: removyAvailable,
 			Scale:     5.0,
 		},
 		TMDB: RatingSourceResponse{

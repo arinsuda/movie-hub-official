@@ -10,7 +10,7 @@ export interface ShareMediaContext {
   releaseYear: string | null
   genres: Genre[]
   voteAverage: number
-  removRating: number | null
+  removyRating: number | null
 }
 
 export interface ShareReviewContext {
