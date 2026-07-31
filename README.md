@@ -19,7 +19,7 @@ A full-stack web application for browsing and reviewing movies, built with Vue 3
 ## Project Structure
 
 ```
-movie-hub-official/
+removy-official/
 ├── client/          # Vue 3 + TypeScript frontend
 ├── server/          # Go backend API
 └── docker-compose.yml
@@ -40,7 +40,7 @@ movie-hub-official/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/arinsuda/movie-hub-official.git
+git clone https://github.com/arinsuda/removy-official.git
 cd movie-hub-official
 ```
 
