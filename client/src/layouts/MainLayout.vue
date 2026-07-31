@@ -2,7 +2,7 @@
   <div class="app-shell">
     <header class="navbar" :class="{ 'navbar--scrolled': scrolled }">
       <RouterLink to="/" class="nav-logo" @click="closeMobileMenu">
-        <span class="logo-movie">RE</span><span class="logo-hub">MOV</span>
+        <span class="logo-movie">RE</span><span class="logo-hub">MOVY</span>
       </RouterLink>
 
       <!-- Desktop / Tablet nav links -->
