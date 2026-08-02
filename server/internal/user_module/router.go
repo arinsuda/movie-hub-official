@@ -16,9 +16,9 @@ func RegisterRoutes(
 	emailVerifier EmailVerificationSender,
 	passwordResetMailer PasswordResetMailer,
 	policy privacy_policy.UserAccessPolicy,
-	resendCfg config.ResendConfig,
+	brevoCfg config.BrevoConfig,
 ) *Service {
-	mailer := NewResendMailer(resendCfg)
+	mailer := NewBrevoMailer(brevoCfg)
 	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer, policy)
 	h := NewHandler(svc)
 

@@ -47,9 +47,9 @@ type UserIdentity struct {
 
 type User struct {
 	gorm.Model
-	Username        string  `gorm:"type:varchar(50);uniqueIndex;not null"`
+	Username        string  `gorm:"type:varchar(50);index:idx_users_active_username,unique,where:deleted_at IS NULL;not null"`
 	Password        *string `gorm:"type:varchar(255);default:null"`
-	Email           string  `gorm:"type:varchar(100);uniqueIndex;not null"`
+	Email           string  `gorm:"type:varchar(100);index:idx_users_active_email,unique,where:deleted_at IS NULL;not null"`
 	VerifiedEmailAt *time.Time
 	DisplayName     *string `gorm:"type:varchar(100)"`
 	Bio             *string `gorm:"type:text"`

@@ -1,37 +1,41 @@
 package user_module
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
-	"github.com/resend/resend-go/v3"
 )
 
 type Mailer interface {
 	SendOTP(toEmail, otp string) error
 }
 
-type resendMailer struct {
-	client    *resend.Client
-	fromEmail string
-	enabled   bool
+type brevoMailer struct {
+	apiKey      string
+	senderEmail string
+	senderName  string
+	enabled     bool
+	httpClient  *http.Client
 }
 
-func NewResendMailer(cfg config.ResendConfig) Mailer {
-	m := &resendMailer{
-		fromEmail: cfg.FromEmail,
-		enabled:   cfg.Enabled,
+func NewBrevoMailer(cfg config.BrevoConfig) Mailer {
+	return &brevoMailer{
+		apiKey:      cfg.APIKey,
+		senderEmail: cfg.SenderEmail,
+		senderName:  cfg.SenderName,
+		enabled:     cfg.Enabled,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
-	if cfg.Enabled {
-		m.client = resend.NewClient(cfg.APIKey)
-	}
-	return m
 }
 
-func (m *resendMailer) SendOTP(toEmail, otp string) error {
+func (m *brevoMailer) SendOTP(toEmail, otp string) error {
 	if !m.enabled {
 		log.Printf("WARN mailer disabled, skipping OTP email to %s", toEmail)
 		return nil
@@ -40,20 +44,47 @@ func (m *resendMailer) SendOTP(toEmail, otp string) error {
 	subject := "รหัสยืนยันการเปลี่ยนอีเมล — REMOVY"
 	htmlBody := buildOTPEmailBody(otp)
 
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  m.senderName,
+			"email": m.senderEmail,
+		},
+		"to": []map[string]string{
+			{"email": toEmail},
+		},
+		"subject":     subject,
+		"htmlContent": htmlBody,
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("mailer: marshal json payload failed: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	params := &resend.SendEmailRequest{
-		From:    fmt.Sprintf("REMOVY <%s>", m.fromEmail),
-		To:      []string{toEmail},
-		Subject: subject,
-		Html:    htmlBody,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return fmt.Errorf("mailer: create request failed: %w", err)
 	}
 
-	_, err := m.client.Emails.SendWithContext(ctx, params)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", m.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("mailer: resend send otp to %s: %w", toEmail, err)
+		return fmt.Errorf("mailer: brevo http request send otp to %s failed: %w", toEmail, err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("mailer: brevo api returned status %d for %s: %s", resp.StatusCode, toEmail, string(respBody))
+	}
+
+	log.Printf("✅ Mailer: OTP email sent successfully via Brevo to %s", toEmail)
 	return nil
 }
 

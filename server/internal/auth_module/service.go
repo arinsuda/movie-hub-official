@@ -717,6 +717,6 @@ func (s *Service) sendVerificationEmail(u *user_module.User) error {
 		return err
 	}
 
-	verifyURL := fmt.Sprintf("%s/api/auth/verify-email?token=%s", s.cfg.AppBaseURL, rawToken)
+	verifyURL := fmt.Sprintf("%s/auth/verify-email?token=%s", s.cfg.AppBaseURL, rawToken)
 	return s.mailer.SendVerificationEmail(u.Email, u.Username, verifyURL)
 }

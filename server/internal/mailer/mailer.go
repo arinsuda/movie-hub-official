@@ -1,30 +1,34 @@
 package mailer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
-	"github.com/resend/resend-go/v3"
 )
 
 type Mailer struct {
-	client    *resend.Client
-	fromEmail string
-	enabled   bool
+	apiKey      string
+	senderEmail string
+	senderName  string
+	enabled     bool
+	httpClient  *http.Client
 }
 
-func New(cfg config.ResendConfig) *Mailer {
-	m := &Mailer{
-		fromEmail: cfg.FromEmail,
-		enabled:   cfg.Enabled,
+func New(cfg config.BrevoConfig) *Mailer {
+	return &Mailer{
+		apiKey:      cfg.APIKey,
+		senderEmail: cfg.SenderEmail,
+		senderName:  cfg.SenderName,
+		enabled:     cfg.Enabled,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
-	if cfg.Enabled {
-		m.client = resend.NewClient(cfg.APIKey)
-	}
-	return m
 }
 
 func (m *Mailer) IsEnabled() bool {
@@ -34,29 +38,59 @@ func (m *Mailer) IsEnabled() bool {
 func (m *Mailer) SendVerificationEmail(toEmail, username, verifyURL string) error {
 	subject := "ยืนยันอีเมลของคุณ — REMOVY"
 	body := buildVerifyEmailBody(username, verifyURL)
-	return m.send(toEmail, subject, body)
+	return m.send(toEmail, username, subject, body)
 }
 
-func (m *Mailer) send(to, subject, htmlBody string) error {
+func (m *Mailer) send(toEmail, username, subject, htmlBody string) error {
 	if !m.enabled {
-		log.Printf("WARN mailer disabled, skipping email to %s (subject: %s)", to, subject)
+		log.Printf("WARN mailer disabled, skipping email to %s (subject: %s)", toEmail, subject)
 		return nil
+	}
+
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  m.senderName,
+			"email": m.senderEmail,
+		},
+		"to": []map[string]string{
+			{
+				"email": toEmail,
+				"name":  username,
+			},
+		},
+		"subject":     subject,
+		"htmlContent": htmlBody,
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("mailer: marshal json payload failed: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	params := &resend.SendEmailRequest{
-		From:    fmt.Sprintf("REMOVY <%s>", m.fromEmail),
-		To:      []string{to},
-		Subject: subject,
-		Html:    htmlBody,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return fmt.Errorf("mailer: create request failed: %w", err)
 	}
 
-	_, err := m.client.Emails.SendWithContext(ctx, params)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", m.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("mailer: resend send to %s: %w", to, err)
+		return fmt.Errorf("mailer: brevo http request to %s failed: %w", toEmail, err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("mailer: brevo api returned status %d for %s: %s", resp.StatusCode, toEmail, string(respBody))
+	}
+
+	log.Printf("✅ Mailer: email sent successfully via Brevo to %s", toEmail)
 	return nil
 }
 

@@ -262,6 +262,27 @@ func runSQLMigrations(db *gorm.DB, cfg *config.Config) error {
 		return err
 	}
 
+	usersPartialUniqueIndexSQL := `
+		DROP INDEX IF EXISTS idx_users_username;
+		DROP INDEX IF EXISTS idx_users_email;
+		DROP INDEX IF EXISTS uni_users_username;
+		DROP INDEX IF EXISTS uni_users_email;
+		DROP INDEX IF EXISTS idx_users_deleted_at;
+
+		ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;
+		ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;
+		ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_username;
+		ALTER TABLE users DROP CONSTRAINT IF EXISTS uni_users_email;
+
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_active_username ON users(username) WHERE deleted_at IS NULL;
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_users_active_email ON users(email) WHERE deleted_at IS NULL;
+		CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+	`
+
+	if err := runMigrationWithHistory(db, "users_partial_unique_index_v1", usersPartialUniqueIndexSQL); err != nil {
+		return err
+	}
+
 	err := runMigrationWithHistoryTx(db, "review_unique_constraint_v1", cfg.DB.MigrationLockTimeoutMs, cfg.DB.MigrationStatementTimeoutMs, func(tx *gorm.DB) error {
 		// 1. Strict validation of existing index
 		var indexDef string

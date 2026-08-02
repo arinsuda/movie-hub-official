@@ -48,7 +48,7 @@ func main() {
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
 
-	m := mailer.New(cfg.Resend)
+	m := mailer.New(cfg.Brevo)
 	notifHub := router.Register(app, database.DB, cfg, m)
 
 	socketAddr := ":8081"

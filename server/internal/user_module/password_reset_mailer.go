@@ -1,37 +1,41 @@
 package user_module
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/arinsuda/movie-hub/config"
-	"github.com/resend/resend-go/v3"
 )
 
 type PasswordResetMailer interface {
 	SendResetLink(toEmail, resetURL string) error
 }
 
-type resendPasswordResetMailer struct {
-	client    *resend.Client
-	fromEmail string
-	enabled   bool
+type brevoPasswordResetMailer struct {
+	apiKey      string
+	senderEmail string
+	senderName  string
+	enabled     bool
+	httpClient  *http.Client
 }
 
-func NewResendPasswordResetMailer(cfg config.ResendConfig) PasswordResetMailer {
-	m := &resendPasswordResetMailer{
-		fromEmail: cfg.FromEmail,
-		enabled:   cfg.Enabled,
+func NewBrevoPasswordResetMailer(cfg config.BrevoConfig) PasswordResetMailer {
+	return &brevoPasswordResetMailer{
+		apiKey:      cfg.APIKey,
+		senderEmail: cfg.SenderEmail,
+		senderName:  cfg.SenderName,
+		enabled:     cfg.Enabled,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
-	if cfg.Enabled {
-		m.client = resend.NewClient(cfg.APIKey)
-	}
-	return m
 }
 
-func (m *resendPasswordResetMailer) SendResetLink(toEmail, resetURL string) error {
+func (m *brevoPasswordResetMailer) SendResetLink(toEmail, resetURL string) error {
 	if !m.enabled {
 		log.Printf("WARN mailer disabled, skipping password reset email to %s", toEmail)
 		return nil
@@ -40,20 +44,47 @@ func (m *resendPasswordResetMailer) SendResetLink(toEmail, resetURL string) erro
 	subject := "รีเซ็ตรหัสผ่านบัญชีของคุณ — REMOVY"
 	htmlBody := buildResetPasswordEmailBody(resetURL)
 
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  m.senderName,
+			"email": m.senderEmail,
+		},
+		"to": []map[string]string{
+			{"email": toEmail},
+		},
+		"subject":     subject,
+		"htmlContent": htmlBody,
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("mailer: marshal json payload failed: %w", err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	params := &resend.SendEmailRequest{
-		From:    fmt.Sprintf("REMOVY <%s>", m.fromEmail),
-		To:      []string{toEmail},
-		Subject: subject,
-		Html:    htmlBody,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return fmt.Errorf("mailer: create request failed: %w", err)
 	}
 
-	_, err := m.client.Emails.SendWithContext(ctx, params)
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", m.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("mailer: resend send reset link to %s: %w", toEmail, err)
+		return fmt.Errorf("mailer: brevo http request send reset link to %s failed: %w", toEmail, err)
 	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("mailer: brevo api returned status %d for %s: %s", resp.StatusCode, toEmail, string(respBody))
+	}
+
+	log.Printf("✅ Mailer: password reset email sent successfully via Brevo to %s", toEmail)
 	return nil
 }
 

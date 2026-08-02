@@ -14,7 +14,7 @@ type Config struct {
 	DB         DBConfig
 	TMDB       TMDBConfig
 	JWT        JWTConfig
-	Resend     ResendConfig
+	Brevo      BrevoConfig
 	Cookie     CookieConfig
 	MinIO      MinIOConfig
 	Google     GoogleConfig
@@ -56,10 +56,11 @@ type JWTConfig struct {
 	RefreshTTL    time.Duration
 }
 
-type ResendConfig struct {
-	APIKey    string
-	FromEmail string
-	Enabled   bool
+type BrevoConfig struct {
+	APIKey      string
+	SenderEmail string
+	SenderName  string
+	Enabled     bool
 }
 
 type CookieConfig struct {
@@ -80,7 +81,7 @@ func Load() (*Config, error) {
 	migrationLockTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_LOCK_TIMEOUT_MS", "10000"))
 	migrationStatementTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_STATEMENT_TIMEOUT_MS", "15000"))
 
-	resendAPIKey := getEnv("RESEND_API_KEY", "")
+	brevoAPIKey := getEnv("BREVO_API_KEY", "")
 
 	cfg := &Config{
 		Port:       getEnv("PORT", "8080"),
@@ -108,10 +109,11 @@ func Load() (*Config, error) {
 			AccessTTL:     15 * time.Minute,
 			RefreshTTL:    7 * 24 * time.Hour,
 		},
-		Resend: ResendConfig{
-			APIKey:    resendAPIKey,
-			FromEmail: getEnv("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
-			Enabled:   resendAPIKey != "",
+		Brevo: BrevoConfig{
+			APIKey:      brevoAPIKey,
+			SenderEmail: getEnv("BREVO_SENDER_EMAIL", getEnv("ADMIN_EMAIL", "removy.official@gmail.com")),
+			SenderName:  getEnv("BREVO_SENDER_NAME", "REMOVY"),
+			Enabled:     brevoAPIKey != "",
 		},
 		Cookie: CookieConfig{
 			Domain:   getEnv("COOKIE_DOMAIN", ""),
