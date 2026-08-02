@@ -1,6 +1,7 @@
 package user_module
 
 import (
+	"github.com/arinsuda/movie-hub/config"
 	"github.com/arinsuda/movie-hub/internal/privacy_policy"
 	"github.com/arinsuda/movie-hub/internal/shared/storage"
 	"github.com/gofiber/fiber/v3"
@@ -15,8 +16,9 @@ func RegisterRoutes(
 	emailVerifier EmailVerificationSender,
 	passwordResetMailer PasswordResetMailer,
 	policy privacy_policy.UserAccessPolicy,
+	resendCfg config.ResendConfig,
 ) *Service {
-	mailer := NewSMTPMailer()
+	mailer := NewResendMailer(resendCfg)
 	svc := NewService(db, mc, statsSvc, mailer, emailVerifier, passwordResetMailer, policy)
 	h := NewHandler(svc)
 

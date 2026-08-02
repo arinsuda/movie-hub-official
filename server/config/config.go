@@ -14,7 +14,7 @@ type Config struct {
 	DB         DBConfig
 	TMDB       TMDBConfig
 	JWT        JWTConfig
-	SMTP       SMTPConfig
+	Resend     ResendConfig
 	Cookie     CookieConfig
 	MinIO      MinIOConfig
 	Google     GoogleConfig
@@ -56,12 +56,10 @@ type JWTConfig struct {
 	RefreshTTL    time.Duration
 }
 
-type SMTPConfig struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	From     string
+type ResendConfig struct {
+	APIKey    string
+	FromEmail string
+	Enabled   bool
 }
 
 type CookieConfig struct {
@@ -79,9 +77,10 @@ type MinIOConfig struct {
 }
 
 func Load() (*Config, error) {
-	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
 	migrationLockTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_LOCK_TIMEOUT_MS", "10000"))
 	migrationStatementTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_STATEMENT_TIMEOUT_MS", "15000"))
+
+	resendAPIKey := getEnv("RESEND_API_KEY", "")
 
 	cfg := &Config{
 		Port:       getEnv("PORT", "8080"),
@@ -109,12 +108,10 @@ func Load() (*Config, error) {
 			AccessTTL:     15 * time.Minute,
 			RefreshTTL:    7 * 24 * time.Hour,
 		},
-		SMTP: SMTPConfig{
-			Host:     getEnv("SMTP_HOST", "smtp.gmail.com"),
-			Port:     smtpPort,
-			Username: getEnv("SMTP_USERNAME", ""),
-			Password: getEnv("SMTP_PASSWORD", ""),
-			From:     getEnv("SMTP_FROM", "noreply@removy.app"),
+		Resend: ResendConfig{
+			APIKey:    resendAPIKey,
+			FromEmail: getEnv("RESEND_FROM_EMAIL", "onboarding@resend.dev"),
+			Enabled:   resendAPIKey != "",
 		},
 		Cookie: CookieConfig{
 			Domain:   getEnv("COOKIE_DOMAIN", ""),

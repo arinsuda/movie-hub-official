@@ -1,19 +1,34 @@
 package mailer
 
 import (
+	"context"
 	"fmt"
-	"net/smtp"
-	"strings"
+	"log"
+	"time"
 
 	"github.com/arinsuda/movie-hub/config"
+	"github.com/resend/resend-go/v3"
 )
 
 type Mailer struct {
-	cfg config.SMTPConfig
+	client    *resend.Client
+	fromEmail string
+	enabled   bool
 }
 
-func New(cfg config.SMTPConfig) *Mailer {
-	return &Mailer{cfg: cfg}
+func New(cfg config.ResendConfig) *Mailer {
+	m := &Mailer{
+		fromEmail: cfg.FromEmail,
+		enabled:   cfg.Enabled,
+	}
+	if cfg.Enabled {
+		m.client = resend.NewClient(cfg.APIKey)
+	}
+	return m
+}
+
+func (m *Mailer) IsEnabled() bool {
+	return m.enabled
 }
 
 func (m *Mailer) SendVerificationEmail(toEmail, username, verifyURL string) error {
@@ -23,21 +38,24 @@ func (m *Mailer) SendVerificationEmail(toEmail, username, verifyURL string) erro
 }
 
 func (m *Mailer) send(to, subject, htmlBody string) error {
-	auth := smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
+	if !m.enabled {
+		log.Printf("WARN mailer disabled, skipping email to %s (subject: %s)", to, subject)
+		return nil
+	}
 
-	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOVY <%s>", m.cfg.From),
-		fmt.Sprintf("To: %s", to),
-		fmt.Sprintf("Subject: %s", subject),
-		"MIME-Version: 1.0",
-		`Content-Type: text/html; charset="UTF-8"`,
-	}, "\r\n")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	msg := []byte(headers + "\r\n\r\n" + htmlBody)
-	addr := fmt.Sprintf("%s:%d", m.cfg.Host, m.cfg.Port)
+	params := &resend.SendEmailRequest{
+		From:    fmt.Sprintf("REMOVY <%s>", m.fromEmail),
+		To:      []string{to},
+		Subject: subject,
+		Html:    htmlBody,
+	}
 
-	if err := smtp.SendMail(addr, auth, m.cfg.From, []string{to}, msg); err != nil {
-		return fmt.Errorf("mailer: send to %s: %w", to, err)
+	_, err := m.client.Emails.SendWithContext(ctx, params)
+	if err != nil {
+		return fmt.Errorf("mailer: resend send to %s: %w", to, err)
 	}
 	return nil
 }

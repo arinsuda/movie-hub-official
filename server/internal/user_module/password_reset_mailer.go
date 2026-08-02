@@ -1,53 +1,58 @@
 package user_module
 
 import (
+	"context"
 	"fmt"
-	"net/smtp"
-	"os"
-	"strings"
+	"log"
+	"time"
+
+	"github.com/arinsuda/movie-hub/config"
+	"github.com/resend/resend-go/v3"
 )
 
 type PasswordResetMailer interface {
 	SendResetLink(toEmail, resetURL string) error
 }
 
-type smtpPasswordResetMailer struct {
-	host     string
-	port     string
-	username string
-	password string
-	from     string
+type resendPasswordResetMailer struct {
+	client    *resend.Client
+	fromEmail string
+	enabled   bool
 }
 
-func NewSMTPPasswordResetMailer() PasswordResetMailer {
-	return &smtpPasswordResetMailer{
-		host:     os.Getenv("SMTP_HOST"),
-		port:     os.Getenv("SMTP_PORT"),
-		username: os.Getenv("SMTP_USERNAME"),
-		password: os.Getenv("SMTP_PASSWORD"),
-		from:     os.Getenv("SMTP_FROM"),
+func NewResendPasswordResetMailer(cfg config.ResendConfig) PasswordResetMailer {
+	m := &resendPasswordResetMailer{
+		fromEmail: cfg.FromEmail,
+		enabled:   cfg.Enabled,
 	}
+	if cfg.Enabled {
+		m.client = resend.NewClient(cfg.APIKey)
+	}
+	return m
 }
 
-func (m *smtpPasswordResetMailer) SendResetLink(toEmail, resetURL string) error {
-	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+func (m *resendPasswordResetMailer) SendResetLink(toEmail, resetURL string) error {
+	if !m.enabled {
+		log.Printf("WARN mailer disabled, skipping password reset email to %s", toEmail)
+		return nil
+	}
 
 	subject := "รีเซ็ตรหัสผ่านบัญชีของคุณ — REMOVY"
 	htmlBody := buildResetPasswordEmailBody(resetURL)
 
-	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOVY <%s>", m.from),
-		fmt.Sprintf("To: %s", toEmail),
-		fmt.Sprintf("Subject: %s", subject),
-		"MIME-Version: 1.0",
-		`Content-Type: text/html; charset="UTF-8"`,
-	}, "\r\n")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	msg := []byte(headers + "\r\n\r\n" + htmlBody)
-	addr := fmt.Sprintf("%s:%s", m.host, m.port)
+	params := &resend.SendEmailRequest{
+		From:    fmt.Sprintf("REMOVY <%s>", m.fromEmail),
+		To:      []string{toEmail},
+		Subject: subject,
+		Html:    htmlBody,
+	}
 
-	if err := smtp.SendMail(addr, auth, m.from, []string{toEmail}, msg); err != nil {
-		return fmt.Errorf("mailer: send reset link to %s: %w", toEmail, err)
+	_, err := m.client.Emails.SendWithContext(ctx, params)
+	if err != nil {
+		return fmt.Errorf("mailer: resend send reset link to %s: %w", toEmail, err)
 	}
 	return nil
 }

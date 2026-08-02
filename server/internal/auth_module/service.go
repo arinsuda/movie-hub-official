@@ -112,6 +112,7 @@ func (s *Service) Register(req RegisterRequest) (*user_module.User, error) {
 
 	created, err := s.repo.FindByID(user.ID)
 	if err != nil {
+		log.Printf("ERROR register: FindByID(%d) with Preload(Role) failed: %v", user.ID, err)
 		return nil, fmt.Errorf("register: reload user: %w", err)
 	}
 
@@ -696,6 +697,11 @@ func (s *Service) ResetPassword(userID uint, token string, req user_module.Reset
 }
 
 func (s *Service) sendVerificationEmail(u *user_module.User) error {
+	if !s.mailer.IsEnabled() {
+		log.Printf("WARN mailer disabled, skipping verification email for user %d (%s)", u.ID, u.Email)
+		return nil
+	}
+
 	rawToken, err := GenerateSecureToken()
 	if err != nil {
 		return err

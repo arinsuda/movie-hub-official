@@ -3,6 +3,7 @@ package auth_module
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -419,6 +420,7 @@ func (h *Handler) handleServiceError(c fiber.Ctx, err error) error {
 	case errors.Is(err, ErrInvalidToken):
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid or expired token"})
 	default:
+		log.Printf("ERROR [%s %s] unclassified service error: %v", c.Method(), c.Path(), err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "internal server error"})
 	}
 }
