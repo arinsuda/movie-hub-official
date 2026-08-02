@@ -1,10 +1,21 @@
 import { io, type Socket } from "socket.io-client"
 import { ref } from "vue"
 
-const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  window.location.origin
+function getSocketUrl(): string {
+  const raw =
+    import.meta.env.VITE_SOCKET_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    window.location.origin
+
+  try {
+    const u = new URL(raw, window.location.origin)
+    return u.origin
+  } catch {
+    return raw.replace(/\/api\/?$/, "")
+  }
+}
+
+const SOCKET_URL = getSocketUrl()
 
 let socket: Socket | null = null
 const isConnected = ref(false)
@@ -29,7 +40,7 @@ export function useSocket() {
       withCredentials: true,
       auth: { token },
       query: { token },
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1500,
