@@ -22,6 +22,7 @@ type mockRepository struct {
 	listAuditFunc    func(filter AuditLogFilter) ([]AdminAuditLogRow, int64, error)
 	updateRoleFunc   func(adminID, targetUserID uint, newRole string, reason *string) error
 	updateStatusFunc func(adminID, targetUserID uint, isActive bool, reason *string) error
+	deleteUserFunc   func(adminID, targetUserID uint, reason *string) error
 	deleteReviewFunc func(adminID, reviewID uint, reason *string) error
 }
 
@@ -74,6 +75,13 @@ func (m *mockRepository) UpdateUserStatus(adminID, targetUserID uint, isActive b
 	return nil
 }
 
+func (m *mockRepository) DeleteUser(adminID, targetUserID uint, reason *string) error {
+	if m.deleteUserFunc != nil {
+		return m.deleteUserFunc(adminID, targetUserID, reason)
+	}
+	return nil
+}
+
 func (m *mockRepository) DeleteReview(adminID, reviewID uint, reason *string) error {
 	if m.deleteReviewFunc != nil {
 		return m.deleteReviewFunc(adminID, reviewID, reason)
@@ -100,6 +108,7 @@ func setupTestApp(repo Repository) *fiber.App {
 	app.Get("/api/admin/users", mockAuth(1, "admin"), h.ListUsers)
 	app.Patch("/api/admin/users/:userId/role", mockAuth(1, "admin"), h.UpdateUserRole)
 	app.Patch("/api/admin/users/:userId/status", mockAuth(1, "admin"), h.UpdateUserStatus)
+	app.Delete("/api/admin/users/:userId", mockAuth(1, "admin"), h.DeleteUser)
 	app.Get("/api/admin/reviews", mockAuth(1, "admin"), h.ListReviews)
 	app.Delete("/api/admin/reviews/:reviewId", mockAuth(1, "admin"), h.DeleteReview)
 	app.Get("/api/admin/audit-logs", mockAuth(1, "admin"), h.ListAuditLogs)
@@ -177,6 +186,42 @@ func TestUpdateUserStatusSafetyRules(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for self-deactivation, got %d", resp.StatusCode)
+	}
+}
+
+func TestDeleteUserSafetyRules(t *testing.T) {
+	mockRepo := &mockRepository{
+		deleteUserFunc: func(adminID, targetUserID uint, reason *string) error {
+			if adminID == targetUserID {
+				return ErrSelfDeletion
+			}
+			if targetUserID == 1 {
+				return ErrFinalAdminProtection
+			}
+			return nil
+		},
+	}
+
+	app := setupTestApp(mockRepo)
+
+	// Self-deletion check -> 400 Bad Request
+	reqSelf := httptest.NewRequest(http.MethodDelete, "/api/admin/users/1", nil)
+	respSelf, err := app.Test(reqSelf)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+	if respSelf.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for self-deletion, got %d", respSelf.StatusCode)
+	}
+
+	// Normal deletion of user 2 -> 240/204 No Content
+	reqUser := httptest.NewRequest(http.MethodDelete, "/api/admin/users/2", nil)
+	respUser, err := app.Test(reqUser)
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+	if respUser.StatusCode != http.StatusNoContent {
+		t.Errorf("Expected 204 No Content for successful user deletion, got %d", respUser.StatusCode)
 	}
 }
 

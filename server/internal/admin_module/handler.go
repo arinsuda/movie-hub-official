@@ -98,6 +98,27 @@ func (h *Handler) UpdateUserStatus(c fiber.Ctx) error {
 	})
 }
 
+func (h *Handler) DeleteUser(c fiber.Ctx) error {
+	claims := mw.GetClaims(c)
+	if claims == nil || claims.UserID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+	}
+
+	targetUserID, err := parseIDParam(c, "userId")
+	if err != nil {
+		return badRequest(c, "invalid user id")
+	}
+
+	var req DeleteUserRequest
+	_ = c.Bind().JSON(&req)
+
+	if err := h.svc.DeleteUser(claims.UserID, targetUserID, req); err != nil {
+		return handleError(c, err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func (h *Handler) ListReviews(c fiber.Ctx) error {
 	var filter ReviewFilter
 	if err := c.Bind().Query(&filter); err != nil {
@@ -161,6 +182,8 @@ func handleError(c fiber.Ctx, err error) error {
 		return badRequest(c, "invalid role: must be 'admin' or 'user'")
 	case errors.Is(err, ErrSelfDeactivation):
 		return badRequest(c, "cannot deactivate your own account")
+	case errors.Is(err, ErrSelfDeletion):
+		return badRequest(c, "cannot delete your own account")
 	case errors.Is(err, ErrUserAlreadyInStatus):
 		return badRequest(c, "user is already in requested status")
 	case errors.Is(err, ErrFinalAdminProtection):

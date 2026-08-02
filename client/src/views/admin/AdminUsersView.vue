@@ -119,12 +119,21 @@
                 <!-- Toggle Status Button -->
                 <button
                   class="action-btn"
-                  :class="u.is_active ? 'danger' : 'success'"
+                  :class="u.is_active ? 'warning' : 'success'"
                   :title="u.is_active ? 'Deactivate' : 'Reactivate'"
                   @click="handleStatusChange(u)"
                 >
                   <UserX v-if="u.is_active" :size="14" />
                   <UserCheck v-else :size="14" />
+                </button>
+
+                <!-- Delete User Account Button -->
+                <button
+                  class="action-btn danger"
+                  title="Delete Account"
+                  @click="handleUserDelete(u)"
+                >
+                  <Trash2 :size="14" />
                 </button>
               </div>
             </td>
@@ -183,7 +192,7 @@ import { ref, computed, onMounted } from "vue"
 import { useAdminStore } from "@/stores/admin"
 import { useToast } from "@/composables/useToast"
 import type { AdminUserRow } from "@/types"
-import { Search, ArrowUpDown, Shield, UserX, UserCheck } from "lucide-vue-next"
+import { Search, ArrowUpDown, Shield, UserX, UserCheck, Trash2 } from "lucide-vue-next"
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal.vue"
 
 const adminStore = useAdminStore()
@@ -200,7 +209,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 interface ConfirmModalState {
   show: boolean
-  type: "role" | "status"
+  type: "role" | "status" | "delete"
   user: AdminUserRow | null
   targetRole?: string
   newStatus?: boolean
@@ -219,6 +228,9 @@ const modalTitle = computed(() => {
   if (confirmModal.value.type === "role") {
     return "เปลี่ยนสิทธิ์ผู้ใช้งาน"
   }
+  if (confirmModal.value.type === "delete") {
+    return "ลบบัญชีผู้ใช้"
+  }
   return confirmModal.value.newStatus ? "เปิดคืนสิทธิ์ใช้งานบัญชี" : "ระงับการใช้งานบัญชี"
 })
 
@@ -227,23 +239,29 @@ const modalDescription = computed(() => {
   if (confirmModal.value.type === "role") {
     return `ต้องการเปลี่ยนสิทธิ์ของ @${confirmModal.value.user.username} จาก '${confirmModal.value.user.role}' เป็น '${confirmModal.value.targetRole}' หรือไม่?`
   }
+  if (confirmModal.value.type === "delete") {
+    return `คุณแน่ใจหรือไม่ที่จะลบบัญชี @${confirmModal.value.user.username}? ข้อมูลผู้ใช้และรีวิวที่เกี่ยวข้องจะถูก Soft Delete และบันทึกประวัติลง Audit Log`
+  }
   return confirmModal.value.newStatus
     ? `คุณแน่ใจหรือไม่ที่จะเปิดคืนสิทธิ์ใช้งานบัญชี @${confirmModal.value.user.username}?`
     : `คุณแน่ใจหรือไม่ที่จะระงับบัญชี @${confirmModal.value.user.username}? ผู้ใช้จะไม่สามารถเข้าสู่ระบบได้`
 })
 
-const modalVariant = computed<"danger" | "info" | "success">(() => {
+const modalVariant = computed<"danger" | "warning" | "info" | "success">(() => {
   if (confirmModal.value.type === "role") return "info"
-  return confirmModal.value.newStatus ? "success" : "danger"
+  if (confirmModal.value.type === "delete") return "danger"
+  return confirmModal.value.newStatus ? "success" : "warning"
 })
 
 const modalIcon = computed(() => {
   if (confirmModal.value.type === "role") return Shield
+  if (confirmModal.value.type === "delete") return Trash2
   return confirmModal.value.newStatus ? UserCheck : UserX
 })
 
 const modalConfirmText = computed(() => {
   if (confirmModal.value.type === "role") return "เปลี่ยนสิทธิ์"
+  if (confirmModal.value.type === "delete") return "ยืนยันลบบัญชี"
   return confirmModal.value.newStatus ? "เปิดใช้งานบัญชี" : "ระงับบัญชี"
 })
 
@@ -291,6 +309,15 @@ function handleStatusChange(user: AdminUserRow) {
   }
 }
 
+function handleUserDelete(user: AdminUserRow) {
+  confirmModal.value = {
+    show: true,
+    type: "delete",
+    user,
+    loading: false,
+  }
+}
+
 async function onConfirmAction(payload: { reason: string }) {
   if (!confirmModal.value.user) return
   confirmModal.value.loading = true
@@ -305,6 +332,9 @@ async function onConfirmAction(payload: { reason: string }) {
       await adminStore.updateUserStatus(user.id, confirmModal.value.newStatus, reason)
       const statusText = confirmModal.value.newStatus ? "เปิดคืนสิทธิ์ใช้งาน" : "ระงับการใช้งาน"
       toast.success(`${statusText} @${user.username} เรียบร้อยแล้ว`)
+    } else if (confirmModal.value.type === "delete") {
+      await adminStore.deleteUser(user.id, reason)
+      toast.success(`ลบบัญชี @${user.username} เรียบร้อยแล้ว`)
     }
     confirmModal.value.show = false
     fetchData(adminStore.usersPage)
@@ -511,6 +541,7 @@ onMounted(() => {
 }
 .action-btn:hover:not(:disabled) { color: var(--color-text-primary); border-color: var(--color-brand); transform: translateY(-1px) translateZ(0); }
 .action-btn.danger:hover:not(:disabled) { color: #ef4444; border-color: #ef4444; }
+.action-btn.warning:hover:not(:disabled) { color: #f59e0b; border-color: #f59e0b; }
 .action-btn.success:hover:not(:disabled) { color: #10b981; border-color: #10b981; }
 .action-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
 

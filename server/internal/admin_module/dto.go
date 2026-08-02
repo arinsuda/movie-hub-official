@@ -84,6 +84,10 @@ type UpdateStatusRequest struct {
 	Reason   *string `json:"reason"`
 }
 
+type DeleteUserRequest struct {
+	Reason *string `json:"reason"`
+}
+
 type DeleteReviewRequest struct {
 	Reason *string `json:"reason"`
 }

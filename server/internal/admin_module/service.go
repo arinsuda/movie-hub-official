@@ -72,6 +72,10 @@ func (s *Service) UpdateUserStatus(adminID, targetUserID uint, req UpdateStatusR
 	return s.repo.UpdateUserStatus(adminID, targetUserID, req.IsActive, req.Reason)
 }
 
+func (s *Service) DeleteUser(adminID, targetUserID uint, req DeleteUserRequest) error {
+	return s.repo.DeleteUser(adminID, targetUserID, req.Reason)
+}
+
 func (s *Service) DeleteReview(adminID, reviewID uint, req DeleteReviewRequest) error {
 	return s.repo.DeleteReview(adminID, reviewID, req.Reason)
 }

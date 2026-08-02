@@ -26,6 +26,9 @@ export const adminApi = {
   updateUserStatus: (userId: number, is_active: boolean, reason?: string) =>
     api.patch(`/admin/users/${userId}/status`, { is_active, reason }),
 
+  deleteUser: (userId: number, reason?: string) =>
+    api.delete(`/admin/users/${userId}`, { data: { reason } }),
+
   listReviews: (params: ReviewFilterQuery) =>
     api.get<AdminReviewPaginatedResponse>("/admin/reviews", { params }),
 
