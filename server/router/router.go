@@ -31,7 +31,6 @@ import (
 	"github.com/arinsuda/movie-hub/internal/watch_log_module"
 	"github.com/arinsuda/movie-hub/middleware"
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"gorm.io/gorm"
 )
 
@@ -64,8 +63,6 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	achieveModule := achievementsmodule.New(db, policy)
 	feedModule := feed_module.New(db, notifHub, mc)
 
-	app.All("/socket.io/*", adaptor.HTTPHandler(notifHub.Handler()))
-	app.All("/socket.io", adaptor.HTTPHandler(notifHub.Handler()))
 
 	app.Get("/", welcomeHandler)
 	app.Get("/health", healthHandler)
