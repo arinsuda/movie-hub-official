@@ -1,44 +1,96 @@
 package mailer
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
-	"net/smtp"
-	"strings"
+	"io"
+	"log"
+	"net/http"
+	"time"
 
 	"github.com/arinsuda/movie-hub/config"
 )
 
 type Mailer struct {
-	cfg config.SMTPConfig
+	apiKey      string
+	senderEmail string
+	senderName  string
+	enabled     bool
+	httpClient  *http.Client
 }
 
-func New(cfg config.SMTPConfig) *Mailer {
-	return &Mailer{cfg: cfg}
+func New(cfg config.BrevoConfig) *Mailer {
+	return &Mailer{
+		apiKey:      cfg.APIKey,
+		senderEmail: cfg.SenderEmail,
+		senderName:  cfg.SenderName,
+		enabled:     cfg.Enabled,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+func (m *Mailer) IsEnabled() bool {
+	return m.enabled
 }
 
 func (m *Mailer) SendVerificationEmail(toEmail, username, verifyURL string) error {
 	subject := "ยืนยันอีเมลของคุณ — REMOVY"
 	body := buildVerifyEmailBody(username, verifyURL)
-	return m.send(toEmail, subject, body)
+	return m.send(toEmail, username, subject, body)
 }
 
-func (m *Mailer) send(to, subject, htmlBody string) error {
-	auth := smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
-
-	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOVY <%s>", m.cfg.From),
-		fmt.Sprintf("To: %s", to),
-		fmt.Sprintf("Subject: %s", subject),
-		"MIME-Version: 1.0",
-		`Content-Type: text/html; charset="UTF-8"`,
-	}, "\r\n")
-
-	msg := []byte(headers + "\r\n\r\n" + htmlBody)
-	addr := fmt.Sprintf("%s:%d", m.cfg.Host, m.cfg.Port)
-
-	if err := smtp.SendMail(addr, auth, m.cfg.From, []string{to}, msg); err != nil {
-		return fmt.Errorf("mailer: send to %s: %w", to, err)
+func (m *Mailer) send(toEmail, username, subject, htmlBody string) error {
+	if !m.enabled {
+		log.Printf("WARN mailer disabled, skipping email to %s (subject: %s)", toEmail, subject)
+		return nil
 	}
+
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  m.senderName,
+			"email": m.senderEmail,
+		},
+		"to": []map[string]string{
+			{
+				"email": toEmail,
+				"name":  username,
+			},
+		},
+		"subject":     subject,
+		"htmlContent": htmlBody,
+	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("mailer: marshal json payload failed: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return fmt.Errorf("mailer: create request failed: %w", err)
+	}
+
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", m.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("mailer: brevo http request to %s failed: %w", toEmail, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("mailer: brevo api returned status %d for %s: %s", resp.StatusCode, toEmail, string(respBody))
+	}
+
+	log.Printf("✅ Mailer: email sent successfully via Brevo to %s", toEmail)
 	return nil
 }
 

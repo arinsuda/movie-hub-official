@@ -14,7 +14,7 @@ type Config struct {
 	DB         DBConfig
 	TMDB       TMDBConfig
 	JWT        JWTConfig
-	SMTP       SMTPConfig
+	Brevo      BrevoConfig
 	Cookie     CookieConfig
 	MinIO      MinIOConfig
 	Google     GoogleConfig
@@ -56,12 +56,11 @@ type JWTConfig struct {
 	RefreshTTL    time.Duration
 }
 
-type SMTPConfig struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	From     string
+type BrevoConfig struct {
+	APIKey      string
+	SenderEmail string
+	SenderName  string
+	Enabled     bool
 }
 
 type CookieConfig struct {
@@ -79,9 +78,10 @@ type MinIOConfig struct {
 }
 
 func Load() (*Config, error) {
-	smtpPort, _ := strconv.Atoi(getEnv("SMTP_PORT", "587"))
 	migrationLockTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_LOCK_TIMEOUT_MS", "10000"))
 	migrationStatementTimeoutMs, _ := strconv.Atoi(getEnv("MIGRATION_STATEMENT_TIMEOUT_MS", "15000"))
+
+	brevoAPIKey := getEnv("BREVO_API_KEY", "")
 
 	cfg := &Config{
 		Port:       getEnv("PORT", "8080"),
@@ -109,12 +109,11 @@ func Load() (*Config, error) {
 			AccessTTL:     15 * time.Minute,
 			RefreshTTL:    7 * 24 * time.Hour,
 		},
-		SMTP: SMTPConfig{
-			Host:     getEnv("SMTP_HOST", "smtp.gmail.com"),
-			Port:     smtpPort,
-			Username: getEnv("SMTP_USERNAME", ""),
-			Password: getEnv("SMTP_PASSWORD", ""),
-			From:     getEnv("SMTP_FROM", "noreply@removy.app"),
+		Brevo: BrevoConfig{
+			APIKey:      brevoAPIKey,
+			SenderEmail: getEnv("BREVO_SENDER_EMAIL", getEnv("ADMIN_EMAIL", "removy.official@gmail.com")),
+			SenderName:  getEnv("BREVO_SENDER_NAME", "REMOVY"),
+			Enabled:     brevoAPIKey != "",
 		},
 		Cookie: CookieConfig{
 			Domain:   getEnv("COOKIE_DOMAIN", ""),

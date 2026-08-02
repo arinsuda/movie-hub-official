@@ -2,6 +2,7 @@ package auth_module
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/arinsuda/movie-hub/internal/user_module"
@@ -17,7 +18,17 @@ func newRepository(db *gorm.DB) *repository {
 }
 
 func (r *repository) CreateUser(user *user_module.User) error {
-	return r.db.Create(user).Error
+	err := r.db.Create(user).Error
+	if err != nil {
+		errStr := strings.ToLower(err.Error())
+		if errors.Is(err, gorm.ErrDuplicatedKey) || strings.Contains(errStr, "duplicate key") || strings.Contains(errStr, "23505") {
+			if strings.Contains(errStr, "username") {
+				return ErrUsernameTaken
+			}
+			return ErrEmailTaken
+		}
+	}
+	return err
 }
 
 func (r *repository) FindByUsername(username string) (*user_module.User, error) {

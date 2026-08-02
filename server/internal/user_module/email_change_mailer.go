@@ -1,54 +1,90 @@
 package user_module
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
-	"net/smtp"
-	"os"
-	"strings"
+	"io"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/arinsuda/movie-hub/config"
 )
 
 type Mailer interface {
 	SendOTP(toEmail, otp string) error
 }
 
-type smtpMailer struct {
-	host     string
-	port     string
-	username string
-	password string
-	from     string
+type brevoMailer struct {
+	apiKey      string
+	senderEmail string
+	senderName  string
+	enabled     bool
+	httpClient  *http.Client
 }
 
-func NewSMTPMailer() Mailer {
-	return &smtpMailer{
-		host:     os.Getenv("SMTP_HOST"),
-		port:     os.Getenv("SMTP_PORT"),
-		username: os.Getenv("SMTP_USERNAME"),
-		password: os.Getenv("SMTP_PASSWORD"),
-		from:     os.Getenv("SMTP_FROM"),
+func NewBrevoMailer(cfg config.BrevoConfig) Mailer {
+	return &brevoMailer{
+		apiKey:      cfg.APIKey,
+		senderEmail: cfg.SenderEmail,
+		senderName:  cfg.SenderName,
+		enabled:     cfg.Enabled,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
-func (m *smtpMailer) SendOTP(toEmail, otp string) error {
-	auth := smtp.PlainAuth("", m.username, m.password, m.host)
+func (m *brevoMailer) SendOTP(toEmail, otp string) error {
+	if !m.enabled {
+		log.Printf("WARN mailer disabled, skipping OTP email to %s", toEmail)
+		return nil
+	}
 
 	subject := "รหัสยืนยันการเปลี่ยนอีเมล — REMOVY"
 	htmlBody := buildOTPEmailBody(otp)
 
-	headers := strings.Join([]string{
-		fmt.Sprintf("From: REMOVY <%s>", m.from),
-		fmt.Sprintf("To: %s", toEmail),
-		fmt.Sprintf("Subject: %s", subject),
-		"MIME-Version: 1.0",
-		`Content-Type: text/html; charset="UTF-8"`,
-	}, "\r\n")
-
-	msg := []byte(headers + "\r\n\r\n" + htmlBody)
-	addr := fmt.Sprintf("%s:%s", m.host, m.port)
-
-	if err := smtp.SendMail(addr, auth, m.from, []string{toEmail}, msg); err != nil {
-		return fmt.Errorf("mailer: send otp to %s: %w", toEmail, err)
+	payload := map[string]interface{}{
+		"sender": map[string]string{
+			"name":  m.senderName,
+			"email": m.senderEmail,
+		},
+		"to": []map[string]string{
+			{"email": toEmail},
+		},
+		"subject":     subject,
+		"htmlContent": htmlBody,
 	}
+
+	jsonBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("mailer: marshal json payload failed: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.brevo.com/v3/smtp/email", bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return fmt.Errorf("mailer: create request failed: %w", err)
+	}
+
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("api-key", m.apiKey)
+	req.Header.Set("content-type", "application/json")
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("mailer: brevo http request send otp to %s failed: %w", toEmail, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("mailer: brevo api returned status %d for %s: %s", resp.StatusCode, toEmail, string(respBody))
+	}
+
+	log.Printf("✅ Mailer: OTP email sent successfully via Brevo to %s", toEmail)
 	return nil
 }
 

@@ -31,11 +31,7 @@ func main() {
 		log.Fatalf("❌ Config error: %v", err)
 	}
 
-	log.Println("HOST =", cfg.DB.Host)
-	log.Println("USER =", cfg.DB.User)
-	log.Println("PASS =", cfg.DB.Password)
-	log.Println("DB =", cfg.DB.Name)
-	log.Println("DSN =", cfg.DB.DSN())
+
 
 	tmdb.Init(cfg)
 	database.Connect(cfg)
@@ -52,7 +48,7 @@ func main() {
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 	}))
 
-	m := mailer.New(cfg.SMTP)
+	m := mailer.New(cfg.Brevo)
 	notifHub := router.Register(app, database.DB, cfg, m)
 
 	socketAddr := ":8081"

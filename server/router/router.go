@@ -50,7 +50,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	log.Println("✅ MinIO connected")
 
 	statsSvc := user_stats_module.NewService(db)
-	passwordResetMailer := user_module.NewSMTPPasswordResetMailer()
+	passwordResetMailer := user_module.NewBrevoPasswordResetMailer(cfg.Brevo)
 
 	userNotifAdapter := user_module.NewNotificationUserAdapter(db)
 
@@ -78,7 +78,7 @@ func Register(app *fiber.App, db *gorm.DB, cfg *config.Config, m *mailer.Mailer)
 	mw := middleware.NewAuthMiddleware(cfg)
 	protected := api.Group("/", mw.RequireAuth)
 
-	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer, policy)
+	userSvc := user_module.RegisterRoutes(protected, db, mc, statsSvc, authSvc, passwordResetMailer, policy, cfg.Brevo)
 	authSvc.SetUserService(userSvc)
 
 	achieveModule.RegisterRoutes(api, mw.RequireAuth)
