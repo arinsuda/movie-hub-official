@@ -103,6 +103,10 @@ export const useAdminStore = defineStore("admin", () => {
     await adminApi.updateUserStatus(userId, isActive, reason)
   }
 
+  async function deleteUser(userId: number, reason?: string) {
+    await adminApi.deleteUser(userId, reason)
+  }
+
   async function fetchReviews(params: ReviewFilterQuery = {}) {
     isLoadingReviews.value = true
     try {
@@ -167,6 +171,7 @@ export const useAdminStore = defineStore("admin", () => {
     fetchUsers,
     updateUserRole,
     updateUserStatus,
+    deleteUser,
     fetchReviews,
     deleteReview,
     fetchAuditLogs,

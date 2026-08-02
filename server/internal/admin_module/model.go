@@ -13,6 +13,7 @@ const (
 	ActionUserDeactivated AuditAction = "USER_DEACTIVATED"
 	ActionUserReactivated AuditAction = "USER_REACTIVATED"
 	ActionUserRoleChanged AuditAction = "USER_ROLE_CHANGED"
+	ActionUserDeleted     AuditAction = "USER_DELETED"
 	ActionReviewDeleted   AuditAction = "REVIEW_DELETED"
 )
 

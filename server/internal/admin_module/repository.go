@@ -17,6 +17,7 @@ var (
 	ErrReviewNotFound         = errors.New("review not found")
 	ErrRoleNotFound           = errors.New("invalid role")
 	ErrSelfDeactivation       = errors.New("cannot deactivate your own account")
+	ErrSelfDeletion           = errors.New("cannot delete your own account")
 	ErrFinalAdminProtection   = errors.New("cannot demote or deactivate final active admin")
 	ErrInactiveUserRoleChange = errors.New("cannot change role of inactive user")
 	ErrUserAlreadyInStatus    = errors.New("user is already in requested status")
@@ -30,6 +31,7 @@ type Repository interface {
 	ListAuditLogs(filter AuditLogFilter) ([]AdminAuditLogRow, int64, error)
 	UpdateUserRole(adminID, targetUserID uint, newRoleName string, reason *string) error
 	UpdateUserStatus(adminID, targetUserID uint, isActive bool, reason *string) error
+	DeleteUser(adminID, targetUserID uint, reason *string) error
 	DeleteReview(adminID, reviewID uint, reason *string) error
 }
 
@@ -578,6 +580,77 @@ func (r *gormRepository) UpdateUserStatus(adminID, targetUserID uint, isActive b
 			Reason:     reason,
 			MetaData:   datatypes.JSON(metaJS),
 			CreatedAt:  time.Now().UTC(),
+		}
+		return tx.Create(&auditLog).Error
+	})
+}
+
+func (r *gormRepository) DeleteUser(adminID, targetUserID uint, reason *string) error {
+	if adminID == targetUserID {
+		return ErrSelfDeletion
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		type userRoleState struct {
+			ID       uint
+			IsActive bool
+			RoleName string
+			Username string
+			Email    string
+		}
+		var target userRoleState
+		err := tx.Table("users").
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("users.id, users.is_active, roles.role_name, users.username, users.email").
+			Joins("JOIN roles ON roles.id = users.role_id").
+			Where("users.id = ? AND users.deleted_at IS NULL", targetUserID).
+			Scan(&target).Error
+		if err != nil || target.ID == 0 {
+			return ErrUserNotFound
+		}
+
+		if target.RoleName == "admin" {
+			var activeAdminCount int64
+			if err := tx.Table("users").
+				Joins("JOIN roles ON roles.id = users.role_id").
+				Where("roles.role_name = 'admin' AND users.is_active = true AND users.deleted_at IS NULL").
+				Count(&activeAdminCount).Error; err != nil {
+				return err
+			}
+			if activeAdminCount <= 1 {
+				return ErrFinalAdminProtection
+			}
+		}
+
+		now := time.Now().UTC()
+
+		if err := tx.Table("users").Where("id = ?", targetUserID).Updates(map[string]any{
+			"deleted_at": now,
+			"is_active":  false,
+		}).Error; err != nil {
+			return err
+		}
+
+		_ = tx.Table("reviews").Where("user_id = ? AND deleted_at IS NULL", targetUserID).Update("deleted_at", now).Error
+		_ = tx.Table("activity_events").Where("actor_id = ? AND deleted_at IS NULL", targetUserID).Update("deleted_at", now).Error
+		_ = tx.Table("media_watch_logs").Where("user_id = ? AND deleted_at IS NULL", targetUserID).Update("deleted_at", now).Error
+		_ = tx.Table("library_items").Where("user_id = ? AND deleted_at IS NULL", targetUserID).Update("deleted_at", now).Error
+
+		metaMap := map[string]any{
+			"target_username": target.Username,
+			"target_email":    target.Email,
+			"target_role":     target.RoleName,
+		}
+		metaJS, _ := json.Marshal(metaMap)
+
+		auditLog := AdminAuditLog{
+			AdminID:    adminID,
+			Action:     ActionUserDeleted,
+			TargetType: "user",
+			TargetID:   targetUserID,
+			Reason:     reason,
+			MetaData:   datatypes.JSON(metaJS),
+			CreatedAt:  now,
 		}
 		return tx.Create(&auditLog).Error
 	})
