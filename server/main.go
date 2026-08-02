@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	tmdb "github.com/arinsuda/movie-hub/internal/tmdb_module"
 	"github.com/arinsuda/movie-hub/router"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/joho/godotenv"
 )
@@ -30,8 +32,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌ Config error: %v", err)
 	}
-
-
 
 	tmdb.Init(cfg)
 	database.Connect(cfg)
@@ -51,20 +51,20 @@ func main() {
 	m := mailer.New(cfg.Brevo)
 	notifHub := router.Register(app, database.DB, cfg, m)
 
-	socketAddr := ":8081"
-	socketSrv := &http.Server{
-		Addr: socketAddr,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			notifHub.Handler().ServeHTTP(w, r)
-		}),
-	}
+	fiberHandler := adaptor.FiberApp(app)
 
-	go func() {
-		log.Printf("📡 Notification socket.io running on %s", socketAddr)
-		if err := socketSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("❌ Socket.io server error: %v", err)
+	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/socket.io") {
+			notifHub.Handler().ServeHTTP(w, r)
+			return
 		}
-	}()
+		fiberHandler.ServeHTTP(w, r)
+	})
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: mainHandler,
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -75,17 +75,13 @@ func main() {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := socketSrv.Shutdown(ctx); err != nil {
-			log.Printf("❌ Socket.io shutdown error: %v", err)
-		}
-
-		if err := app.Shutdown(); err != nil {
-			log.Printf("❌ Shutdown error: %v", err)
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("❌ Server shutdown error: %v", err)
 		}
 	}()
 
-	log.Printf("🚀 Server running on port %s", cfg.Port)
-	if err := app.Listen(":" + cfg.Port); err != nil {
+	log.Printf("🚀 Server running on port %s (HTTP API & Socket.io WebSockets)", cfg.Port)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("❌ Server error: %v", err)
 	}
 
