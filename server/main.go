@@ -54,7 +54,7 @@ func main() {
 	fiberHandler := adaptor.FiberApp(app)
 
 	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/socket.io") {
+		if strings.Contains(r.URL.Path, "/socket.io") {
 			notifHub.Handler().ServeHTTP(w, r)
 			return
 		}
