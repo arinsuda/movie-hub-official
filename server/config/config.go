@@ -85,7 +85,7 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Port:       getEnv("PORT", "8080"),
-		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:8080"),
+		AppBaseURL: getEnv("APP_BASE_URL", "http://localhost:3000"),
 		CORS: CORSConfig{
 			AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
 		},
