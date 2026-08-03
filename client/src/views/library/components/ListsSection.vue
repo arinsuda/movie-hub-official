@@ -467,6 +467,8 @@ watch(
 <style scoped>
 /* Filters styling */
 .filter-bar {
+  position: relative;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -804,6 +806,7 @@ watch(
   text-align: center;
   margin: 1rem 0;
   position: relative;
+  z-index: 1;
   overflow: hidden;
 }
 

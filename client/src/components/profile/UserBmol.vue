@@ -1810,6 +1810,8 @@ onMounted(async () => {
    Manual Add Form Styling
    ============================== */
 .bmol-add-card {
+  position: relative;
+  z-index: 30;
   background: rgba(20, 20, 22, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 16px;
@@ -1835,6 +1837,7 @@ onMounted(async () => {
 
 .bmol-add-search-wrapper {
   position: relative;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1887,7 +1890,7 @@ onMounted(async () => {
   background: #18181b;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  z-index: 20;
+  z-index: 50;
   max-height: 280px;
   overflow-y: auto;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
@@ -2140,6 +2143,7 @@ onMounted(async () => {
   text-align: center;
   margin: 1rem 0;
   position: relative;
+  z-index: 1;
   overflow: hidden;
 }
 
