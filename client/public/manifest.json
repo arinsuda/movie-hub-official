@@ -1,0 +1,21 @@
+{
+  "name": "REMOVY - Movie & TV Reviews",
+  "short_name": "REMOVY",
+  "description": "ศูนย์รวมรีวิวภาพยนตร์และซีรีส์ยอดนิยม",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/removy-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/removy-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
